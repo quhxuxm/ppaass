@@ -6,6 +6,7 @@ use anyhow::Result;
 use clap::Parser;
 use common::LogTimer;
 use config::{AgentArguments, AgentConfig, AgentLogConfig};
+use tauri::generate_context;
 use tracing::{metadata::LevelFilter, Level};
 use tracing_subscriber::{fmt::Layer, prelude::__tracing_subscriber_SubscriberExt, Registry};
 
@@ -110,7 +111,7 @@ fn init() -> AgentConfig {
 
 fn main() -> Result<()> {
     tauri::Builder::default()
-        .run(tauri::generate_context!())
+        .run(generate_context!())
         .expect("error while running tauri application");
     let configuration = init();
     let agent_server = AgentServer::new(Arc::new(configuration))?;
