@@ -38,7 +38,7 @@ serde = {version = "1.0", features = ["derive"] }
 serde_derive = "1"
 serde_json = "1.0"
 socket2 = "0.4"
-tauri = {version = "1.0.3", features = ["api-all"] }
+tauri = {version = "1.0.3", features = ["api-all", "system-tray"] }
 tokio = {version = "1", features = ["macros", "time", "net", "io-util", "rt-multi-thread"] }
 tokio-util = {version = "0.7", features = ["codec"] }
 toml = "0.5"
@@ -46,7 +46,6 @@ tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = "0.3"
 url = "2"
-
 [features]
 # by default Tauri runs in production mode
 # when `tauri dev` runs it is executed with `cargo run --no-default-features` if `devPath` is an URL

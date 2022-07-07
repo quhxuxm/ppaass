@@ -6,7 +6,8 @@ use anyhow::Result;
 use clap::Parser;
 use common::LogTimer;
 use config::{AgentArguments, AgentConfig, AgentLogConfig};
-use tauri::generate_context;
+
+use tauri::{Manager, PhysicalSize, SystemTray};
 use tracing::{metadata::LevelFilter, Level};
 use tracing_subscriber::{fmt::Layer, prelude::__tracing_subscriber_SubscriberExt, Registry};
 
@@ -110,10 +111,55 @@ fn init() -> AgentConfig {
 }
 
 fn main() -> Result<()> {
-    tauri::Builder::default()
-        .run(generate_context!())
-        .expect("error while running tauri application");
     let configuration = init();
+    let system_tray = SystemTray::new();
+    tauri::Builder::default()
+        .system_tray(system_tray)
+        .on_window_event(|event| match event.event() {
+            tauri::WindowEvent::CloseRequested { .. } => {
+                std::process::exit(0);
+            },
+            tauri::WindowEvent::Resized(PhysicalSize { width, height }) => {
+                if *width == 0 && *height == 0 {
+                    event.window().hide();
+                }
+            },
+            event => {
+                println!("Window event happen: {:?}", event);
+            },
+        })
+        .on_system_tray_event(|app, event| match event {
+            tauri::SystemTrayEvent::LeftClick { .. } => {
+                let main_window = app.get_window("main").unwrap();
+                if let Ok(true) = main_window.is_visible() {
+                    main_window.hide();
+                } else {
+                    main_window.show();
+                    main_window.set_focus();
+                };
+            },
+            tauri::SystemTrayEvent::RightClick { .. } => {
+                let main_window = app.get_window("main").unwrap();
+                if let Ok(true) = main_window.is_visible() {
+                    main_window.hide();
+                } else {
+                    main_window.show();
+                    main_window.set_focus();
+                };
+            },
+            tauri::SystemTrayEvent::DoubleClick { .. } => {
+                let main_window = app.get_window("main").unwrap();
+                if let Ok(true) = main_window.is_visible() {
+                    main_window.hide();
+                } else {
+                    main_window.show();
+                };
+            },
+            _ => todo!(),
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+    println!("Begin to start agent server");
     let agent_server = AgentServer::new(Arc::new(configuration))?;
     agent_server.run()?;
     Ok(())
