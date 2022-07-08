@@ -110,24 +110,27 @@ fn init() -> AgentConfig {
     configuration
 }
 
+#[tauri::command]
+fn start_agent() {
+    println!("Begin to start agent server");
+    tokio::spawn(async {
+        let configuration = init();
+        let agent_server = match AgentServer::new(Arc::new(configuration)) {
+            Err(e) => {
+                eprintln!("Fail to start agent server because of error:{e:#?}");
+                return;
+            },
+            Ok(v) => v,
+        };
+        if let Err(e) = agent_server.run() {
+            eprintln!("Fail to run agent server because of error:{e:#?}");
+        };
+    });
+}
 fn main() -> Result<()> {
     let system_tray = SystemTray::new();
     tauri::Builder::default()
-        .setup(move |app| {
-            println!("Begin to start agent server");
-            let configuration = init();
-            let agent_server = match AgentServer::new(Arc::new(configuration)) {
-                Err(e) => {
-                    eprintln!("Fail to start agent server because of error:{e:#?}");
-                    return Ok(());
-                },
-                Ok(v) => v,
-            };
-            if let Err(e) = agent_server.run() {
-                eprintln!("Fail to run agent server because of error:{e:#?}");
-            };
-            Ok(())
-        })
+        .invoke_handler(tauri::generate_handler![start_agent])
         .system_tray(system_tray)
         .on_window_event(|event| match event.event() {
             tauri::WindowEvent::CloseRequested { .. } => {

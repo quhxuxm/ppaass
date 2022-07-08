@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import {invoke} from '@tauri-apps/api/tauri'
 
 @Component({
   selector: 'app-root',
@@ -15,6 +16,9 @@ export class AppComponent implements OnInit {
     this.enableCompressing=false;
   }
   ngOnInit(): void {
-    throw new Error('Method not implemented.');
+  }
+
+   startAgent() :void{
+    invoke("start_agent");
   }
 }

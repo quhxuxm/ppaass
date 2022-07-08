@@ -16,9 +16,6 @@ overflow-checks = false
 panic = 'unwind'
 rpath = false
 split-debuginfo = '...' # Platform-specific.
-[[bin]]
-name = "ppaass-agent"
-path = "src/main.rs"
 
 [build-dependencies]
 tauri-build = {version = "1.0.3", features = [] }
