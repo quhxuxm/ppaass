@@ -16,7 +16,7 @@ const DEFAULT_SERVER_PORT: u16 = 10080;
 
 #[derive(Debug)]
 pub(crate) struct AgentServer {
-    runtime: Runtime,
+    runtime: Option<Runtime>,
     configuration: Arc<AgentConfig>,
 }
 
@@ -30,7 +30,7 @@ impl AgentServer {
             .worker_threads(configuration.thread_number().unwrap_or(1024));
 
         Ok(Self {
-            runtime: runtime_builder.build()?,
+            runtime: Some(runtime_builder.build()?),
             configuration,
         })
     }
@@ -102,9 +102,17 @@ impl AgentServer {
         }
     }
 
-    #[instrument(skip_all)]
     pub(crate) fn run(&self) -> Result<()> {
-        self.runtime.block_on(self.concrete_run())?;
+        if let Some(r) = &self.runtime {
+            r.block_on(self.concrete_run())?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn stop(mut self) -> Result<()> {
+        if let Some(r) = self.runtime {
+            r.shutdown_timeout(Duration::from_secs(5));
+        }
         Ok(())
     }
 }

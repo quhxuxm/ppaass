@@ -16,8 +16,8 @@
   </section>
 
   <section>
-    <button (click)="startAgent()">Start</button>
-    <button>Stop</button>
+    <button (click)="startAgentServer()" [disabled]="disableStartButton">Start</button>
+    <button (click)="stopAgentStop()">Stop</button>
     <button>Monitor</button>
   </section>
 </main>

@@ -1,6 +1,10 @@
 #![cfg_attr(all(not(debug_assertions), target_os = "windows"), windows_subsystem = "windows")]
 
-use std::{io::Read, str::FromStr, sync::Arc};
+use std::{
+    io::Read,
+    str::FromStr,
+    sync::{mpsc::channel, Arc},
+};
 
 use anyhow::Result;
 use clap::Parser;
@@ -8,7 +12,7 @@ use common::LogTimer;
 use config::{AgentArguments, AgentConfig, AgentLogConfig};
 
 use tauri::{Manager, PhysicalSize, SystemTray};
-use tracing::{metadata::LevelFilter, Level};
+use tracing::{debug, error, metadata::LevelFilter, Level};
 use tracing_subscriber::{fmt::Layer, prelude::__tracing_subscriber_SubscriberExt, Registry};
 
 use crate::server::AgentServer;
@@ -111,9 +115,9 @@ fn init() -> AgentConfig {
 }
 
 #[tauri::command]
-fn start_agent() {
+fn start_agent_server() {
     println!("Begin to start agent server");
-    tokio::spawn(async {
+    std::thread::spawn(|| {
         let configuration = init();
         let agent_server = match AgentServer::new(Arc::new(configuration)) {
             Err(e) => {
@@ -127,10 +131,30 @@ fn start_agent() {
         };
     });
 }
+
+#[tauri::command]
+fn stop_agent_server() {
+    println!("Begin to start agent server");
+    std::thread::spawn(|| {
+        let configuration = init();
+        let agent_server = match AgentServer::new(Arc::new(configuration)) {
+            Err(e) => {
+                eprintln!("Fail to start agent server because of error:{e:#?}");
+                return;
+            },
+            Ok(v) => v,
+        };
+        if let Err(e) = agent_server.run() {
+            eprintln!("Fail to run agent server because of error:{e:#?}");
+        };
+    });
+}
+
 fn main() -> Result<()> {
+    let (agent_server_sender, agent_server_receiver) = channel::<AgentServer>();
     let system_tray = SystemTray::new();
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![start_agent])
+        .invoke_handler(tauri::generate_handler![start_agent_server, stop_agent_server])
         .system_tray(system_tray)
         .on_window_event(|event| match event.event() {
             tauri::WindowEvent::CloseRequested { .. } => {
@@ -138,7 +162,9 @@ fn main() -> Result<()> {
             },
             tauri::WindowEvent::Resized(PhysicalSize { width, height }) => {
                 if *width == 0 && *height == 0 {
-                    event.window().hide();
+                    if let Err(e) = event.window().hide() {
+                        error!("Fail to hide agent window because of error: {e:#?}");
+                    };
                 }
             },
             event => {
@@ -149,30 +175,21 @@ fn main() -> Result<()> {
             tauri::SystemTrayEvent::LeftClick { .. } => {
                 let main_window = app.get_window("main").unwrap();
                 if let Ok(true) = main_window.is_visible() {
-                    main_window.hide();
+                    if let Err(e) = main_window.hide() {
+                        error!("Fail to hide agent window because of error: {e:#?}");
+                    };
                 } else {
-                    main_window.show();
-                    main_window.set_focus();
+                    if let Err(e) = main_window.show() {
+                        error!("Fail to show agent window because of error: {e:#?}");
+                    };
+                    if let Err(e) = main_window.set_focus() {
+                        error!("Fail to forcus agent window because of error: {e:#?}");
+                    };
                 };
             },
-            tauri::SystemTrayEvent::RightClick { .. } => {
-                let main_window = app.get_window("main").unwrap();
-                if let Ok(true) = main_window.is_visible() {
-                    main_window.hide();
-                } else {
-                    main_window.show();
-                    main_window.set_focus();
-                };
+            _ => {
+                debug!("System tray event happen.");
             },
-            tauri::SystemTrayEvent::DoubleClick { .. } => {
-                let main_window = app.get_window("main").unwrap();
-                if let Ok(true) = main_window.is_visible() {
-                    main_window.hide();
-                } else {
-                    main_window.show();
-                };
-            },
-            _ => todo!(),
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
