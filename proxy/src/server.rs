@@ -70,12 +70,21 @@ impl ProxyServer {
                 };
                 let proxy_rsa_crypto_fetcher = Arc::new(proxy_rsa_crypto_fetcher);
                 runtime.spawn(async move {
-                    let server_socket = match TcpSocket::new_v4() {
-                        Err(e) => {
-                            error!("Fail to initialize server tcp socket because of error: {:#?}", e);
-                            return;
+                    let server_socket = match configuration.ipv6() {
+                        None | Some(false) => match TcpSocket::new_v4() {
+                            Err(e) => {
+                                error!("Fail to initialize server tcp socket because of error: {:#?}", e);
+                                return;
+                            },
+                            Ok(v) => v,
                         },
-                        Ok(v) => v,
+                        Some(true) => match TcpSocket::new_v6() {
+                            Err(e) => {
+                                error!("Fail to initialize server tcp socket because of error: {:#?}", e);
+                                return;
+                            },
+                            Ok(v) => v,
+                        },
                     };
                     if let Err(e) = server_socket.set_reuseaddr(true) {
                         error!("Fail to initialize server tcp socket reuse addr because of error: {:#?}", e);

@@ -1,3 +1,4 @@
+ipv6 = false
 max_blocking_threads = 128
 message_framed_buffer_size = 2097152
 port = 80

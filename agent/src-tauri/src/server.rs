@@ -113,9 +113,11 @@ impl AgentServer {
                             for address in proxy_addresses_from_config {
                                 match SocketAddr::from_str(address) {
                                     Ok(r) => {
+                                        println!("Put proxy server address: {:?}", r);
                                         proxy_addresses.push(r);
                                     },
                                     Err(e) => {
+                                        eprintln!("Fail to convert proxy address to socket address because of error: {:#?}", e);
                                         error!("Fail to convert proxy address to socket address because of error: {:#?}", e)
                                     },
                                 }

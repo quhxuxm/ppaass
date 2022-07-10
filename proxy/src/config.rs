@@ -43,6 +43,7 @@ impl ProxyLogConfig {
 }
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub(crate) struct ProxyConfig {
+    ipv6: Option<bool>,
     /// Port of the ppaass proxy
     port: Option<u16>,
     /// The root directory used to store the rsa
@@ -132,6 +133,9 @@ impl ProxyConfig {
     }
     pub fn agent_connection_read_timeout(&self) -> Option<u64> {
         self.agent_connection_read_timeout
+    }
+    pub fn ipv6(&self) -> Option<bool> {
+        self.ipv6
     }
 }
 
