@@ -42,7 +42,7 @@ sudo mkdir /ppaass/build
 
 # Pull ppaass-rust
 cd /ppaass/sourcecode
-sudo git clone https://github.com/quhxuxm/ppaass-refact.git ppaass
+sudo git clone https://github.com/quhxuxm/ppaass.git ppaass
 sudo chmod 777 ppaass
 cd /ppaass/sourcecode/ppaass
 sudo git pull

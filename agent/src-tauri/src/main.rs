@@ -3,7 +3,7 @@
 use std::{
     io::Read,
     str::FromStr,
-    sync::{mpsc::channel, Arc},
+    sync::{Arc, Mutex},
 };
 
 use anyhow::Result;
@@ -11,7 +11,8 @@ use clap::Parser;
 use common::LogTimer;
 use config::{AgentArguments, AgentConfig, AgentLogConfig};
 
-use tauri::{Manager, PhysicalSize, SystemTray};
+use server::AgentServerHandler;
+use tauri::{Manager, PhysicalSize, State, SystemTray};
 use tracing::{debug, error, metadata::LevelFilter, Level};
 use tracing_subscriber::{fmt::Layer, prelude::__tracing_subscriber_SubscriberExt, Registry};
 
@@ -30,60 +31,8 @@ pub(crate) mod config;
 
 const AGNT_LOG_CONFIG_FILE: &str = "ppaass-agent-log.toml";
 
-fn merge_arguments_and_log_config(arguments: &AgentArguments, log_config: &mut AgentLogConfig) {
-    if let Some(ref log_dir) = arguments.log_dir {
-        log_config.set_log_dir(log_dir.to_string())
-    }
-    if let Some(ref log_file) = arguments.log_file {
-        log_config.set_log_file(log_file.to_string())
-    }
-    if let Some(ref max_log_level) = arguments.max_log_level {
-        log_config.set_max_log_level(max_log_level.to_string())
-    }
-}
-
-fn init() -> AgentConfig {
-    let arguments = AgentArguments::parse();
-    let mut log_configuration_file = std::fs::File::open(AGNT_LOG_CONFIG_FILE).expect("Fail to read agnet log configuration file.");
-    let mut log_configuration_file_content = String::new();
-    log_configuration_file
-        .read_to_string(&mut log_configuration_file_content)
-        .expect("Fail to read agnet log configuration file");
-
-    let mut log_configuration = toml::from_str::<AgentLogConfig>(&log_configuration_file_content).expect("Fail to parse agnet log configuration file");
-
-    merge_arguments_and_log_config(&arguments, &mut log_configuration);
-    let log_directory = log_configuration.log_dir().as_ref().expect("No log directory given.");
-    let log_file = log_configuration.log_file().as_ref().expect("No log file name given.");
-    let default_log_level = &Level::ERROR.to_string();
-    let log_max_level = log_configuration.max_log_level().as_ref().unwrap_or(default_log_level);
-
-    let file_appender = tracing_appender::rolling::daily(log_directory, log_file);
-    let (non_blocking, _appender_guard) = tracing_appender::non_blocking(file_appender);
-    let log_level_filter = match LevelFilter::from_str(log_max_level) {
-        Err(e) => {
-            panic!("Fail to initialize log because of error: {:#?}", e);
-        },
-        Ok(v) => v,
-    };
-    let subscriber = Registry::default()
-        .with(
-            Layer::default()
-                .with_level(true)
-                .with_target(true)
-                .with_timer(LogTimer)
-                .with_thread_ids(true)
-                .with_file(true)
-                .with_ansi(false)
-                .with_line_number(true)
-                .with_writer(non_blocking),
-        )
-        .with(log_level_filter);
-    if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
-        panic!("Fail to initialize tracing subscriber because of error: {:#?}", e);
-    };
-
-    let configuration_file_content = match arguments.configuration_file {
+fn init_configuration(arguments: &AgentArguments) -> AgentConfig {
+    let configuration_file_content = match &arguments.configuration_file {
         None => {
             println!("Starting ppaass-agent with default configuration file:  ppaass-agent.toml");
             std::fs::read_to_string("ppaass-agent.toml").expect("Fail to read agent configuration file.")
@@ -115,47 +64,94 @@ fn init() -> AgentConfig {
 }
 
 #[tauri::command]
-fn start_agent_server() {
+fn start_agent_server(window_state: State<'_, AgentWindowState>) {
     println!("Begin to start agent server");
-    std::thread::spawn(|| {
-        let configuration = init();
-        let agent_server = match AgentServer::new(Arc::new(configuration)) {
-            Err(e) => {
-                eprintln!("Fail to start agent server because of error:{e:#?}");
-                return;
-            },
-            Ok(v) => v,
-        };
-        if let Err(e) = agent_server.run() {
-            eprintln!("Fail to run agent server because of error:{e:#?}");
-        };
-    });
+
+    match window_state.agent_server_handler.lock() {
+        Ok(v) => {
+            println!("Begin to send start single.");
+            v.start();
+            println!("Send start single success.");
+        },
+        Err(e) => {
+            println!("Fail to start agent server")
+        },
+    };
 }
 
 #[tauri::command]
-fn stop_agent_server() {
-    println!("Begin to start agent server");
-    std::thread::spawn(|| {
-        let configuration = init();
-        let agent_server = match AgentServer::new(Arc::new(configuration)) {
-            Err(e) => {
-                eprintln!("Fail to start agent server because of error:{e:#?}");
-                return;
-            },
-            Ok(v) => v,
-        };
-        if let Err(e) = agent_server.run() {
-            eprintln!("Fail to run agent server because of error:{e:#?}");
-        };
-    });
+fn stop_agent_server(window_state: State<'_, AgentWindowState>) {
+    println!("Begin to stop agent server");
+
+    match window_state.agent_server_handler.lock() {
+        Ok(v) => {
+            println!("Begin to send stop single.");
+            v.stop();
+            println!("Send stop single success.");
+        },
+        Err(e) => {
+            println!("Fail to stop agent server")
+        },
+    };
+}
+
+struct AgentWindowState {
+    agent_server_handler: Mutex<AgentServerHandler>,
+    arguments: Arc<AgentArguments>,
+    configuration: Arc<AgentConfig>,
 }
 
 fn main() -> Result<()> {
-    let (agent_server_sender, agent_server_receiver) = channel::<AgentServer>();
+    let arguments = AgentArguments::parse();
+    let mut log_configuration_file =
+        std::fs::File::open(arguments.log_configuration_file.as_deref().unwrap_or(AGNT_LOG_CONFIG_FILE)).expect("Fail to read agnet log configuration file.");
+    let mut log_configuration_file_content = String::new();
+    log_configuration_file
+        .read_to_string(&mut log_configuration_file_content)
+        .expect("Fail to read agnet log configuration file");
+    let log_configuration = toml::from_str::<AgentLogConfig>(&log_configuration_file_content).expect("Fail to parse agnet log configuration file");
+    let log_directory = log_configuration.log_dir().as_ref().expect("No log directory given.");
+    let log_file = log_configuration.log_file().as_ref().expect("No log file name given.");
+    let default_log_level = &Level::ERROR.to_string();
+    let log_max_level = log_configuration.max_log_level().as_ref().unwrap_or(default_log_level);
+
+    let file_appender = tracing_appender::rolling::daily(log_directory, log_file);
+    let (non_blocking, _appender_guard) = tracing_appender::non_blocking(file_appender);
+    let log_level_filter = match LevelFilter::from_str(log_max_level) {
+        Err(e) => {
+            panic!("Fail to initialize log because of error: {:#?}", e);
+        },
+        Ok(v) => v,
+    };
+    let subscriber = Registry::default()
+        .with(
+            Layer::default()
+                .with_level(true)
+                .with_target(true)
+                .with_timer(LogTimer)
+                .with_thread_ids(true)
+                .with_file(true)
+                .with_ansi(false)
+                .with_line_number(true)
+                .with_writer(non_blocking),
+        )
+        .with(log_level_filter);
+    if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
+        panic!("Fail to initialize tracing subscriber because of error: {:#?}", e);
+    };
+    let configuration = Arc::new(init_configuration(&arguments));
     let system_tray = SystemTray::new();
+    let agent_server = AgentServer::new(configuration.clone())?;
+    let agent_server_handler = Mutex::new(agent_server.init());
+    println!("Begint to initialize GUI");
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![start_agent_server, stop_agent_server])
         .system_tray(system_tray)
+        .manage(AgentWindowState {
+            agent_server_handler,
+            arguments: Arc::new(arguments),
+            configuration: configuration.clone(),
+        })
         .on_window_event(|event| match event.event() {
             tauri::WindowEvent::CloseRequested { .. } => {
                 std::process::exit(0);
@@ -167,9 +163,7 @@ fn main() -> Result<()> {
                     };
                 }
             },
-            event => {
-                println!("Window event happen: {:?}", event);
-            },
+            event => {},
         })
         .on_system_tray_event(|app, event| match event {
             tauri::SystemTrayEvent::LeftClick { .. } => {

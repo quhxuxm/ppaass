@@ -158,6 +158,9 @@ impl AgentConfig {
 /// The agent side of the ppaass, which will run as a http or sock5 agent
 /// in client side and transfer the connection to the ppaass proxy side.
 pub(crate) struct AgentArguments {
+    /// Log configuration file path
+    #[clap(long, value_parser)]
+    pub log_configuration_file: Option<String>,
     /// Configuration file path
     #[clap(short = 'c', long, value_parser)]
     pub configuration_file: Option<String>,
