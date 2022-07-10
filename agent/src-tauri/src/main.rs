@@ -9,7 +9,7 @@ use std::{
 use anyhow::Result;
 use clap::Parser;
 use common::LogTimer;
-use config::{AgentArguments, AgentConfig, AgentLogConfig};
+use config::{AgentArguments, AgentConfig, AgentLogConfig, UiConfiguration};
 
 use server::AgentServerHandler;
 use tauri::{CustomMenuItem, Manager, PhysicalSize, State, SystemTray, SystemTrayMenu, SystemTrayMenuItem};
@@ -64,7 +64,8 @@ fn init_configuration(arguments: &AgentArguments) -> AgentConfig {
 }
 
 #[tauri::command]
-fn start_agent_server(window_state: State<'_, AgentWindowState>) {
+fn start_agent_server(ui_configuration: UiConfiguration, window_state: State<'_, AgentWindowState>) {
+    println!("{:#?}", ui_configuration);
     debug!("Click to start agent server button");
     match window_state.agent_server_handler.lock() {
         Ok(handler) => {
@@ -131,8 +132,8 @@ fn main() -> Result<()> {
     if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
         panic!("Fail to initialize tracing subscriber because of error: {:#?}", e);
     };
-    let configuration = Arc::new(init_configuration(&arguments));
-
+    let configuration = init_configuration(&arguments);
+    let configuration = Arc::new(configuration);
     let exit_system_tray_menu_item = CustomMenuItem::new("exit".to_string(), "Exit");
     let start_system_tray_menu_item = CustomMenuItem::new("start".to_string(), "Start");
     let stop_system_tray_menu_item = CustomMenuItem::new("stop".to_string(), "Stop");
@@ -142,7 +143,6 @@ fn main() -> Result<()> {
         .add_native_item(SystemTrayMenuItem::Separator)
         .add_item(exit_system_tray_menu_item);
     let system_tray = SystemTray::new().with_menu(system_tray_menu);
-
     let agent_server = AgentServer::new(configuration.clone())?;
     let agent_server_handler = Mutex::new(agent_server.init());
     debug!("Begint to initialize GUI");

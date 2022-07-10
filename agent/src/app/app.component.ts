@@ -11,22 +11,31 @@ export class AppComponent implements OnInit {
     public proxyServerAddresses: string;
     public enableCompressing: boolean;
     public disableStartButton: boolean;
+    public disableStopButton: boolean;
     constructor() {
         this.userToken = "";
         this.proxyServerAddresses = "";
         this.enableCompressing = false;
         this.disableStartButton = false;
+        this.disableStopButton = true;
     }
     ngOnInit(): void {
     }
 
     startAgentServer(): void {
         this.disableStartButton = true;
-        invoke("start_agent_server");
+        this.disableStopButton = false;
+        invoke("start_agent_server", {
+            uiConfiguration: {
+                userToken: this.userToken,
+                proxyAddresses: this.proxyServerAddresses.split(";")
+            }
+        });
     }
 
     stopAgentStop(): void {
         invoke("stop_agent_server");
         this.disableStartButton = false;
+        this.disableStopButton = true;
     }
 }

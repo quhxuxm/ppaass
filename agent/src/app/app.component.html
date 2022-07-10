@@ -1,24 +1,24 @@
 <main>
-  <section>
-    <label>Enter user token:</label>
-    <textarea [value]="userToken"></textarea>
-  </section>
+    <section>
+        <label>Enter user token:</label>
+        <textarea [value]="userToken"></textarea>
+    </section>
 
-  <section>
-    <label>Enter proxy servers(seperat with ";" between ip addresses):</label>
-    <textarea [value]="proxyServerAddresses"></textarea>
-  </section>
+    <section>
+        <label>Enter proxy servers(seperat with ";" between ip addresses):</label>
+        <textarea [value]="proxyServerAddresses"></textarea>
+    </section>
 
-  <section>
-    <label class="enable_compressing">Enable compressing:</label>
-    <input type="checkbox" [value]="enableCompressing" />
-    <div class="placeholder"></div>
-  </section>
+    <section>
+        <label class="enable_compressing">Enable compressing:</label>
+        <input type="checkbox" [value]="enableCompressing" />
+        <div class="placeholder"></div>
+    </section>
 
-  <section>
-    <button (click)="startAgentServer()" [disabled]="disableStartButton">Start</button>
-    <button (click)="stopAgentStop()">Stop</button>
-    <button>Monitor</button>
-  </section>
+    <section>
+        <button (click)="startAgentServer()" [disabled]="disableStartButton">Start</button>
+        <button (click)="stopAgentStop()" [disabled]="disableStopButton">Stop</button>
+        <button>Monitor</button>
+    </section>
 </main>
 <router-outlet></router-outlet>

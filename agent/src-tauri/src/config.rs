@@ -201,3 +201,9 @@ pub(crate) struct AgentArguments {
     #[clap(long, value_parser)]
     pub proxy_public_key_file: Option<String>,
 }
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) struct UiConfiguration {
+    pub user_token: Option<String>,
+    pub proxy_addresses: Option<Vec<String>>,
+}
