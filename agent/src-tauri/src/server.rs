@@ -11,6 +11,7 @@ use tokio::net::TcpSocket;
 use tokio::runtime::{Builder as TokioRuntimeBuilder, Runtime};
 
 use tracing::error;
+use url::quirks::domain_to_unicode;
 
 use crate::service::{common::ClientConnection, AgentRsaCryptoFetcher};
 use crate::{config::AgentConfig, service::pool::ProxyConnectionPool};
@@ -89,6 +90,10 @@ impl AgentServer {
                         continue;
                     },
                     Ok(AgentServerCommand::Start) => {
+                        if let Some(runtime) = _runtime_holder {
+                            runtime.shutdown_background();
+                            _runtime_holder = None;
+                        }
                         println!("Receive start command in main loop");
                         let mut runtime_builder = TokioRuntimeBuilder::new_multi_thread();
                         runtime_builder
