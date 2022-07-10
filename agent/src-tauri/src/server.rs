@@ -11,7 +11,6 @@ use tokio::net::TcpSocket;
 use tokio::runtime::{Builder as TokioRuntimeBuilder, Runtime};
 
 use tracing::error;
-use url::quirks::domain_to_unicode;
 
 use crate::service::{common::ClientConnection, AgentRsaCryptoFetcher};
 use crate::{config::AgentConfig, service::pool::ProxyConnectionPool};
@@ -35,17 +34,16 @@ pub(crate) struct AgentServerHandler {
 }
 
 impl AgentServerHandler {
-    pub(crate) fn stop(&self) -> Result<()> {
+    pub(crate) fn stop(&self) {
         if let Err(e) = self.command_sender.send(AgentServerCommand::Stop) {
             error!("Fail to send stop command because of error: {e:#?}")
         };
-        Ok(())
     }
-    pub(crate) fn start(&self) -> Result<()> {
+
+    pub(crate) fn start(&self) {
         if let Err(e) = self.command_sender.send(AgentServerCommand::Start) {
             error!("Fail to send start command because of error:{e:#?}")
         };
-        Ok(())
     }
 }
 

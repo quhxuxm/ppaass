@@ -12,8 +12,8 @@ use common::LogTimer;
 use config::{AgentArguments, AgentConfig, AgentLogConfig};
 
 use server::AgentServerHandler;
-use tauri::{Manager, PhysicalSize, State, SystemTray};
-use tracing::{debug, error, metadata::LevelFilter, Level};
+use tauri::{CustomMenuItem, Manager, PhysicalSize, State, SystemTray, SystemTrayMenu, SystemTrayMenuItem};
+use tracing::{debug, error, info, metadata::LevelFilter, Level};
 use tracing_subscriber::{fmt::Layer, prelude::__tracing_subscriber_SubscriberExt, Registry};
 
 use crate::server::AgentServer;
@@ -65,39 +65,32 @@ fn init_configuration(arguments: &AgentArguments) -> AgentConfig {
 
 #[tauri::command]
 fn start_agent_server(window_state: State<'_, AgentWindowState>) {
-    println!("Begin to start agent server");
-
+    debug!("Click to start agent server button");
     match window_state.agent_server_handler.lock() {
-        Ok(v) => {
-            println!("Begin to send start single.");
-            v.start();
-            println!("Send start single success.");
+        Ok(handler) => {
+            handler.start();
         },
         Err(e) => {
-            println!("Fail to start agent server")
+            error!("Fail to send start single to agent server because of error: {e:#?}");
         },
     };
 }
 
 #[tauri::command]
 fn stop_agent_server(window_state: State<'_, AgentWindowState>) {
-    println!("Begin to stop agent server");
-
+    debug!("Click to stop agent server button");
     match window_state.agent_server_handler.lock() {
-        Ok(v) => {
-            println!("Begin to send stop single.");
-            v.stop();
-            println!("Send stop single success.");
+        Ok(handler) => {
+            handler.stop();
         },
         Err(e) => {
-            println!("Fail to stop agent server")
+            error!("Fail to send stop single to agent server because of error: {e:#?}");
         },
     };
 }
 
 struct AgentWindowState {
     agent_server_handler: Mutex<AgentServerHandler>,
-    arguments: Arc<AgentArguments>,
     configuration: Arc<AgentConfig>,
 }
 
@@ -114,7 +107,6 @@ fn main() -> Result<()> {
     let log_file = log_configuration.log_file().as_ref().expect("No log file name given.");
     let default_log_level = &Level::ERROR.to_string();
     let log_max_level = log_configuration.max_log_level().as_ref().unwrap_or(default_log_level);
-
     let file_appender = tracing_appender::rolling::daily(log_directory, log_file);
     let (non_blocking, _appender_guard) = tracing_appender::non_blocking(file_appender);
     let log_level_filter = match LevelFilter::from_str(log_max_level) {
@@ -140,53 +132,98 @@ fn main() -> Result<()> {
         panic!("Fail to initialize tracing subscriber because of error: {:#?}", e);
     };
     let configuration = Arc::new(init_configuration(&arguments));
-    let system_tray = SystemTray::new();
+
+    let exit_system_tray_menu_item = CustomMenuItem::new("exit".to_string(), "Exit");
+    let start_system_tray_menu_item = CustomMenuItem::new("start".to_string(), "Start");
+    let stop_system_tray_menu_item = CustomMenuItem::new("stop".to_string(), "Stop");
+    let system_tray_menu = SystemTrayMenu::new()
+        .add_item(start_system_tray_menu_item)
+        .add_item(stop_system_tray_menu_item)
+        .add_native_item(SystemTrayMenuItem::Separator)
+        .add_item(exit_system_tray_menu_item);
+    let system_tray = SystemTray::new().with_menu(system_tray_menu);
+
     let agent_server = AgentServer::new(configuration.clone())?;
     let agent_server_handler = Mutex::new(agent_server.init());
-    println!("Begint to initialize GUI");
+    debug!("Begint to initialize GUI");
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![start_agent_server, stop_agent_server])
         .system_tray(system_tray)
         .manage(AgentWindowState {
             agent_server_handler,
-            arguments: Arc::new(arguments),
             configuration: configuration.clone(),
         })
         .on_window_event(|event| match event.event() {
             tauri::WindowEvent::CloseRequested { .. } => {
+                info!("Close agent GUI window.");
                 std::process::exit(0);
             },
             tauri::WindowEvent::Resized(PhysicalSize { width, height }) => {
                 if *width == 0 && *height == 0 {
+                    debug!("Going to hide agent GUI on minimize window.");
                     if let Err(e) = event.window().hide() {
                         error!("Fail to hide agent window because of error: {e:#?}");
                     };
                 }
             },
-            event => {},
+            event => {
+                debug!("Ignore other window event: {event:#?}");
+            },
         })
-        .on_system_tray_event(|app, event| match event {
-            tauri::SystemTrayEvent::LeftClick { .. } => {
-                let main_window = app.get_window("main").unwrap();
-                if let Ok(true) = main_window.is_visible() {
-                    if let Err(e) = main_window.hide() {
-                        error!("Fail to hide agent window because of error: {e:#?}");
+        .on_system_tray_event(|app, event| {
+            let main_window = app.get_window("main").unwrap();
+            match event {
+                tauri::SystemTrayEvent::LeftClick { .. } => {
+                    if let Ok(true) = main_window.is_visible() {
+                        if let Err(e) = main_window.hide() {
+                            error!("Fail to hide agent window because of error: {e:#?}");
+                        };
+                    } else {
+                        if let Err(e) = main_window.show() {
+                            error!("Fail to show agent window because of error: {e:#?}");
+                        };
+                        if let Err(e) = main_window.set_focus() {
+                            error!("Fail to forcus agent window because of error: {e:#?}");
+                        };
                     };
-                } else {
-                    if let Err(e) = main_window.show() {
-                        error!("Fail to show agent window because of error: {e:#?}");
-                    };
-                    if let Err(e) = main_window.set_focus() {
-                        error!("Fail to forcus agent window because of error: {e:#?}");
-                    };
-                };
-            },
-            _ => {
-                debug!("System tray event happen.");
-            },
+                },
+                tauri::SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
+                    "exit" => {
+                        info!("Close agent GUI window.");
+                        std::process::exit(0);
+                    },
+                    "start" => {
+                        let window_state = main_window.state::<AgentWindowState>();
+                        match window_state.agent_server_handler.lock() {
+                            Ok(handler) => {
+                                handler.start();
+                            },
+                            Err(e) => {
+                                error!("Fail to send start single to agent server because of error: {e:#?}");
+                            },
+                        };
+                    },
+                    "stop" => {
+                        let window_state = main_window.state::<AgentWindowState>();
+                        match window_state.agent_server_handler.lock() {
+                            Ok(handler) => {
+                                handler.stop();
+                            },
+                            Err(e) => {
+                                error!("Fail to send stop single to agent server because of error: {e:#?}");
+                            },
+                        };
+                    },
+                    unknown => {
+                        debug!("Nothing to do because of unknown system tray menu item: {}", unknown)
+                    },
+                },
+                _ => {
+                    debug!("System tray event happen.");
+                },
+            }
         })
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
-
+        .expect("Error happen while create agent GUI.");
     Ok(())
 }
