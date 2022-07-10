@@ -1,8 +1,11 @@
-use std::time::Duration;
-use std::{net::SocketAddr, sync::mpsc::Receiver};
+use std::{net::SocketAddrV6, time::Duration};
 use std::{
     net::{Ipv4Addr, SocketAddrV4},
     sync::Arc,
+};
+use std::{
+    net::{Ipv6Addr, SocketAddr},
+    sync::mpsc::Receiver,
 };
 
 use crate::{
@@ -102,10 +105,18 @@ impl ProxyServer {
                             return;
                         }
                     }
-                    let local_socket_address = SocketAddr::V4(SocketAddrV4::new(
-                        Ipv4Addr::new(0, 0, 0, 0),
-                        configuration.port().unwrap_or(DEFAULT_SERVER_PORT),
-                    ));
+                    let local_socket_address = match configuration.ipv6() {
+                        None | Some(false) => SocketAddr::V4(SocketAddrV4::new(
+                            Ipv4Addr::new(0, 0, 0, 0),
+                            configuration.port().unwrap_or(DEFAULT_SERVER_PORT),
+                        )),
+                        Some(true) => SocketAddr::V6(SocketAddrV6::new(
+                            Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0),
+                            configuration.port().unwrap_or(DEFAULT_SERVER_PORT),
+                            0,
+                            0,
+                        )),
+                    };
                     if let Err(e) = server_socket.bind(local_socket_address) {
                         error!("Fail to bind server tcp socket on address {} because of error: {:#?}", local_socket_address, e);
                         return;
