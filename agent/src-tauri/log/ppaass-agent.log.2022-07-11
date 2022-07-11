@@ -42524,3 +42524,45 @@
 )
 2022-07-11T17:59:01.759 ERROR ThreadId(4087) agent::server: agent\src-tauri\src\server.rs:130: No available proxy address for runtime to use.
 2022-07-11T17:59:05.613  INFO ThreadId(01) agent: agent\src-tauri\src\main.rs:167: Close agent GUI window.
+2022-07-11T19:50:42.346  INFO ThreadId(01) agent: agent\src-tauri\src\main.rs:72: Click to start agent server button, ui_configuration: UiConfiguration {
+    user_token: Some(
+        "",
+    ),
+    proxy_addresses: Some(
+        [
+            "",
+        ],
+    ),
+}
+2022-07-11T19:50:42.453 ERROR ThreadId(1365) agent::server: agent\src-tauri\src\server.rs:124: Fail to convert proxy address to socket address because of error: AddrParseError(
+    Socket,
+)
+2022-07-11T19:50:42.454 ERROR ThreadId(1365) agent::server: agent\src-tauri\src\server.rs:130: No available proxy address for runtime to use.
+2022-07-11T19:51:17.188  INFO ThreadId(01) agent: agent\src-tauri\src\main.rs:72: Click to start agent server button, ui_configuration: UiConfiguration {
+    user_token: Some(
+        "",
+    ),
+    proxy_addresses: Some(
+        [
+            "",
+        ],
+    ),
+}
+2022-07-11T19:51:17.308 ERROR ThreadId(1541) agent::server: agent\src-tauri\src\server.rs:124: Fail to convert proxy address to socket address because of error: AddrParseError(
+    Socket,
+)
+2022-07-11T19:51:17.309 ERROR ThreadId(1541) agent::server: agent\src-tauri\src\server.rs:130: No available proxy address for runtime to use.
+2022-07-11T19:51:21.740  INFO ThreadId(01) agent: agent\src-tauri\src\main.rs:72: Click to start agent server button, ui_configuration: UiConfiguration {
+    user_token: Some(
+        "",
+    ),
+    proxy_addresses: Some(
+        [
+            "",
+        ],
+    ),
+}
+2022-07-11T19:51:21.855 ERROR ThreadId(3773) agent::server: agent\src-tauri\src\server.rs:124: Fail to convert proxy address to socket address because of error: AddrParseError(
+    Socket,
+)
+2022-07-11T19:51:21.855 ERROR ThreadId(3773) agent::server: agent\src-tauri\src\server.rs:130: No available proxy address for runtime to use.
