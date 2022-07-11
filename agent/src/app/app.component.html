@@ -1,12 +1,12 @@
 <main>
     <section>
         <label>Enter user token:</label>
-        <textarea [value]="userToken"></textarea>
+        <textarea [(ngModel)]="userToken"></textarea>
     </section>
 
     <section>
         <label>Enter proxy servers(seperat with ";" between ip addresses):</label>
-        <textarea [value]="proxyServerAddresses"></textarea>
+        <textarea [(ngModel)]="proxyServerAddresses"></textarea>
     </section>
 
     <section>

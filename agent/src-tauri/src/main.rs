@@ -67,41 +67,42 @@ fn init_configuration(arguments: &AgentArguments) -> AgentConfig {
 }
 
 #[tauri::command]
-fn start_agent_server(ui_configuration: UiConfiguration, window: Window, window_state: State<'_, AgentWindowState>) {
-    println!("{:#?}", ui_configuration);
-    debug!("Click to start agent server button");
-    match window_state.agent_server_handler.lock() {
-        Ok(handler) => {
-            handler.start();
-            if let Err(e) = window.emit_all(EVENT_AGENT_SERVER_START, true) {
-                error!("Fail to send start single to agent server ui because of error: {e:#?}");
-            };
-        },
-        Err(e) => {
-            error!("Fail to send start single to agent server because of error: {e:#?}");
-        },
+fn start_agent_server(ui_configuration: UiConfiguration, window: Window, window_state: State<'_, Arc<Mutex<AgentWindowState>>>) {
+    println!("Click to start agent server button, ui_configuration: {:#?}", ui_configuration);
+    info!("Click to start agent server button, ui_configuration: {:#?}", ui_configuration);
+    if let Ok(mut window_state) = window_state.lock() {
+        if let Some(user_token) = ui_configuration.user_token {
+            if user_token.len() > 0 {
+                window_state.configuration.set_user_token(user_token);
+            }
+        }
+        if let Some(proxy_addresses) = ui_configuration.proxy_addresses {
+            if proxy_addresses.len() > 0 {
+                window_state.configuration.set_proxy_addresses(proxy_addresses);
+            }
+        }
+        let current_configuration = window_state.configuration.clone();
+        window_state.agent_server_handler.start(current_configuration);
+        if let Err(e) = window.emit_all(EVENT_AGENT_SERVER_START, true) {
+            error!("Fail to send start single to agent server ui because of error: {e:#?}");
+        };
     };
 }
 
 #[tauri::command]
-fn stop_agent_server(window: Window, window_state: State<'_, AgentWindowState>) {
+fn stop_agent_server(window: Window, window_state: State<'_, Arc<Mutex<AgentWindowState>>>) {
     debug!("Click to stop agent server button");
-    match window_state.agent_server_handler.lock() {
-        Ok(handler) => {
-            handler.stop();
-            if let Err(e) = window.emit_all(EVENT_AGENT_SERVER_STOP, true) {
-                error!("Fail to send stop single to agent server ui because of error: {e:#?}");
-            };
-        },
-        Err(e) => {
-            error!("Fail to send stop single to agent server because of error: {e:#?}");
-        },
+    if let Ok(window_state) = window_state.lock() {
+        window_state.agent_server_handler.stop();
+        if let Err(e) = window.emit_all(EVENT_AGENT_SERVER_START, true) {
+            error!("Fail to send start single to agent server ui because of error: {e:#?}");
+        };
     };
 }
 
 struct AgentWindowState {
-    agent_server_handler: Mutex<AgentServerHandler>,
-    configuration: Arc<AgentConfig>,
+    agent_server_handler: AgentServerHandler,
+    configuration: AgentConfig,
 }
 
 fn main() -> Result<()> {
@@ -142,7 +143,6 @@ fn main() -> Result<()> {
         panic!("Fail to initialize tracing subscriber because of error: {:#?}", e);
     };
     let configuration = init_configuration(&arguments);
-    let configuration = Arc::new(configuration);
     let exit_system_tray_menu_item = CustomMenuItem::new(EVENT_AGENT_EXIT.to_string(), "Exit");
     let start_system_tray_menu_item = CustomMenuItem::new(EVENT_AGENT_SERVER_START.to_string(), "Start");
     let stop_system_tray_menu_item = CustomMenuItem::new(EVENT_AGENT_SERVER_STOP.to_string(), "Stop");
@@ -152,16 +152,16 @@ fn main() -> Result<()> {
         .add_native_item(SystemTrayMenuItem::Separator)
         .add_item(exit_system_tray_menu_item);
     let system_tray = SystemTray::new().with_menu(system_tray_menu);
-    let agent_server = AgentServer::new(configuration.clone())?;
-    let agent_server_handler = Mutex::new(agent_server.init());
+    let agent_server = AgentServer::new()?;
+    let agent_server_handler = agent_server.init();
     debug!("Begint to initialize GUI");
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![start_agent_server, stop_agent_server])
         .system_tray(system_tray)
-        .manage(AgentWindowState {
+        .manage(Arc::new(Mutex::new(AgentWindowState {
             agent_server_handler,
-            configuration: configuration.clone(),
-        })
+            configuration,
+        })))
         .on_window_event(|event| match event.event() {
             tauri::WindowEvent::CloseRequested { .. } => {
                 info!("Close agent GUI window.");
@@ -199,31 +199,22 @@ fn main() -> Result<()> {
                         std::process::exit(0);
                     },
                     EVENT_AGENT_SERVER_START => {
-                        let window_state = main_window.state::<AgentWindowState>();
-                        match window_state.agent_server_handler.lock() {
-                            Ok(handler) => {
-                                handler.start();
-                                if let Err(e) = main_window.emit_all(EVENT_AGENT_SERVER_START, true) {
-                                    error!("Fail to send start single to agent server ui because of error: {e:#?}");
-                                };
-                            },
-                            Err(e) => {
-                                error!("Fail to send start single to agent server because of error: {e:#?}");
-                            },
+                        let window_state = main_window.state::<Arc<Mutex<AgentWindowState>>>().clone();
+                        if let Ok(window_state) = window_state.lock() {
+                            let current_configuration = window_state.configuration.clone();
+                            window_state.agent_server_handler.start(current_configuration);
+                            if let Err(e) = main_window.emit_all(EVENT_AGENT_SERVER_START, true) {
+                                error!("Fail to send start single to agent server ui because of error: {e:#?}");
+                            };
                         };
                     },
                     EVENT_AGENT_SERVER_STOP => {
-                        let window_state = main_window.state::<AgentWindowState>();
-                        match window_state.agent_server_handler.lock() {
-                            Ok(handler) => {
-                                handler.stop();
-                                if let Err(e) = main_window.emit_all(EVENT_AGENT_SERVER_STOP, true) {
-                                    error!("Fail to send stop single to agent server ui because of error: {e:#?}");
-                                };
-                            },
-                            Err(e) => {
-                                error!("Fail to send stop single to agent server because of error: {e:#?}");
-                            },
+                        let window_state = main_window.state::<Arc<Mutex<AgentWindowState>>>().clone();
+                        if let Ok(window_state) = window_state.lock() {
+                            window_state.agent_server_handler.stop();
+                            if let Err(e) = main_window.emit_all(EVENT_AGENT_SERVER_START, true) {
+                                error!("Fail to send stop single to agent server ui because of error: {e:#?}");
+                            };
                         };
                     },
                     unknown => {

@@ -35,7 +35,7 @@ impl AgentLogConfig {
         self.max_log_level = Some(max_log_level)
     }
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AgentConfig {
     port: Option<u16>,
     so_recv_buffer_size: Option<u32>,

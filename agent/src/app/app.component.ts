@@ -39,12 +39,14 @@ export class AppComponent implements OnInit {
     }
 
     startAgentServer(): void {
-        invoke("start_agent_server", {
+        let commandPayload = {
             uiConfiguration: {
-                userToken: this.userToken,
-                proxyAddresses: this.proxyServerAddresses.split(";")
+                user_token: this.userToken,
+                proxy_addresses: this.proxyServerAddresses.split(";")
             }
-        });
+        };
+        invoke("start_agent_server", commandPayload);
+        console.log(`Ui configuration: ${commandPayload.uiConfiguration.user_token}, user token text input: ${this.userToken}`)
         this.disableStartButton = true;
         this.disableStopButton = false;
     }
