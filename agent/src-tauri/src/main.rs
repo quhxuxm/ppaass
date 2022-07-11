@@ -94,7 +94,7 @@ fn stop_agent_server(window: Window, window_state: State<'_, Arc<Mutex<AgentWind
     debug!("Click to stop agent server button");
     if let Ok(window_state) = window_state.lock() {
         window_state.agent_server_handler.stop();
-        if let Err(e) = window.emit_all(EVENT_AGENT_SERVER_START, true) {
+        if let Err(e) = window.emit_all(EVENT_AGENT_SERVER_STOP, true) {
             error!("Fail to send start single to agent server ui because of error: {e:#?}");
         };
     };
