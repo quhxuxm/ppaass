@@ -12,7 +12,7 @@ use common::LogTimer;
 use config::{AgentArguments, AgentConfig, AgentLogConfig, UiConfiguration};
 
 use server::AgentServerHandler;
-use tauri::{CustomMenuItem, Manager, PhysicalSize, State, SystemTray, SystemTrayMenu, SystemTrayMenuItem};
+use tauri::{CustomMenuItem, Manager, PhysicalSize, State, SystemTray, SystemTrayMenu, SystemTrayMenuItem, Window};
 use tracing::{debug, error, info, metadata::LevelFilter, Level};
 use tracing_subscriber::{fmt::Layer, prelude::__tracing_subscriber_SubscriberExt, Registry};
 
@@ -30,6 +30,9 @@ pub(crate) mod service;
 pub(crate) mod config;
 
 const AGNT_LOG_CONFIG_FILE: &str = "ppaass-agent-log.toml";
+const EVENT_AGENT_SERVER_START: &str = "agent-server-start";
+const EVENT_AGENT_SERVER_STOP: &str = "agent-server-stop";
+const EVENT_AGENT_EXIT: &str = "agent-exit";
 
 fn init_configuration(arguments: &AgentArguments) -> AgentConfig {
     let configuration_file_content = match &arguments.configuration_file {
@@ -64,12 +67,15 @@ fn init_configuration(arguments: &AgentArguments) -> AgentConfig {
 }
 
 #[tauri::command]
-fn start_agent_server(ui_configuration: UiConfiguration, window_state: State<'_, AgentWindowState>) {
+fn start_agent_server(ui_configuration: UiConfiguration, window: Window, window_state: State<'_, AgentWindowState>) {
     println!("{:#?}", ui_configuration);
     debug!("Click to start agent server button");
     match window_state.agent_server_handler.lock() {
         Ok(handler) => {
             handler.start();
+            if let Err(e) = window.emit_all(EVENT_AGENT_SERVER_START, true) {
+                error!("Fail to send start single to agent server ui because of error: {e:#?}");
+            };
         },
         Err(e) => {
             error!("Fail to send start single to agent server because of error: {e:#?}");
@@ -78,11 +84,14 @@ fn start_agent_server(ui_configuration: UiConfiguration, window_state: State<'_,
 }
 
 #[tauri::command]
-fn stop_agent_server(window_state: State<'_, AgentWindowState>) {
+fn stop_agent_server(window: Window, window_state: State<'_, AgentWindowState>) {
     debug!("Click to stop agent server button");
     match window_state.agent_server_handler.lock() {
         Ok(handler) => {
             handler.stop();
+            if let Err(e) = window.emit_all(EVENT_AGENT_SERVER_STOP, true) {
+                error!("Fail to send stop single to agent server ui because of error: {e:#?}");
+            };
         },
         Err(e) => {
             error!("Fail to send stop single to agent server because of error: {e:#?}");
@@ -134,9 +143,9 @@ fn main() -> Result<()> {
     };
     let configuration = init_configuration(&arguments);
     let configuration = Arc::new(configuration);
-    let exit_system_tray_menu_item = CustomMenuItem::new("exit".to_string(), "Exit");
-    let start_system_tray_menu_item = CustomMenuItem::new("start".to_string(), "Start");
-    let stop_system_tray_menu_item = CustomMenuItem::new("stop".to_string(), "Stop");
+    let exit_system_tray_menu_item = CustomMenuItem::new(EVENT_AGENT_EXIT.to_string(), "Exit");
+    let start_system_tray_menu_item = CustomMenuItem::new(EVENT_AGENT_SERVER_START.to_string(), "Start");
+    let stop_system_tray_menu_item = CustomMenuItem::new(EVENT_AGENT_SERVER_STOP.to_string(), "Stop");
     let system_tray_menu = SystemTrayMenu::new()
         .add_item(start_system_tray_menu_item)
         .add_item(stop_system_tray_menu_item)
@@ -188,26 +197,32 @@ fn main() -> Result<()> {
                     };
                 },
                 tauri::SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
-                    "exit" => {
+                    EVENT_AGENT_EXIT => {
                         info!("Close agent GUI window.");
                         std::process::exit(0);
                     },
-                    "start" => {
+                    EVENT_AGENT_SERVER_START => {
                         let window_state = main_window.state::<AgentWindowState>();
                         match window_state.agent_server_handler.lock() {
                             Ok(handler) => {
                                 handler.start();
+                                if let Err(e) = main_window.emit_all(EVENT_AGENT_SERVER_START, true) {
+                                    error!("Fail to send start single to agent server ui because of error: {e:#?}");
+                                };
                             },
                             Err(e) => {
                                 error!("Fail to send start single to agent server because of error: {e:#?}");
                             },
                         };
                     },
-                    "stop" => {
+                    EVENT_AGENT_SERVER_STOP => {
                         let window_state = main_window.state::<AgentWindowState>();
                         match window_state.agent_server_handler.lock() {
                             Ok(handler) => {
                                 handler.stop();
+                                if let Err(e) = main_window.emit_all(EVENT_AGENT_SERVER_STOP, true) {
+                                    error!("Fail to send stop single to agent server ui because of error: {e:#?}");
+                                };
                             },
                             Err(e) => {
                                 error!("Fail to send stop single to agent server because of error: {e:#?}");
