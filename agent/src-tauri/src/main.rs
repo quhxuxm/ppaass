@@ -191,9 +191,6 @@ fn main() -> Result<()> {
                         if let Err(e) = main_window.show() {
                             error!("Fail to show agent window because of error: {e:#?}");
                         };
-                        if let Err(e) = main_window.set_focus() {
-                            error!("Fail to forcus agent window because of error: {e:#?}");
-                        };
                     };
                 },
                 tauri::SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
