@@ -33,8 +33,9 @@ const AGNT_LOG_CONFIG_FILE: &str = "ppaass-agent-log.toml";
 const EVENT_AGENT_SERVER_START: &str = "agent-server-start";
 const EVENT_AGENT_SERVER_STOP: &str = "agent-server-stop";
 const EVENT_AGENT_EXIT: &str = "agent-exit";
+const MAIN_WINDOW_LABEL: &str = "main";
 
-fn init_configuration(arguments: &AgentArguments) -> AgentConfig {
+fn prepare_agent_config(arguments: &AgentArguments) -> AgentConfig {
     let configuration_file_content = match &arguments.configuration_file {
         None => {
             println!("Starting ppaass-agent with default configuration file:  ppaass-agent.toml");
@@ -142,7 +143,7 @@ fn main() -> Result<()> {
     if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
         panic!("Fail to initialize tracing subscriber because of error: {:#?}", e);
     };
-    let configuration = init_configuration(&arguments);
+    let configuration = prepare_agent_config(&arguments);
     let exit_system_tray_menu_item = CustomMenuItem::new(EVENT_AGENT_EXIT.to_string(), "Exit");
     let start_system_tray_menu_item = CustomMenuItem::new(EVENT_AGENT_SERVER_START.to_string(), "Start");
     let stop_system_tray_menu_item = CustomMenuItem::new(EVENT_AGENT_SERVER_STOP.to_string(), "Stop");
@@ -180,7 +181,7 @@ fn main() -> Result<()> {
             },
         })
         .on_system_tray_event(|app, event| {
-            let main_window = app.get_window("main").unwrap();
+            let main_window = app.get_window(MAIN_WINDOW_LABEL).unwrap();
             match event {
                 tauri::SystemTrayEvent::LeftClick { .. } => {
                     if let Ok(true) = main_window.is_visible() {
