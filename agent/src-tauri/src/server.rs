@@ -28,23 +28,17 @@ pub(crate) enum AgentServerCommand {
     Stop,
 }
 
-#[derive(Debug)]
-pub struct AgentServerCommandResult {
-    error: Option<anyhow::Error>,
-    payload: Option<Box<dyn Any + Send>>,
-}
-
-#[derive(Debug)]
+#[derive(Debug, Debug)]
 pub(crate) struct AgentServer {
     command_receiver: Receiver<AgentServerCommand>,
     command_sender: Sender<AgentServerCommand>,
-    command_result_receiver: Receiver<AgentServerCommandResult>,
-    command_result_sender: Sender<AgentServerCommandResult>,
+    command_result_receiver: Receiver<Result<()>>,
+    command_result_sender: Sender<Result<()>>,
 }
 
 pub(crate) struct AgentServerHandler {
     command_sender: Sender<AgentServerCommand>,
-    command_result_receiver: Receiver<AgentServerCommandResult>,
+    command_result_receiver: Receiver<Result<()>>,
 }
 
 impl AgentServerHandler {
@@ -52,35 +46,21 @@ impl AgentServerHandler {
         if let Err(e) = self.command_sender.send(AgentServerCommand::Stop) {
             error!("Fail to send stop command because of error: {e:#?}")
         };
-        match self.command_result_receiver.recv() {
-            Err(e) => {
-                error!("Fail to receive stop command result because of error:{e:#?}");
-                Err(e.into())
-            },
-            Ok(AgentServerCommandResult { error: None, .. }) => Ok(()),
-            Ok(AgentServerCommandResult { error: Some(e), .. }) => Err(e),
-        }
+        Ok(self.command_result_receiver.recv()??)
     }
 
     pub(crate) fn start(&self, configuration: AgentConfig) -> Result<()> {
         if let Err(e) = self.command_sender.send(AgentServerCommand::Start(configuration)) {
             error!("Fail to send start command because of error:{e:#?}")
         };
-        match self.command_result_receiver.recv() {
-            Err(e) => {
-                error!("Fail to receive start command result because of error:{e:#?}");
-                Err(e.into())
-            },
-            Ok(AgentServerCommandResult { error: None, .. }) => Ok(()),
-            Ok(AgentServerCommandResult { error: Some(e), .. }) => Err(e),
-        }
+        Ok(self.command_result_receiver.recv()??)
     }
 }
 
 impl AgentServer {
     pub(crate) fn new() -> Result<Self> {
         let (command_sender, command_receiver) = channel::<AgentServerCommand>();
-        let (command_result_sender, command_result_receiver) = channel::<AgentServerCommandResult>();
+        let (command_result_sender, command_result_receiver) = channel::<Result<()>>();
         Ok(Self {
             command_receiver,
             command_sender,
@@ -108,10 +88,7 @@ impl AgentServer {
                             println!("Success to shutdown tokio runtime because of error.");
                         }
                         _runtime_holder = None;
-                        command_result_sender.send(AgentServerCommandResult {
-                            error: Some(anyhow!(e)),
-                            payload: None,
-                        });
+                        command_result_sender.send(Err(e));
                         continue;
                     },
                     Ok(AgentServerCommand::Stop) => {
@@ -122,10 +99,7 @@ impl AgentServer {
                             println!("Success to shutdown tokio runtime.");
                         }
                         _runtime_holder = None;
-                        command_result_sender.send(AgentServerCommandResult {
-                            error: None,
-                            payload: Some(Box::new(AgentServerCommand::Stop)),
-                        });
+                        command_result_sender.send(Ok(()));
                         continue;
                     },
                     Ok(AgentServerCommand::Start(configuration)) => {
@@ -146,10 +120,7 @@ impl AgentServer {
                         let runtime = match runtime_builder.build() {
                             Err(e) => {
                                 error!("Fail to convert proxy address to socket address because of error: {:#?}", e);
-                                command_result_sender.send(AgentServerCommandResult {
-                                    error: Some(anyhow!(e)),
-                                    payload: None,
-                                });
+                                command_result_sender.send(Err(e));
                                 continue;
                             },
                             Ok(v) => v,
@@ -176,39 +147,27 @@ impl AgentServer {
                             if proxy_addresses.is_empty() {
                                 eprintln!("No available proxy address for runtime to use.");
                                 error!("No available proxy address for runtime to use.");
-                                command_result_sender.send(AgentServerCommandResult {
-                                    error: Some(anyhow!("No available proxy address for runtime to use.")),
-                                    payload: Some(Box::new(proxy_addresses)),
-                                });
+                                command_result_sender.send(Err(anyhow!("No available proxy address for runtime to use.")));
                                 return;
                             }
                             let proxy_addresses = Arc::new(proxy_addresses);
                             let server_socket = match TcpSocket::new_v4() {
                                 Err(e) => {
                                     error!("Fail to create tcp server socket because of error: {e:#?}");
-                                    command_result_sender.send(AgentServerCommandResult {
-                                        error: Some(anyhow!(e)),
-                                        payload: None,
-                                    });
+                                    command_result_sender.send(Err(e));
                                     return;
                                 },
                                 Ok(v) => v,
                             };
                             if let Err(e) = server_socket.set_reuseaddr(true) {
                                 error!("Fail to set tcp server socket to reuse address because of error: {e:#?}");
-                                command_result_sender.send(AgentServerCommandResult {
-                                    error: Some(anyhow!(e)),
-                                    payload: None,
-                                });
+                                command_result_sender.send(Err(e));
                                 return;
                             };
                             if let Some(so_recv_buffer_size) = configuration.so_recv_buffer_size() {
                                 if let Err(e) = server_socket.set_recv_buffer_size(so_recv_buffer_size) {
                                     error!("Fail to set tcp server socket recv_buffer_size because of error: {e:#?}");
-                                    command_result_sender.send(AgentServerCommandResult {
-                                        error: Some(anyhow!(e)),
-                                        payload: None,
-                                    });
+                                    command_result_sender.send(Err(e));
                                     return;
                                 };
                             }
