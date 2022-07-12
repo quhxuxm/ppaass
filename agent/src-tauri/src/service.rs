@@ -24,6 +24,7 @@ impl AgentRsaCryptoFetcher {
         Ok(Self { rsa_crypto })
     }
 }
+
 impl RsaCryptoFetcher for AgentRsaCryptoFetcher {
     #[instrument(skip_all, fields(_user_token))]
     fn fetch<Q>(&self, _user_token: Q) -> Result<Option<&RsaCrypto>, PpaassError>
