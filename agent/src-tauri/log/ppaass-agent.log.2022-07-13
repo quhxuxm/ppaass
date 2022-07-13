@@ -8481,3 +8481,7 @@
 2022-07-13T18:13:17.570  INFO ThreadId(2085) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [b9d999555010476eada21794116f7f34] closed.
 2022-07-13T18:13:17.570  INFO ThreadId(2085) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [4b569db32b114395a59d780437dcec27] closed.
 2022-07-13T18:13:19.100  INFO ThreadId(01) agent: agent\src-tauri\src\main.rs:166: Close agent GUI window.
+2022-07-13T21:41:58.042  INFO ThreadId(01) agent: agent\src-tauri\src\main.rs:174: Close agent GUI window.
+2022-07-13T21:43:03.133  INFO ThreadId(01) agent: agent\src-tauri\src\main.rs:174: Close agent GUI window.
+2022-07-13T21:47:47.646  INFO ThreadId(01) agent: agent\src-tauri\src\main.rs:175: Close agent GUI window.
+2022-07-13T22:11:54.628  INFO ThreadId(01) agent: agent\src-tauri\src\main.rs:175: Close agent GUI window.

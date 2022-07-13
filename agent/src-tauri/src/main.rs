@@ -32,6 +32,7 @@ const AGNT_LOG_CONFIG_FILE: &str = "ppaass-agent-log.toml";
 const EVENT_AGENT_SERVER_START: &str = "agent-server-start";
 const EVENT_AGENT_SERVER_STOP: &str = "agent-server-stop";
 const EVENT_AGENT_EXIT: &str = "agent-exit";
+const EVENT_AGENT_INITIALIZED: &str = "agent-initialized";
 const MAIN_WINDOW_LABEL: &str = "main";
 
 fn prepare_agent_config(arguments: &AgentArguments) -> AgentConfig {
@@ -154,7 +155,15 @@ fn main() -> Result<()> {
     let agent_server = AgentServer::new()?;
     let agent_server_handler = agent_server.init();
     debug!("Begint to initialize GUI");
+    let configuration_for_frontend = configuration.clone();
     tauri::Builder::default()
+        .setup(|app| {
+            let main_window = app.get_window(MAIN_WINDOW_LABEL).unwrap();
+            if let Err(e) = main_window.emit_all(EVENT_AGENT_INITIALIZED, configuration_for_frontend) {
+                error!("Fail to initialize frontend because of error:{e:#?}");
+            };
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![start_agent_server, stop_agent_server, save_agent_server_config])
         .system_tray(system_tray)
         .manage(Arc::new(Mutex::new(AgentWindowState {

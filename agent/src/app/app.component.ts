@@ -34,6 +34,11 @@ export class AppComponent implements OnInit {
             this.disableStopButton = true;
             this.changeRef.detectChanges();
         });
+        this.agentServerStartEventListener = listen<any>('agent-initialized', (event) => {
+            this.userToken = event.payload.user_token;
+            alert(this.userToken)
+            this.changeRef.detectChanges();
+        });
     }
 
     ngOnInit(): void {
