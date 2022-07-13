@@ -11,10 +11,7 @@ use common::LogTimer;
 use config::{AgentArguments, AgentConfig, AgentLogConfig, UiConfiguration};
 
 use server::AgentServerHandler;
-use tauri::{
-    api::dialog::{blocking, MessageDialogBuilder},
-    CustomMenuItem, Manager, PhysicalSize, State, SystemTray, SystemTrayMenu, SystemTrayMenuItem, Window,
-};
+use tauri::{api::dialog::blocking, CustomMenuItem, Manager, PhysicalSize, State, SystemTray, SystemTrayMenu, SystemTrayMenuItem, Window};
 use tracing::{debug, error, info, metadata::LevelFilter, Level};
 use tracing_subscriber::{fmt::Layer, prelude::__tracing_subscriber_SubscriberExt, Registry};
 
