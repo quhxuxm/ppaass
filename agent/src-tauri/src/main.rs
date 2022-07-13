@@ -158,8 +158,7 @@ fn main() -> Result<()> {
     let configuration_for_frontend = configuration.clone();
     tauri::Builder::default()
         .setup(|app| {
-            let main_window = app.get_window(MAIN_WINDOW_LABEL).unwrap();
-            if let Err(e) = main_window.emit_all(EVENT_AGENT_INITIALIZED, configuration_for_frontend) {
+            if let Err(e) = app.emit_all(EVENT_AGENT_INITIALIZED, configuration_for_frontend) {
                 error!("Fail to initialize frontend because of error:{e:#?}");
             };
             Ok(())

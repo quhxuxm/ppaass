@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnInit, Output } from '@angular/core';
 import { invoke } from '@tauri-apps/api/tauri'
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { appWindow } from '@tauri-apps/api/window';
 
 @Component({
     selector: 'app-root',
@@ -14,9 +15,6 @@ export class AppComponent implements OnInit {
     public enableCompressing: boolean;
     public disableStartButton: boolean;
     public disableStopButton: boolean;
-    private agentServerStartEventListener: Promise<UnlistenFn>;
-    private agentServerStopEventListener: Promise<UnlistenFn>;
-
 
     constructor(private changeRef: ChangeDetectorRef) {
         this.userToken = "";
@@ -24,25 +22,24 @@ export class AppComponent implements OnInit {
         this.enableCompressing = false;
         this.disableStartButton = false;
         this.disableStopButton = true;
-        this.agentServerStartEventListener = listen<boolean>('agent-server-start', (event) => {
-            this.disableStartButton = true;
-            this.disableStopButton = false;
+    }
+
+    ngOnInit(): void {
+        appWindow.listen<any>('agent-initialized', (event) => {
+            this.userToken = event.payload.user_token;
+            console.log("Agent initialized event happen. ")
             this.changeRef.detectChanges();
         });
-        this.agentServerStopEventListener = listen<boolean>('agent-server-stop', (event) => {
+        appWindow.listen<boolean>('agent-server-stop', (event) => {
             this.disableStartButton = false;
             this.disableStopButton = true;
             this.changeRef.detectChanges();
         });
-        this.agentServerStartEventListener = listen<any>('agent-initialized', (event) => {
-            this.userToken = event.payload.user_token;
-            alert(this.userToken)
+        appWindow.listen<boolean>('agent-server-start', (event) => {
+            this.disableStartButton = true;
+            this.disableStopButton = false;
             this.changeRef.detectChanges();
         });
-    }
-
-    ngOnInit(): void {
-
     }
 
     saveConfiguration(): void {

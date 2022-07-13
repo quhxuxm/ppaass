@@ -8485,3 +8485,581 @@
 2022-07-13T21:43:03.133  INFO ThreadId(01) agent: agent\src-tauri\src\main.rs:174: Close agent GUI window.
 2022-07-13T21:47:47.646  INFO ThreadId(01) agent: agent\src-tauri\src\main.rs:175: Close agent GUI window.
 2022-07-13T22:11:54.628  INFO ThreadId(01) agent: agent\src-tauri\src\main.rs:175: Close agent GUI window.
+2022-07-14T07:34:29.369  INFO ThreadId(2051) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [d0888f30769045ebbfa57c0181258dff] success.
+2022-07-14T07:34:29.454  INFO ThreadId(1071) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [2199c79acb1543f09e4de6f2237a8828] success.
+2022-07-14T07:34:29.454  INFO ThreadId(2051) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [1946ab4ceab54d799917be0828ecc78e] success.
+2022-07-14T07:34:29.488  INFO ThreadId(2050) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [649e1934bbbe494caf732e7117eab657] success.
+2022-07-14T07:34:29.496  INFO ThreadId(1555) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [8e46968a9aec493980448ce9abc92425] success.
+2022-07-14T07:34:29.500  INFO ThreadId(2053) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [39b3c97400494fa8a97189f5f8cb6214] success.
+2022-07-14T07:34:29.503  INFO ThreadId(2058) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [f071147d2f1f4cbcbc4a501fa506d053] success.
+2022-07-14T07:34:29.508  INFO ThreadId(1551) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [1d7049a8e93340a8b4af0ed2c86451ec] success.
+2022-07-14T07:34:29.551  INFO ThreadId(2047) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [22b354647bd94b99a2018699cb27c80d] success.
+2022-07-14T07:34:29.551  INFO ThreadId(2057) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [bdfd2b8460f34745bd8d61282d961148] success.
+2022-07-14T07:34:29.554  INFO ThreadId(1548) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [cdbdd294ff1b469fa46d440e03711365] success.
+2022-07-14T07:34:29.575  INFO ThreadId(2050) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [207653d8c9854d978cd37c824aaca7cc] success.
+2022-07-14T07:34:29.579  INFO ThreadId(2048) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [646140d1710d45edb74069bb76cbebf9] success.
+2022-07-14T07:34:29.582  INFO ThreadId(1555) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [40c795203b544207959d4c8c73d3a2bc] success.
+2022-07-14T07:34:29.594  INFO ThreadId(2052) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [cdb91abd9579406fae5ba0b362a56ed3] success.
+2022-07-14T07:34:29.606  INFO ThreadId(1071) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [0c48ff779dd044e3af27ad227dfde4b2] success.
+2022-07-14T07:34:29.613  INFO ThreadId(2060) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [96715b82c67543c2870469baefc87737] success.
+2022-07-14T07:34:29.613  INFO ThreadId(29) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [7379dad30b5b460bb7609f432fe11c68] success.
+2022-07-14T07:34:29.634  INFO ThreadId(2058) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [ab9a5af00f6741c19fc6f1d61a632bd6] success.
+2022-07-14T07:34:29.635  INFO ThreadId(2051) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [e7c566c726e14bc9aaf06789704a56ee] success.
+2022-07-14T07:34:29.666  INFO ThreadId(2048) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [d0f54263df8d40bcbf43a2edbc4190df] success.
+2022-07-14T07:34:29.671  INFO ThreadId(2047) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [cb395426c7b549039a2d602a5b130f4a] success.
+2022-07-14T07:34:29.678  INFO ThreadId(2049) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [1e58ce9f16c441f8bec8c5ee9cfbe260] success.
+2022-07-14T07:34:29.736  INFO ThreadId(1555) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [7f0fb896650041df8591ab44161c3d86] success.
+2022-07-14T07:34:29.737  INFO ThreadId(1071) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [90772e8479e048dfb11524397ba0079f] success.
+2022-07-14T07:34:29.738  INFO ThreadId(1540) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [cb30bee3a30647848b86819e99dd047d] success.
+2022-07-14T07:34:29.739  INFO ThreadId(2050) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [509461548f49430683256d3a708f26ba] success.
+2022-07-14T07:34:29.750  INFO ThreadId(1548) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [4cadb80a0a0a46738eea3d350d3907ac] success.
+2022-07-14T07:34:29.754  INFO ThreadId(2051) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [3fe0abd61e7d4e9f802ac66be5bbbcff] success.
+2022-07-14T07:34:29.759  INFO ThreadId(2057) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [c92047886cfa44a98cd7c2b5fa92b343] success.
+2022-07-14T07:34:29.765  INFO ThreadId(2049) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [e07e7b4df3254ad2b6534e93cde864ea] success.
+2022-07-14T07:34:29.784  INFO ThreadId(2058) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [9773dd1367fb41a89655461fc28afc95] success.
+2022-07-14T07:34:29.834  INFO ThreadId(1541) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [2cd0a61af09948db94843e45c4ba64bd] success.
+2022-07-14T07:34:29.877  INFO ThreadId(2041) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [eca356ae054843ffa0ead06ccb1d1952] success.
+2022-07-14T07:34:29.878  INFO ThreadId(2042) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [b688818b263e4a29aac414ba96555ad3] success.
+2022-07-14T07:34:29.878  INFO ThreadId(2044) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [fbe240fcf61842ecb5d72a4b676ff8c6] success.
+2022-07-14T07:34:29.879  INFO ThreadId(2043) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [f5b5667cf15b4b04b53f6235ef21d629] success.
+2022-07-14T07:34:29.914  INFO ThreadId(2040) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [e6671bdff5fc4788be7c0d31ee78d604] success.
+2022-07-14T07:34:29.914  INFO ThreadId(2038) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [4a0281c1be854b0c88b224a095506030] success.
+2022-07-14T07:34:29.914  INFO ThreadId(2039) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [458401e4882a4f1888102dc446d801c3] success.
+2022-07-14T07:34:29.925  INFO ThreadId(1551) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [ec83a741365f4ed1b4b1bf4bbadcd056] success.
+2022-07-14T07:34:29.930  INFO ThreadId(2053) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [0f11e1a9d3aa461ab8f67370eced8fb5] success.
+2022-07-14T07:34:29.941  INFO ThreadId(2037) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [5e3484cd54534b39ad8876b3bee329ba] success.
+2022-07-14T07:34:29.941  INFO ThreadId(2047) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [5ba290a9fb43498f8e0cbe906f4c0605] success.
+2022-07-14T07:34:29.957  INFO ThreadId(2052) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [22f33c5b02964699ac6270dcf2f2b927] success.
+2022-07-14T07:34:29.960  INFO ThreadId(29) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [a35b3491f4e94f80ad8651770947f403] success.
+2022-07-14T07:34:29.974  INFO ThreadId(1532) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [2fcea048a05c428897341b05cdde6829] success.
+2022-07-14T07:34:29.975  INFO ThreadId(2060) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [3b037a86bc914d7e920613c652e7a233] success.
+2022-07-14T07:34:29.980  INFO ThreadId(1530) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [f3ad038cba69457dbbcc4f16e9d0e0b9] success.
+2022-07-14T07:34:29.992  INFO ThreadId(1071) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [33edcba4b15947179ee72049edaa9064] success.
+2022-07-14T07:34:29.994  INFO ThreadId(2050) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [f51d3339148849b6a15ce60cb6e18791] success.
+2022-07-14T07:34:29.999  INFO ThreadId(1555) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [04530d72eadc4c5d8d2246a105716395] success.
+2022-07-14T07:34:30.003  INFO ThreadId(2058) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [1b1042785dc24e34a746138bc3f4c80d] success.
+2022-07-14T07:34:30.014  INFO ThreadId(2048) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [054157f236c74d33939e2e2bf0685023] success.
+2022-07-14T07:34:30.015  INFO ThreadId(2051) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [b8ae8812dbfc4a6aba5ed67df79bfa54] success.
+2022-07-14T07:34:30.032  INFO ThreadId(2057) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [c01daa82913040ca8aebcedee77e713c] success.
+2022-07-14T07:34:30.040  INFO ThreadId(1540) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [2860a256e07647fe94a5c132a30f18e2] success.
+2022-07-14T07:34:30.052  INFO ThreadId(2049) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [e3f01381076142f482b9f026886bf190] success.
+2022-07-14T07:34:30.059  INFO ThreadId(1548) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [c46d7562d8e34aecadf4ba48250d5332] success.
+2022-07-14T07:34:30.070  INFO ThreadId(2042) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [64ae1756b6a64e46a2682118423ccb17] success.
+2022-07-14T07:34:30.073  INFO ThreadId(2043) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [9b2e04d425964a00bb96050087790c97] success.
+2022-07-14T07:34:30.083  INFO ThreadId(1541) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [c6dc182ca5ed4a768bd52663945cd5c3] success.
+2022-07-14T07:34:30.097  INFO ThreadId(2041) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [72792c56920f4e1a8983978e1291a6ec] success.
+2022-07-14T07:34:30.103  INFO ThreadId(2044) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [cdae1d91bf44431c93ea6b1518b7aadf] success.
+2022-07-14T07:34:30.311  INFO ThreadId(1529) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [cb30bee3a30647848b86819e99dd047d] success.
+2022-07-14T07:34:30.397  INFO ThreadId(2044) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [96715b82c67543c2870469baefc87737] success.
+2022-07-14T07:34:30.397  INFO ThreadId(1555) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [9773dd1367fb41a89655461fc28afc95] success.
+2022-07-14T07:34:30.398  INFO ThreadId(2041) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [ab9a5af00f6741c19fc6f1d61a632bd6] success.
+2022-07-14T07:34:30.398  INFO ThreadId(1548) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [cdb91abd9579406fae5ba0b362a56ed3] success.
+2022-07-14T07:34:30.400  INFO ThreadId(1541) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [4cadb80a0a0a46738eea3d350d3907ac] success.
+2022-07-14T07:34:30.404  INFO ThreadId(2042) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [c46d7562d8e34aecadf4ba48250d5332] success.
+2022-07-14T07:34:30.415  INFO ThreadId(2048) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [5ba290a9fb43498f8e0cbe906f4c0605] success.
+2022-07-14T07:34:30.454  INFO ThreadId(1529) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [a35b3491f4e94f80ad8651770947f403] success.
+2022-07-14T07:34:30.494  INFO ThreadId(2043) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [0c48ff779dd044e3af27ad227dfde4b2] success.
+2022-07-14T07:34:30.620  INFO ThreadId(2057) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [22f33c5b02964699ac6270dcf2f2b927] success.
+2022-07-14T07:34:30.626  INFO ThreadId(1527) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [e07e7b4df3254ad2b6534e93cde864ea] success.
+2022-07-14T07:34:30.626  INFO ThreadId(2033) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [eca356ae054843ffa0ead06ccb1d1952] success.
+2022-07-14T07:34:30.627  INFO ThreadId(1526) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [4a0281c1be854b0c88b224a095506030] success.
+2022-07-14T07:34:30.632  INFO ThreadId(2030) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [c01daa82913040ca8aebcedee77e713c] success.
+2022-07-14T07:34:30.636  INFO ThreadId(2029) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [b688818b263e4a29aac414ba96555ad3] success.
+2022-07-14T07:34:30.668  INFO ThreadId(2042) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [d0888f30769045ebbfa57c0181258dff] success.
+2022-07-14T07:34:30.681  INFO ThreadId(2028) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [9b2e04d425964a00bb96050087790c97] success.
+2022-07-14T07:34:30.682  INFO ThreadId(2027) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [22b354647bd94b99a2018699cb27c80d] success.
+2022-07-14T07:34:30.693  INFO ThreadId(1548) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [cb395426c7b549039a2d602a5b130f4a] success.
+2022-07-14T07:34:30.726  INFO ThreadId(2025) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [649e1934bbbe494caf732e7117eab657] success.
+2022-07-14T07:34:30.727  INFO ThreadId(2026) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [cdae1d91bf44431c93ea6b1518b7aadf] success.
+2022-07-14T07:34:30.727  INFO ThreadId(2024) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [f51d3339148849b6a15ce60cb6e18791] success.
+2022-07-14T07:34:30.729  INFO ThreadId(2023) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [cdbdd294ff1b469fa46d440e03711365] success.
+2022-07-14T07:34:30.729  INFO ThreadId(1517) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [f071147d2f1f4cbcbc4a501fa506d053] success.
+2022-07-14T07:34:30.734  INFO ThreadId(1541) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [3fe0abd61e7d4e9f802ac66be5bbbcff] success.
+2022-07-14T07:34:30.772  INFO ThreadId(2041) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [e6671bdff5fc4788be7c0d31ee78d604] success.
+2022-07-14T07:34:30.773  INFO ThreadId(2048) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [f5b5667cf15b4b04b53f6235ef21d629] success.
+2022-07-14T07:34:30.776  INFO ThreadId(2058) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [fbe240fcf61842ecb5d72a4b676ff8c6] success.
+2022-07-14T07:34:30.776  INFO ThreadId(2021) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [e3f01381076142f482b9f026886bf190] success.
+2022-07-14T07:34:30.784  INFO ThreadId(1555) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [7379dad30b5b460bb7609f432fe11c68] success.
+2022-07-14T07:34:30.788  INFO ThreadId(1540) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [7f0fb896650041df8591ab44161c3d86] success.
+2022-07-14T07:34:30.792  INFO ThreadId(2051) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [5e3484cd54534b39ad8876b3bee329ba] success.
+2022-07-14T07:34:30.804  INFO ThreadId(2049) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [509461548f49430683256d3a708f26ba] success.
+2022-07-14T07:34:30.805  INFO ThreadId(1530) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [2fcea048a05c428897341b05cdde6829] success.
+2022-07-14T07:34:30.810  INFO ThreadId(1071) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [bdfd2b8460f34745bd8d61282d961148] success.
+2022-07-14T07:34:30.818  INFO ThreadId(2044) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [c92047886cfa44a98cd7c2b5fa92b343] success.
+2022-07-14T07:34:30.830  INFO ThreadId(1529) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [2860a256e07647fe94a5c132a30f18e2] success.
+2022-07-14T07:34:30.831  INFO ThreadId(2060) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [207653d8c9854d978cd37c824aaca7cc] success.
+2022-07-14T07:34:30.843  INFO ThreadId(2050) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [04530d72eadc4c5d8d2246a105716395] success.
+2022-07-14T07:34:30.847  INFO ThreadId(2047) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [1946ab4ceab54d799917be0828ecc78e] success.
+2022-07-14T07:34:30.853  INFO ThreadId(1532) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [40c795203b544207959d4c8c73d3a2bc] success.
+2022-07-14T07:34:30.856  INFO ThreadId(2052) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [f3ad038cba69457dbbcc4f16e9d0e0b9] success.
+2022-07-14T07:34:30.860  INFO ThreadId(29) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [3b037a86bc914d7e920613c652e7a233] success.
+2022-07-14T07:34:30.862  INFO ThreadId(2043) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [64ae1756b6a64e46a2682118423ccb17] success.
+2022-07-14T07:34:30.866  INFO ThreadId(2053) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [646140d1710d45edb74069bb76cbebf9] success.
+2022-07-14T07:34:30.874  INFO ThreadId(1551) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [c6dc182ca5ed4a768bd52663945cd5c3] success.
+2022-07-14T07:34:30.877  INFO ThreadId(2037) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [90772e8479e048dfb11524397ba0079f] success.
+2022-07-14T07:34:30.890  INFO ThreadId(2039) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [e7c566c726e14bc9aaf06789704a56ee] success.
+2022-07-14T07:34:30.912  INFO ThreadId(2040) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [d0f54263df8d40bcbf43a2edbc4190df] success.
+2022-07-14T07:34:30.918  INFO ThreadId(2038) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [458401e4882a4f1888102dc446d801c3] success.
+2022-07-14T07:34:30.938  INFO ThreadId(1527) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [2cd0a61af09948db94843e45c4ba64bd] success.
+2022-07-14T07:34:30.943  INFO ThreadId(2057) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [1e58ce9f16c441f8bec8c5ee9cfbe260] success.
+2022-07-14T07:34:30.944  INFO ThreadId(2033) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [72792c56920f4e1a8983978e1291a6ec] success.
+2022-07-14T07:34:30.951  INFO ThreadId(1526) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [33edcba4b15947179ee72049edaa9064] success.
+2022-07-14T07:34:30.958  INFO ThreadId(2030) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [0f11e1a9d3aa461ab8f67370eced8fb5] success.
+2022-07-14T07:34:30.961  INFO ThreadId(2029) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [39b3c97400494fa8a97189f5f8cb6214] success.
+2022-07-14T07:34:30.994  INFO ThreadId(2042) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [ec83a741365f4ed1b4b1bf4bbadcd056] success.
+2022-07-14T07:34:30.996  INFO ThreadId(2028) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [8e46968a9aec493980448ce9abc92425] success.
+2022-07-14T07:34:31.011  INFO ThreadId(2027) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [054157f236c74d33939e2e2bf0685023] success.
+2022-07-14T07:34:31.015  INFO ThreadId(2024) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [b8ae8812dbfc4a6aba5ed67df79bfa54] success.
+2022-07-14T07:34:31.021  INFO ThreadId(2026) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [2199c79acb1543f09e4de6f2237a8828] success.
+2022-07-14T07:34:31.024  INFO ThreadId(2025) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [1b1042785dc24e34a746138bc3f4c80d] success.
+2022-07-14T07:34:31.025  INFO ThreadId(1548) agent::service::pool: agent\src-tauri\src\service\pool.rs:224: Heartbeat for proxy connection [1d7049a8e93340a8b4af0ed2c86451ec] success.
+2022-07-14T07:34:31.191  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [cb30bee3a30647848b86819e99dd047d] closed.
+2022-07-14T07:34:31.192  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [96715b82c67543c2870469baefc87737] closed.
+2022-07-14T07:34:31.192  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [9773dd1367fb41a89655461fc28afc95] closed.
+2022-07-14T07:34:31.192  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [ab9a5af00f6741c19fc6f1d61a632bd6] closed.
+2022-07-14T07:34:31.192  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [cdb91abd9579406fae5ba0b362a56ed3] closed.
+2022-07-14T07:34:31.192  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [4cadb80a0a0a46738eea3d350d3907ac] closed.
+2022-07-14T07:34:31.192  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [c46d7562d8e34aecadf4ba48250d5332] closed.
+2022-07-14T07:34:31.192  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [5ba290a9fb43498f8e0cbe906f4c0605] closed.
+2022-07-14T07:34:31.192  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [a35b3491f4e94f80ad8651770947f403] closed.
+2022-07-14T07:34:31.192  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [0c48ff779dd044e3af27ad227dfde4b2] closed.
+2022-07-14T07:34:31.192  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [22f33c5b02964699ac6270dcf2f2b927] closed.
+2022-07-14T07:34:31.192  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [e07e7b4df3254ad2b6534e93cde864ea] closed.
+2022-07-14T07:34:31.192  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [eca356ae054843ffa0ead06ccb1d1952] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [4a0281c1be854b0c88b224a095506030] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [c01daa82913040ca8aebcedee77e713c] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [b688818b263e4a29aac414ba96555ad3] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [d0888f30769045ebbfa57c0181258dff] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [9b2e04d425964a00bb96050087790c97] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [22b354647bd94b99a2018699cb27c80d] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [cb395426c7b549039a2d602a5b130f4a] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [649e1934bbbe494caf732e7117eab657] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [cdae1d91bf44431c93ea6b1518b7aadf] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [f51d3339148849b6a15ce60cb6e18791] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [cdbdd294ff1b469fa46d440e03711365] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [f071147d2f1f4cbcbc4a501fa506d053] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [3fe0abd61e7d4e9f802ac66be5bbbcff] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [e6671bdff5fc4788be7c0d31ee78d604] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [f5b5667cf15b4b04b53f6235ef21d629] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [fbe240fcf61842ecb5d72a4b676ff8c6] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [e3f01381076142f482b9f026886bf190] closed.
+2022-07-14T07:34:31.193  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [7379dad30b5b460bb7609f432fe11c68] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [7f0fb896650041df8591ab44161c3d86] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [5e3484cd54534b39ad8876b3bee329ba] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [509461548f49430683256d3a708f26ba] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [2fcea048a05c428897341b05cdde6829] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [bdfd2b8460f34745bd8d61282d961148] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [c92047886cfa44a98cd7c2b5fa92b343] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [2860a256e07647fe94a5c132a30f18e2] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [207653d8c9854d978cd37c824aaca7cc] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [04530d72eadc4c5d8d2246a105716395] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [1946ab4ceab54d799917be0828ecc78e] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [40c795203b544207959d4c8c73d3a2bc] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [f3ad038cba69457dbbcc4f16e9d0e0b9] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [3b037a86bc914d7e920613c652e7a233] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [64ae1756b6a64e46a2682118423ccb17] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [646140d1710d45edb74069bb76cbebf9] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [c6dc182ca5ed4a768bd52663945cd5c3] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [90772e8479e048dfb11524397ba0079f] closed.
+2022-07-14T07:34:31.194  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [e7c566c726e14bc9aaf06789704a56ee] closed.
+2022-07-14T07:34:31.195  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [d0f54263df8d40bcbf43a2edbc4190df] closed.
+2022-07-14T07:34:31.195  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [458401e4882a4f1888102dc446d801c3] closed.
+2022-07-14T07:34:31.195  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [2cd0a61af09948db94843e45c4ba64bd] closed.
+2022-07-14T07:34:31.195  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [1e58ce9f16c441f8bec8c5ee9cfbe260] closed.
+2022-07-14T07:34:31.195  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [72792c56920f4e1a8983978e1291a6ec] closed.
+2022-07-14T07:34:31.195  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [33edcba4b15947179ee72049edaa9064] closed.
+2022-07-14T07:34:31.195  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [0f11e1a9d3aa461ab8f67370eced8fb5] closed.
+2022-07-14T07:34:31.195  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [39b3c97400494fa8a97189f5f8cb6214] closed.
+2022-07-14T07:34:31.195  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [ec83a741365f4ed1b4b1bf4bbadcd056] closed.
+2022-07-14T07:34:31.195  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [8e46968a9aec493980448ce9abc92425] closed.
+2022-07-14T07:34:31.195  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [054157f236c74d33939e2e2bf0685023] closed.
+2022-07-14T07:34:31.195  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [b8ae8812dbfc4a6aba5ed67df79bfa54] closed.
+2022-07-14T07:34:31.195  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [2199c79acb1543f09e4de6f2237a8828] closed.
+2022-07-14T07:34:31.195  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [1b1042785dc24e34a746138bc3f4c80d] closed.
+2022-07-14T07:34:31.195  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [1d7049a8e93340a8b4af0ed2c86451ec] closed.
+2022-07-14T07:34:33.997  INFO ThreadId(01) agent: agent\src-tauri\src\main.rs:174: Close agent GUI window.
+2022-07-14T07:35:47.890 ERROR ThreadId(2055) read: common::service: common\src\service.rs:218: Connection [c09cee04dbed4ee58864af4efa28ec4e] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.890 ERROR ThreadId(13) read: common::service: common\src\service.rs:218: Connection [806fc6051dd547b596c39f375ef76b6c] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.890 ERROR ThreadId(2056) read: common::service: common\src\service.rs:218: Connection [76771221c9d04388b8e1eacc7d3f3e03] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.890 ERROR ThreadId(2059) read: common::service: common\src\service.rs:218: Connection [dabaefdffb3747f3b6985cc2a79c7300] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.890 ERROR ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [c09cee04dbed4ee58864af4efa28ec4e] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.890 ERROR ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [dabaefdffb3747f3b6985cc2a79c7300] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.890 ERROR ThreadId(2056) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [76771221c9d04388b8e1eacc7d3f3e03] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.890  INFO ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [c09cee04dbed4ee58864af4efa28ec4e] closed.
+2022-07-14T07:35:47.890 ERROR ThreadId(2060) read: common::service: common\src\service.rs:218: Connection [68b179b092604fffaf05655d1359601b] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.890  INFO ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [dabaefdffb3747f3b6985cc2a79c7300] closed.
+2022-07-14T07:35:47.890  INFO ThreadId(2056) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [76771221c9d04388b8e1eacc7d3f3e03] closed.
+2022-07-14T07:35:47.890 ERROR ThreadId(2060) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [68b179b092604fffaf05655d1359601b] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.890  INFO ThreadId(2060) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [68b179b092604fffaf05655d1359601b] closed.
+2022-07-14T07:35:47.890 ERROR ThreadId(1561) read: common::service: common\src\service.rs:218: Connection [c99fc6d2659845c3943ce3e353694253] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.890 ERROR ThreadId(1561) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [c99fc6d2659845c3943ce3e353694253] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.890 ERROR ThreadId(2052) read: common::service: common\src\service.rs:218: Connection [ca554d63739b4d0eb2e9242257f6bf8e] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.891  INFO ThreadId(1561) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [c99fc6d2659845c3943ce3e353694253] closed.
+2022-07-14T07:35:47.890 ERROR ThreadId(2058) read: common::service: common\src\service.rs:218: Connection [166759c5dd404ccda89a1cb644842667] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.891 ERROR ThreadId(2052) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [ca554d63739b4d0eb2e9242257f6bf8e] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.891 ERROR ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [806fc6051dd547b596c39f375ef76b6c] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.891  INFO ThreadId(2052) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [ca554d63739b4d0eb2e9242257f6bf8e] closed.
+2022-07-14T07:35:47.891  INFO ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [806fc6051dd547b596c39f375ef76b6c] closed.
+2022-07-14T07:35:47.891 ERROR ThreadId(2058) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [166759c5dd404ccda89a1cb644842667] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.891  INFO ThreadId(2058) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [166759c5dd404ccda89a1cb644842667] closed.
+2022-07-14T07:35:47.891 ERROR ThreadId(2060) read: common::service: common\src\service.rs:218: Connection [bf8acce4d9fb4bcc982c5d42fb71916c] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.891 ERROR ThreadId(13) read: common::service: common\src\service.rs:218: Connection [5f57a15dab6a4dc9abb3a1c1aab218ab] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.891 ERROR ThreadId(2060) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [bf8acce4d9fb4bcc982c5d42fb71916c] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.891 ERROR ThreadId(2055) read: common::service: common\src\service.rs:218: Connection [c62cec41c5b44ab39c405a7b5ac9edfe] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.891 ERROR ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [5f57a15dab6a4dc9abb3a1c1aab218ab] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.891  INFO ThreadId(2060) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [bf8acce4d9fb4bcc982c5d42fb71916c] closed.
+2022-07-14T07:35:47.891  INFO ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [5f57a15dab6a4dc9abb3a1c1aab218ab] closed.
+2022-07-14T07:35:47.891 ERROR ThreadId(2059) read: common::service: common\src\service.rs:218: Connection [550d5b78ab024cc6bdbda1df2b2fc963] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.891 ERROR ThreadId(1561) read: common::service: common\src\service.rs:218: Connection [0bcd7c7932164c6a875657d5e4e0ec0c] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.891 ERROR ThreadId(2058) read: common::service: common\src\service.rs:218: Connection [a8bfe68e40914b69bc70957b56d1407a] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.891 ERROR ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [c62cec41c5b44ab39c405a7b5ac9edfe] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.891 ERROR ThreadId(1561) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [0bcd7c7932164c6a875657d5e4e0ec0c] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.891 ERROR ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [550d5b78ab024cc6bdbda1df2b2fc963] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.891 ERROR ThreadId(2058) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [a8bfe68e40914b69bc70957b56d1407a] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.891  INFO ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [c62cec41c5b44ab39c405a7b5ac9edfe] closed.
+2022-07-14T07:35:47.891  INFO ThreadId(1561) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [0bcd7c7932164c6a875657d5e4e0ec0c] closed.
+2022-07-14T07:35:47.891  INFO ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [550d5b78ab024cc6bdbda1df2b2fc963] closed.
+2022-07-14T07:35:47.891  INFO ThreadId(2058) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [a8bfe68e40914b69bc70957b56d1407a] closed.
+2022-07-14T07:35:47.890 ERROR ThreadId(2054) read: common::service: common\src\service.rs:218: Connection [a8ada578a1f64b67b6a63b58f8c62394] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.891 ERROR ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [a8ada578a1f64b67b6a63b58f8c62394] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.891  INFO ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [a8ada578a1f64b67b6a63b58f8c62394] closed.
+2022-07-14T07:35:47.905 ERROR ThreadId(13) read: common::service: common\src\service.rs:218: Connection [8255a28ff8fb4738ae2f179c15af48b5] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.905 ERROR ThreadId(2054) read: common::service: common\src\service.rs:218: Connection [ea3ec03296eb4e18b8bce0a74b653ed4] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.905 ERROR ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [ea3ec03296eb4e18b8bce0a74b653ed4] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.905 ERROR ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [8255a28ff8fb4738ae2f179c15af48b5] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.905  INFO ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [ea3ec03296eb4e18b8bce0a74b653ed4] closed.
+2022-07-14T07:35:47.905 ERROR ThreadId(2055) read: common::service: common\src\service.rs:218: Connection [cb0cfdb2a2ab4946b3e58889c94db8ad] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.905  INFO ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [8255a28ff8fb4738ae2f179c15af48b5] closed.
+2022-07-14T07:35:47.905 ERROR ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [cb0cfdb2a2ab4946b3e58889c94db8ad] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.905  INFO ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [cb0cfdb2a2ab4946b3e58889c94db8ad] closed.
+2022-07-14T07:35:47.905 ERROR ThreadId(1561) read: common::service: common\src\service.rs:218: Connection [08fe6710d39d4656b4c1affca7618a48] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.905 ERROR ThreadId(2055) read: common::service: common\src\service.rs:218: Connection [f1f9814a6ef54fd684d1b9bff0f47f63] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.906 ERROR ThreadId(2054) read: common::service: common\src\service.rs:218: Connection [28918247895c459d96b8755880d1134e] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.906 ERROR ThreadId(13) read: common::service: common\src\service.rs:218: Connection [cdcbf682910c42dfa38aef04731dbbf4] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.906 ERROR ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [f1f9814a6ef54fd684d1b9bff0f47f63] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.906 ERROR ThreadId(1561) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [08fe6710d39d4656b4c1affca7618a48] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.906 ERROR ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [cdcbf682910c42dfa38aef04731dbbf4] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.906 ERROR ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [28918247895c459d96b8755880d1134e] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.906  INFO ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [f1f9814a6ef54fd684d1b9bff0f47f63] closed.
+2022-07-14T07:35:47.906  INFO ThreadId(1561) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [08fe6710d39d4656b4c1affca7618a48] closed.
+2022-07-14T07:35:47.906  INFO ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [cdcbf682910c42dfa38aef04731dbbf4] closed.
+2022-07-14T07:35:47.906  INFO ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [28918247895c459d96b8755880d1134e] closed.
+2022-07-14T07:35:47.906 ERROR ThreadId(13) read: common::service: common\src\service.rs:218: Connection [d6aaf60ab0be46eab9b5038314e24bd1] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.906 ERROR ThreadId(2055) read: common::service: common\src\service.rs:218: Connection [f18926f1f21c4bc79097d4dca7039735] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.906 ERROR ThreadId(2058) read: common::service: common\src\service.rs:218: Connection [20e2da06402c4bb69a8ad092d5dab6f2] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.906 ERROR ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [d6aaf60ab0be46eab9b5038314e24bd1] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.906 ERROR ThreadId(2058) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [20e2da06402c4bb69a8ad092d5dab6f2] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.906 ERROR ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [f18926f1f21c4bc79097d4dca7039735] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.906  INFO ThreadId(2058) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [20e2da06402c4bb69a8ad092d5dab6f2] closed.
+2022-07-14T07:35:47.906  INFO ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [d6aaf60ab0be46eab9b5038314e24bd1] closed.
+2022-07-14T07:35:47.906  INFO ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [f18926f1f21c4bc79097d4dca7039735] closed.
+2022-07-14T07:35:47.906 ERROR ThreadId(1561) read: common::service: common\src\service.rs:218: Connection [ead0b29475e244e7b525a4e13c43e680] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.906 ERROR ThreadId(2054) read: common::service: common\src\service.rs:218: Connection [3bc97ff226d04777ad6cde2c198f5d4d] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.906 ERROR ThreadId(1561) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [ead0b29475e244e7b525a4e13c43e680] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.906 ERROR ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [3bc97ff226d04777ad6cde2c198f5d4d] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.906  INFO ThreadId(1561) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [ead0b29475e244e7b525a4e13c43e680] closed.
+2022-07-14T07:35:47.906  INFO ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [3bc97ff226d04777ad6cde2c198f5d4d] closed.
+2022-07-14T07:35:47.906 ERROR ThreadId(13) read: common::service: common\src\service.rs:218: Connection [920b7afe9ae04ac69306ebda3e3df1f2] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.906 ERROR ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [920b7afe9ae04ac69306ebda3e3df1f2] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.906  INFO ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [920b7afe9ae04ac69306ebda3e3df1f2] closed.
+2022-07-14T07:35:47.906 ERROR ThreadId(2054) read: common::service: common\src\service.rs:218: Connection [a828c8c672be4f3994008d5be064ff76] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.906 ERROR ThreadId(2058) read: common::service: common\src\service.rs:218: Connection [2aff0fd5ee7642b1862bf7ee9f125a1e] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.906 ERROR ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [a828c8c672be4f3994008d5be064ff76] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.906 ERROR ThreadId(2058) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [2aff0fd5ee7642b1862bf7ee9f125a1e] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.906 ERROR ThreadId(2059) read: common::service: common\src\service.rs:218: Connection [25e5949426cd4273bdbdc4fdddb6d24c] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.906  INFO ThreadId(2058) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [2aff0fd5ee7642b1862bf7ee9f125a1e] closed.
+2022-07-14T07:35:47.906 ERROR ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [25e5949426cd4273bdbdc4fdddb6d24c] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.906  INFO ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [25e5949426cd4273bdbdc4fdddb6d24c] closed.
+2022-07-14T07:35:47.906  INFO ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [a828c8c672be4f3994008d5be064ff76] closed.
+2022-07-14T07:35:47.921 ERROR ThreadId(2055) read: common::service: common\src\service.rs:218: Connection [093d172fd058463ba6a51c7383cb82d6] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.921 ERROR ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [093d172fd058463ba6a51c7383cb82d6] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.921 ERROR ThreadId(2054) read: common::service: common\src\service.rs:218: Connection [01294cbef83741e796e62651e993f006] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.921  INFO ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [093d172fd058463ba6a51c7383cb82d6] closed.
+2022-07-14T07:35:47.921 ERROR ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [01294cbef83741e796e62651e993f006] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.921  INFO ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [01294cbef83741e796e62651e993f006] closed.
+2022-07-14T07:35:47.921 ERROR ThreadId(2059) read: common::service: common\src\service.rs:218: Connection [7eedc43710ce48eebffe552cee4602b6] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.921 ERROR ThreadId(2054) read: common::service: common\src\service.rs:218: Connection [d18f9fedb4e849808a81e7da653d536b] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.921 ERROR ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [7eedc43710ce48eebffe552cee4602b6] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.921 ERROR ThreadId(2055) read: common::service: common\src\service.rs:218: Connection [33309eb65e1744bf9e08c6d5c3c1dda0] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.921 ERROR ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [d18f9fedb4e849808a81e7da653d536b] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.921  INFO ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [7eedc43710ce48eebffe552cee4602b6] closed.
+2022-07-14T07:35:47.921  INFO ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [d18f9fedb4e849808a81e7da653d536b] closed.
+2022-07-14T07:35:47.921 ERROR ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [33309eb65e1744bf9e08c6d5c3c1dda0] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.921  INFO ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [33309eb65e1744bf9e08c6d5c3c1dda0] closed.
+2022-07-14T07:35:47.921 ERROR ThreadId(13) read: common::service: common\src\service.rs:218: Connection [3efafbb6f7a846e28730b9d266182796] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.921 ERROR ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [3efafbb6f7a846e28730b9d266182796] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.921 ERROR ThreadId(1561) read: common::service: common\src\service.rs:218: Connection [51dde778e3a344c28a41bee9aac1ef75] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.921  INFO ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [3efafbb6f7a846e28730b9d266182796] closed.
+2022-07-14T07:35:47.921 ERROR ThreadId(2059) read: common::service: common\src\service.rs:218: Connection [16bf761358f74c2c8ccd4e59115c8030] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.921 ERROR ThreadId(1561) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [51dde778e3a344c28a41bee9aac1ef75] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.921 ERROR ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [16bf761358f74c2c8ccd4e59115c8030] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.921  INFO ThreadId(1561) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [51dde778e3a344c28a41bee9aac1ef75] closed.
+2022-07-14T07:35:47.921  INFO ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [16bf761358f74c2c8ccd4e59115c8030] closed.
+2022-07-14T07:35:47.921 ERROR ThreadId(2058) read: common::service: common\src\service.rs:218: Connection [46554ace7d064b0f8dad02b618c10b6e] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.921 ERROR ThreadId(2054) read: common::service: common\src\service.rs:218: Connection [5353cca7a0a84c0bbc197e8ef6916d87] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.921 ERROR ThreadId(2058) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [46554ace7d064b0f8dad02b618c10b6e] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.921 ERROR ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [5353cca7a0a84c0bbc197e8ef6916d87] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.921 ERROR ThreadId(2055) read: common::service: common\src\service.rs:218: Connection [f9e0d82df2414f7ea2b994a3a61dc88a] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.921  INFO ThreadId(2058) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [46554ace7d064b0f8dad02b618c10b6e] closed.
+2022-07-14T07:35:47.921  INFO ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [5353cca7a0a84c0bbc197e8ef6916d87] closed.
+2022-07-14T07:35:47.921 ERROR ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [f9e0d82df2414f7ea2b994a3a61dc88a] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.921 ERROR ThreadId(2059) read: common::service: common\src\service.rs:218: Connection [458656263953476689ae3df02c326d8b] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.922  INFO ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [f9e0d82df2414f7ea2b994a3a61dc88a] closed.
+2022-07-14T07:35:47.922 ERROR ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [458656263953476689ae3df02c326d8b] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.922  INFO ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [458656263953476689ae3df02c326d8b] closed.
+2022-07-14T07:35:47.922 ERROR ThreadId(2060) read: common::service: common\src\service.rs:218: Connection [0e4bf4c332524faa855cbc8a3f21cfb1] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.922 ERROR ThreadId(2060) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [0e4bf4c332524faa855cbc8a3f21cfb1] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.922  INFO ThreadId(2060) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [0e4bf4c332524faa855cbc8a3f21cfb1] closed.
+2022-07-14T07:35:47.922 ERROR ThreadId(2055) read: common::service: common\src\service.rs:218: Connection [264995ddb74044f581de97bf5b70056e] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.922 ERROR ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [264995ddb74044f581de97bf5b70056e] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.922  INFO ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [264995ddb74044f581de97bf5b70056e] closed.
+2022-07-14T07:35:47.922 ERROR ThreadId(2060) read: common::service: common\src\service.rs:218: Connection [9d312e48a30c4baba793e4d410b79089] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.922 ERROR ThreadId(2060) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [9d312e48a30c4baba793e4d410b79089] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.922  INFO ThreadId(2060) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [9d312e48a30c4baba793e4d410b79089] closed.
+2022-07-14T07:35:47.922 ERROR ThreadId(2059) read: common::service: common\src\service.rs:218: Connection [6a243fda1746495ab81ea6fff9f18b44] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.922 ERROR ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [6a243fda1746495ab81ea6fff9f18b44] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.922  INFO ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [6a243fda1746495ab81ea6fff9f18b44] closed.
+2022-07-14T07:35:47.936 ERROR ThreadId(2059) read: common::service: common\src\service.rs:218: Connection [1627027279514fb0bbe3c207d81b9501] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.936 ERROR ThreadId(2055) read: common::service: common\src\service.rs:218: Connection [ec3058d0c0ea47c9b6bfe9c9c3295de2] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.937 ERROR ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [1627027279514fb0bbe3c207d81b9501] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.937 ERROR ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [ec3058d0c0ea47c9b6bfe9c9c3295de2] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.937  INFO ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [1627027279514fb0bbe3c207d81b9501] closed.
+2022-07-14T07:35:47.937  INFO ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [ec3058d0c0ea47c9b6bfe9c9c3295de2] closed.
+2022-07-14T07:35:47.937 ERROR ThreadId(2054) read: common::service: common\src\service.rs:218: Connection [231e6dafcb9b406bad92554e66b474ac] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.937 ERROR ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [231e6dafcb9b406bad92554e66b474ac] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.937  INFO ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [231e6dafcb9b406bad92554e66b474ac] closed.
+2022-07-14T07:35:47.937 ERROR ThreadId(2054) read: common::service: common\src\service.rs:218: Connection [f2a38ea4a4bb411d9b87c78c9d3f180a] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.937 ERROR ThreadId(2059) read: common::service: common\src\service.rs:218: Connection [fb29bbd18d3943cf82141afd34254bfa] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.937 ERROR ThreadId(2055) read: common::service: common\src\service.rs:218: Connection [8567788724ed44f4bd204bd19e2c34ca] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.937 ERROR ThreadId(2060) read: common::service: common\src\service.rs:218: Connection [7997675fee8541a29c93edcf5bbb4440] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.937 ERROR ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [fb29bbd18d3943cf82141afd34254bfa] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.937 ERROR ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [f2a38ea4a4bb411d9b87c78c9d3f180a] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.937 ERROR ThreadId(2060) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [7997675fee8541a29c93edcf5bbb4440] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.937 ERROR ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [8567788724ed44f4bd204bd19e2c34ca] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.937  INFO ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [fb29bbd18d3943cf82141afd34254bfa] closed.
+2022-07-14T07:35:47.937  INFO ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [f2a38ea4a4bb411d9b87c78c9d3f180a] closed.
+2022-07-14T07:35:47.937  INFO ThreadId(2060) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [7997675fee8541a29c93edcf5bbb4440] closed.
+2022-07-14T07:35:47.937  INFO ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [8567788724ed44f4bd204bd19e2c34ca] closed.
+2022-07-14T07:35:47.937 ERROR ThreadId(2059) read: common::service: common\src\service.rs:218: Connection [86c0d0eb07ff43cdb2d027c44435bd55] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.937 ERROR ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [86c0d0eb07ff43cdb2d027c44435bd55] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.937  INFO ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [86c0d0eb07ff43cdb2d027c44435bd55] closed.
+2022-07-14T07:35:47.937 ERROR ThreadId(1561) read: common::service: common\src\service.rs:218: Connection [687f4e13cf66401896bfce2d75d1a699] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.937 ERROR ThreadId(1561) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [687f4e13cf66401896bfce2d75d1a699] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.937  INFO ThreadId(1561) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [687f4e13cf66401896bfce2d75d1a699] closed.
+2022-07-14T07:35:47.952 ERROR ThreadId(2055) read: common::service: common\src\service.rs:218: Connection [14f4895d9cc84244b81f7925d22cb331] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.952 ERROR ThreadId(1561) read: common::service: common\src\service.rs:218: Connection [75fe095647a24e79ab8db3ed925ce19c] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.952 ERROR ThreadId(1561) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [75fe095647a24e79ab8db3ed925ce19c] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.952 ERROR ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [14f4895d9cc84244b81f7925d22cb331] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.952  INFO ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [14f4895d9cc84244b81f7925d22cb331] closed.
+2022-07-14T07:35:47.952  INFO ThreadId(1561) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [75fe095647a24e79ab8db3ed925ce19c] closed.
+2022-07-14T07:35:47.952 ERROR ThreadId(2054) read: common::service: common\src\service.rs:218: Connection [2f58e67df5e4476bb4f93603b7e50b0e] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.952 ERROR ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [2f58e67df5e4476bb4f93603b7e50b0e] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.952  INFO ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [2f58e67df5e4476bb4f93603b7e50b0e] closed.
+2022-07-14T07:35:47.952 ERROR ThreadId(2060) read: common::service: common\src\service.rs:218: Connection [bf7922d64e6c491dad3cdaa16df44140] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.952 ERROR ThreadId(2055) read: common::service: common\src\service.rs:218: Connection [5b8dd334310e45d6bb90e14a9e734417] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.952 ERROR ThreadId(2054) read: common::service: common\src\service.rs:218: Connection [b4300a9c71a3402eb3826bb910ec35c6] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.952 ERROR ThreadId(2060) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [bf7922d64e6c491dad3cdaa16df44140] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.952 ERROR ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [5b8dd334310e45d6bb90e14a9e734417] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.952 ERROR ThreadId(1561) read: common::service: common\src\service.rs:218: Connection [b94732e27a624bdb830d9ee7becfacc9] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.952 ERROR ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [b4300a9c71a3402eb3826bb910ec35c6] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.952  INFO ThreadId(2060) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [bf7922d64e6c491dad3cdaa16df44140] closed.
+2022-07-14T07:35:47.952  INFO ThreadId(2055) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [5b8dd334310e45d6bb90e14a9e734417] closed.
+2022-07-14T07:35:47.952 ERROR ThreadId(1561) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [b94732e27a624bdb830d9ee7becfacc9] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.953  INFO ThreadId(2054) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [b4300a9c71a3402eb3826bb910ec35c6] closed.
+2022-07-14T07:35:47.953  INFO ThreadId(1561) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [b94732e27a624bdb830d9ee7becfacc9] closed.
+2022-07-14T07:35:47.953 ERROR ThreadId(2059) read: common::service: common\src\service.rs:218: Connection [e239809b6f0447a9a2d80f2d680288e4] fail to read message from frame because of timeout:2
+2022-07-14T07:35:47.953 ERROR ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:209: Connection [e239809b6f0447a9a2d80f2d680288e4] check fail because of error(heartbeat read): TimeoutError {
+    elapsed: 2,
+}
+2022-07-14T07:35:47.953  INFO ThreadId(2059) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [e239809b6f0447a9a2d80f2d680288e4] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [92fbfc5d06614ced8742f169c864ef0d] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(26) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [74baf793573f4c23be239dc342e0dfff] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(62) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [c76f050146284ed998c1aea4651824d5] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(30) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [5ac2243da30549b9892701f77b34037e] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(56) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [3bfd7f7a9cbd42558c28ed0e6c61b9ad] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(23) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [65a0f816caea462fa6d608d929de397b] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(21) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [1897392e25bc42638384c3bfc2b348e4] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(34) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [9bd6b44c55c74e5c84383fc77d3dee66] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(126) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [bff03c8b13f84d618bd0ad7a868f2416] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(28) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [6b1768e82fee4a3186dee578ea24e7f3] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(134) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [d0700fa5a48c41349287801297ae220b] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [48d7bef41262482ebc424c5706b0839f] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(23) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [fc4b6a38317b4778a52de6d3cb3f4f36] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(126) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [2781c1f021c0477397ed07575fedab2e] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(46) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [b507b919af2b4df3991fc029a765b090] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(60) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [9b2d4518b94b4b5e965e0b8f9fc53188] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(64) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [32ce910eed314fc79c7e32b711e67082] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(134) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [bd2c858cc6744f2a9e1af11ef2bf1df0] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [3d219a27564a4ff89ffc2c55ed09966c] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(126) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [98d4cce7afa24d4c8d569d66df3f1f83] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(60) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [684f0eb581734716898db3c339158c85] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(64) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [6438afe0a9a04e048db848d0a266ce2a] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(46) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [176f96fd98e942589d96577c1fa1642f] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(134) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [960b2c31a209431fbae3c25fe6987856] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(40) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [78b1e5fe95b54dffb2b69d6870254b62] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(126) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [cc59877b623b45b1a9f2f95270043b20] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [97b0d1e8b08442c88f8918c42c6507ba] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(46) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [9f5df159663d4da1a7dec7a71df89a61] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(134) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [e3d39b793477477283eccc6f24e52a3d] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(40) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [dd79e493c99640dd8ca3a03feb4c6901] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(64) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [3a7770ce366f44188e9ced85880f2f68] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(60) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [ce7c4f1025964887ad1a32ac59ff9480] closed.
+2022-07-14T07:35:50.423  INFO ThreadId(126) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [874530dad5994bbcb4bf58e0b3b6635c] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [b48dbc021d77477bada6f2928c2d7421] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(134) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [ae88bf1b98fa41ce9d850b56f7f5d56c] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(46) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [b1483021560e4c7f9c7e39efe2a0bf06] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(64) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [786b6868b0e94a62be46a57f7df61f6d] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(40) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [7a8404d5737e46f5bd41b4931f2bb126] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(60) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [8dc2061536964a71b69ceae165e4672a] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(134) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [7de5c33a1b404dd7aa924f667db27036] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(126) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [07de7b46ee4d4fd49778a254cc38e8ca] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [14340f9481d847d282b93a370efd4acd] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(46) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [d223f762f6a247579c7308d3d01ce330] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(40) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [4a57cac5b40b4acfb0fa1e2237e36bde] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(64) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [bae8b97e429e44c5803e7d18ebd10f7e] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [16bb48d63d534c058111a2f9a49baf1c] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(60) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [6ac21f2d65fb42a4ba8d2d5756efbf42] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(134) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [5364bb8a78254291931037ce4c05395c] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(46) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [d6ef8e2fc10d4fdeb80e351c7ce23041] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(40) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [79778b684b5448c3b308d0bb090cde83] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(79) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [fe68127033904f05b44763db080feb29] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(64) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [8af8878692cd45a3bea3cae15d4a6721] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(134) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [77a460cd9e0e411a849342f6817fa381] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [6d8ff499fb7947a18226544d1f1dcf4d] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(40) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [f1ee9a30dd35403686e70d75402dc87f] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(128) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [3b6af7097b3245f48fd2786ce48604a3] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(64) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [5f5a2582b643447399e83da724c84873] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(46) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [91c053ea52034f9b9ce9def8715b4e34] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(18) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [79d74a4d807e460c8070acd58039aded] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(134) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [14cf64f79d9b4f33bd11609be96c89c9] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(13) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [c4afabbdeb96454fb0b1cf7485ce842c] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(40) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [fe2cfdf0600f41a38428286047a36f5b] closed.
+2022-07-14T07:35:50.424  INFO ThreadId(64) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [c782e449092f42dc88dbe082dd3aa5e4] closed.
+2022-07-14T07:35:50.425  INFO ThreadId(112) agent::service::pool: agent\src-tauri\src\service\pool.rs:61: Proxy connection [6a22f6ec8bd84b2f81fd6bedddae2730] closed.
+2022-07-14T07:35:52.988  INFO ThreadId(01) agent: agent\src-tauri\src\main.rs:174: Close agent GUI window.
