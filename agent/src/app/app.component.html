@@ -16,9 +16,9 @@
     </section>
 
     <section>
+        <button class="save_configuration" (click)="saveConfiguration()">Save confiugration</button>
         <button (click)="startAgentServer()" [disabled]="disableStartButton">Start</button>
         <button (click)="stopAgentStop()" [disabled]="disableStopButton">Stop</button>
-        <button>Monitor</button>
     </section>
 </main>
 <router-outlet></router-outlet>

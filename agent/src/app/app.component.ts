@@ -35,25 +35,44 @@ export class AppComponent implements OnInit {
             this.changeRef.detectChanges();
         });
     }
+
     ngOnInit(): void {
+
     }
 
-    startAgentServer(): void {
+    saveConfiguration(): void {
         let commandPayload = {
             uiConfiguration: {
                 user_token: this.userToken,
                 proxy_addresses: this.proxyServerAddresses.split(";")
             }
         };
-        invoke("start_agent_server", commandPayload);
-        console.log(`Ui configuration: ${commandPayload.uiConfiguration.user_token}, user token text input: ${this.userToken}`)
-        this.disableStartButton = true;
-        this.disableStopButton = false;
+        invoke("save_agent_server_config", commandPayload).then((response) => {
+            console.log(`${response}`);
+        }).catch((exception) => {
+            console.log(`Error: ${exception}`);
+        });
+    }
+
+    startAgentServer(): void {
+        invoke("start_agent_server").then((response) => {
+            console.log(`${response}`);
+            this.disableStartButton = true;
+            this.disableStopButton = false;
+        }).catch((exception) => {
+            console.log(`Error: ${exception}`);
+        });
+
     }
 
     stopAgentStop(): void {
-        invoke("stop_agent_server");
-        this.disableStartButton = false;
-        this.disableStopButton = true;
+        invoke("stop_agent_server").then((response) => {
+            console.log(`${response}`);
+            this.disableStartButton = false;
+            this.disableStopButton = true;
+        }).catch((exception) => {
+            console.log(`Error: ${exception}`);
+        });
+
     }
 }

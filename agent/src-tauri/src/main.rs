@@ -1,7 +1,6 @@
 #![cfg_attr(all(not(debug_assertions), target_os = "windows"), windows_subsystem = "windows")]
 
 use std::{
-    io::Read,
     str::FromStr,
     sync::{Arc, Mutex},
 };
@@ -12,7 +11,7 @@ use common::LogTimer;
 use config::{AgentArguments, AgentConfig, AgentLogConfig, UiConfiguration};
 
 use server::AgentServerHandler;
-use tauri::{CustomMenuItem, Manager, PhysicalSize, State, SystemTray, SystemTrayMenu, SystemTrayMenuItem, Window};
+use tauri::{api::dialog::MessageDialogBuilder, CustomMenuItem, Manager, PhysicalSize, State, SystemTray, SystemTrayMenu, SystemTrayMenuItem, Window};
 use tracing::{debug, error, info, metadata::LevelFilter, Level};
 use tracing_subscriber::{fmt::Layer, prelude::__tracing_subscriber_SubscriberExt, Registry};
 
@@ -68,37 +67,40 @@ fn prepare_agent_config(arguments: &AgentArguments) -> AgentConfig {
 }
 
 #[tauri::command]
-fn start_agent_server(ui_configuration: UiConfiguration, window: Window, window_state: State<'_, Arc<Mutex<AgentWindowState>>>) {
-    println!("Click to start agent server button, ui_configuration: {:#?}", ui_configuration);
-    info!("Click to start agent server button, ui_configuration: {:#?}", ui_configuration);
-    if let Ok(mut window_state) = window_state.lock() {
-        if let Some(user_token) = ui_configuration.user_token {
-            if user_token.len() > 0 {
-                window_state.configuration.set_user_token(user_token);
-            }
-        }
-        if let Some(proxy_addresses) = ui_configuration.proxy_addresses {
-            if proxy_addresses.len() > 0 {
-                window_state.configuration.set_proxy_addresses(proxy_addresses);
-            }
-        }
+fn start_agent_server(window: Window, window_state: State<'_, Arc<Mutex<AgentWindowState>>>) -> Result<(), String> {
+    if let Ok(window_state) = window_state.lock() {
         let current_configuration = window_state.configuration.clone();
-        window_state.agent_server_handler.start(current_configuration);
+        window_state.agent_server_handler.start(current_configuration).map_err(|e| e.to_string())?;
         if let Err(e) = window.emit_all(EVENT_AGENT_SERVER_START, true) {
             error!("Fail to send start single to agent server ui because of error: {e:#?}");
         };
     };
+    Ok(())
 }
 
 #[tauri::command]
-fn stop_agent_server(window: Window, window_state: State<'_, Arc<Mutex<AgentWindowState>>>) {
+fn stop_agent_server(window: Window, window_state: State<'_, Arc<Mutex<AgentWindowState>>>) -> Result<(), String> {
     debug!("Click to stop agent server button");
     if let Ok(window_state) = window_state.lock() {
-        window_state.agent_server_handler.stop();
+        window_state.agent_server_handler.stop().map_err(|e| e.to_string())?;
         if let Err(e) = window.emit_all(EVENT_AGENT_SERVER_STOP, true) {
             error!("Fail to send start single to agent server ui because of error: {e:#?}");
         };
     };
+    Ok(())
+}
+
+#[tauri::command]
+fn save_agent_server_config(ui_configuration: UiConfiguration, window_state: State<'_, Arc<Mutex<AgentWindowState>>>) -> Result<(), String> {
+    if let Ok(mut window_state) = window_state.lock() {
+        if let Some(user_token) = ui_configuration.user_token {
+            window_state.configuration.set_user_token(user_token);
+        }
+        if let Some(proxy_addresses) = ui_configuration.proxy_addresses {
+            window_state.configuration.set_proxy_addresses(proxy_addresses);
+        }
+    };
+    Ok(())
 }
 
 struct AgentWindowState {
@@ -153,7 +155,7 @@ fn main() -> Result<()> {
     let agent_server_handler = agent_server.init();
     debug!("Begint to initialize GUI");
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![start_agent_server, stop_agent_server])
+        .invoke_handler(tauri::generate_handler![start_agent_server, stop_agent_server, save_agent_server_config])
         .system_tray(system_tray)
         .manage(Arc::new(Mutex::new(AgentWindowState {
             agent_server_handler,
@@ -199,7 +201,12 @@ fn main() -> Result<()> {
                         let window_state = main_window.state::<Arc<Mutex<AgentWindowState>>>().clone();
                         if let Ok(window_state) = window_state.lock() {
                             let current_configuration = window_state.configuration.clone();
-                            window_state.agent_server_handler.start(current_configuration);
+                            if let Err(e) = window_state.agent_server_handler.start(current_configuration) {
+                                MessageDialogBuilder::new("Error", e.to_string())
+                                    .buttons(tauri::api::dialog::MessageDialogButtons::Ok)
+                                    .show(|ok_presed| {});
+                                error!("Fail to start agent server because of exception: {e:#?}");
+                            };
                             if let Err(e) = main_window.emit_all(EVENT_AGENT_SERVER_START, true) {
                                 error!("Fail to send start single to agent server ui because of error: {e:#?}");
                             };
@@ -208,7 +215,12 @@ fn main() -> Result<()> {
                     EVENT_AGENT_SERVER_STOP => {
                         let window_state = main_window.state::<Arc<Mutex<AgentWindowState>>>().clone();
                         if let Ok(window_state) = window_state.lock() {
-                            window_state.agent_server_handler.stop();
+                            if let Err(e) = window_state.agent_server_handler.stop() {
+                                MessageDialogBuilder::new("Error", e.to_string())
+                                    .buttons(tauri::api::dialog::MessageDialogButtons::Ok)
+                                    .show(|ok_presed| {});
+                                error!("Fail to stop agent server because of exception: {e:#?}");
+                            };
                             if let Err(e) = main_window.emit_all(EVENT_AGENT_SERVER_START, true) {
                                 error!("Fail to send stop single to agent server ui because of error: {e:#?}");
                             };

@@ -1,9 +1,5 @@
+use std::sync::{mpsc::Receiver, Arc};
 use std::time::Duration;
-use std::{
-    any::Any,
-    iter::Map,
-    sync::{mpsc::Receiver, Arc},
-};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     sync::mpsc::channel,
@@ -28,7 +24,7 @@ pub(crate) enum AgentServerCommand {
     Stop,
 }
 
-#[derive(Debug, Debug)]
+#[derive(Debug)]
 pub(crate) struct AgentServer {
     command_receiver: Receiver<AgentServerCommand>,
     command_sender: Sender<AgentServerCommand>,
@@ -51,7 +47,7 @@ impl AgentServerHandler {
 
     pub(crate) fn start(&self, configuration: AgentConfig) -> Result<()> {
         if let Err(e) = self.command_sender.send(AgentServerCommand::Start(configuration)) {
-            error!("Fail to send start command because of error:{e:#?}")
+            error!("Fail to send start command because of error: {e:#?}")
         };
         Ok(self.command_result_receiver.recv()??)
     }
@@ -81,14 +77,16 @@ impl AgentServer {
                 println!("Receive a command.");
                 match command {
                     Err(e) => {
-                        eprintln!("Error happen when waiting for command: {:#?}", e);
+                        eprintln!("Error happen when waiting for command:{:#?}", e);
                         if let Some(runtime) = _runtime_holder {
                             println!("Begin to shutdown tokio runtime because of error.");
                             runtime.shutdown_background();
                             println!("Success to shutdown tokio runtime because of error.");
                         }
                         _runtime_holder = None;
-                        command_result_sender.send(Err(e));
+                        if let Err(e) = command_result_sender.send(Err(e.into())) {
+                            error!("Fail to send command result because of error:{:#?}", e)
+                        };
                         continue;
                     },
                     Ok(AgentServerCommand::Stop) => {
@@ -99,11 +97,30 @@ impl AgentServer {
                             println!("Success to shutdown tokio runtime.");
                         }
                         _runtime_holder = None;
-                        command_result_sender.send(Ok(()));
+                        if let Err(e) = command_result_sender.send(Ok(())) {
+                            error!("Fail to send command result because of error:{:#?}", e)
+                        };
                         continue;
                     },
                     Ok(AgentServerCommand::Start(configuration)) => {
                         println!("Receive start command in main loop.");
+                        match configuration.user_token() {
+                            None => {
+                                if let Err(e) = command_result_sender.send(Err(anyhow!("User token is None"))) {
+                                    error!("Fail to send command result because of error:{:#?}", e)
+                                };
+                                continue;
+                            },
+                            Some(user_token) if user_token.len() == 0 => {
+                                if let Err(e) = command_result_sender.send(Err(anyhow!("User token is Empty"))) {
+                                    error!("Fail to send command result because of error:{:#?}", e)
+                                };
+                                continue;
+                            },
+                            Some(user_token) => {
+                                println!("User token configured to: {user_token}");
+                            },
+                        }
                         if let Some(runtime) = _runtime_holder {
                             println!("Begin to shutdown previous tokio runtime for restart.");
                             runtime.shutdown_background();
@@ -117,10 +134,13 @@ impl AgentServer {
                             .thread_keep_alive(Duration::from_secs(configuration.thread_timeout().unwrap_or(2)))
                             .max_blocking_threads(configuration.max_blocking_threads().unwrap_or(32))
                             .worker_threads(configuration.thread_number().unwrap_or(1024));
+
                         let runtime = match runtime_builder.build() {
                             Err(e) => {
                                 error!("Fail to convert proxy address to socket address because of error: {:#?}", e);
-                                command_result_sender.send(Err(e));
+                                if let Err(e) = command_result_sender.send(Err(e.into())) {
+                                    error!("Fail to send command result because of error:{:#?}", e)
+                                };
                                 continue;
                             },
                             Ok(v) => v,
@@ -147,37 +167,44 @@ impl AgentServer {
                             if proxy_addresses.is_empty() {
                                 eprintln!("No available proxy address for runtime to use.");
                                 error!("No available proxy address for runtime to use.");
-                                command_result_sender.send(Err(anyhow!("No available proxy address for runtime to use.")));
+                                if let Err(e) = command_result_sender.send(Err(anyhow!("No available proxy address for runtime to use."))) {
+                                    error!("Fail to send command result because of error:{:#?}", e)
+                                };
                                 return;
                             }
                             let proxy_addresses = Arc::new(proxy_addresses);
                             let server_socket = match TcpSocket::new_v4() {
                                 Err(e) => {
                                     error!("Fail to create tcp server socket because of error: {e:#?}");
-                                    command_result_sender.send(Err(e));
+                                    if let Err(e) = command_result_sender.send(Err(e.into())) {
+                                        error!("Fail to send command result because of error:{:#?}", e)
+                                    };
                                     return;
                                 },
                                 Ok(v) => v,
                             };
                             if let Err(e) = server_socket.set_reuseaddr(true) {
                                 error!("Fail to set tcp server socket to reuse address because of error: {e:#?}");
-                                command_result_sender.send(Err(e));
+                                if let Err(e) = command_result_sender.send(Err(e.into())) {
+                                    error!("Fail to send command result because of error:{:#?}", e)
+                                };
                                 return;
                             };
                             if let Some(so_recv_buffer_size) = configuration.so_recv_buffer_size() {
                                 if let Err(e) = server_socket.set_recv_buffer_size(so_recv_buffer_size) {
                                     error!("Fail to set tcp server socket recv_buffer_size because of error: {e:#?}");
-                                    command_result_sender.send(Err(e));
+                                    if let Err(e) = command_result_sender.send(Err(e.into())) {
+                                        error!("Fail to send command result because of error:{:#?}", e)
+                                    };
                                     return;
                                 };
                             }
                             if let Some(so_send_buffer_size) = configuration.so_send_buffer_size() {
                                 if let Err(e) = server_socket.set_send_buffer_size(so_send_buffer_size) {
                                     error!("Fail to set tcp server socket send_buffer_size because of error: {e:#?}");
-                                    command_result_sender.send(AgentServerCommandResult {
-                                        error: Some(anyhow!(e)),
-                                        payload: None,
-                                    });
+                                    if let Err(e) = command_result_sender.send(Err(e.into())) {
+                                        error!("Fail to send command result because of error:{:#?}", e)
+                                    };
                                     return;
                                 };
                             }
@@ -187,19 +214,17 @@ impl AgentServer {
                             ));
                             if let Err(e) = server_socket.bind(local_socket_address) {
                                 error!("Fail to bind tcp server socket on [{local_socket_address}] because of error: {e:#?}");
-                                command_result_sender.send(AgentServerCommandResult {
-                                    error: Some(anyhow!(e)),
-                                    payload: None,
-                                });
+                                if let Err(e) = command_result_sender.send(Err(e.into())) {
+                                    error!("Fail to send command result because of error:{:#?}", e)
+                                };
                                 return;
                             };
                             let listener = match server_socket.listen(configuration.so_backlog().unwrap_or(1024)) {
                                 Err(e) => {
                                     error!("Fail to listen tcp server socket because of error: {e:#?}");
-                                    command_result_sender.send(AgentServerCommandResult {
-                                        error: Some(anyhow!(e)),
-                                        payload: None,
-                                    });
+                                    if let Err(e) = command_result_sender.send(Err(e.into())) {
+                                        error!("Fail to send command result because of error:{:#?}", e)
+                                    };
                                     return;
                                 },
                                 Ok(v) => v,
@@ -208,10 +233,9 @@ impl AgentServer {
                             let agent_rsa_crypto_fetcher = match AgentRsaCryptoFetcher::new(configuration.clone()) {
                                 Err(e) => {
                                     error!("Fail to generate rsa crypto fetcher because of error: {e:#?}");
-                                    command_result_sender.send(AgentServerCommandResult {
-                                        error: Some(anyhow!(e)),
-                                        payload: None,
-                                    });
+                                    if let Err(e) = command_result_sender.send(Err(e.into())) {
+                                        error!("Fail to send command result because of error:{:#?}", e)
+                                    };
                                     return;
                                 },
                                 Ok(v) => v,
@@ -221,35 +245,29 @@ impl AgentServer {
                                 match ProxyConnectionPool::new(proxy_addresses.clone(), configuration.clone(), agent_rsa_crypto_fetcher.clone()).await {
                                     Err(e) => {
                                         error!("Fail to generate rsa crypto fetcher because of error: {e:#?}");
-                                        command_result_sender.send(AgentServerCommandResult {
-                                            error: Some(anyhow!(e)),
-                                            payload: None,
-                                        });
+                                        if let Err(e) = command_result_sender.send(Err(e.into())) {
+                                            error!("Fail to send command result because of error:{:#?}", e)
+                                        };
                                         return;
                                     },
                                     Ok(v) => v,
                                 },
                             );
                             println!("ppaass-agent is listening port: {} ", local_socket_address.port());
+                            if let Err(e) = command_result_sender.send(Ok(())) {
+                                error!("Fail to send command result because of error:{:#?}", e)
+                            };
                             loop {
                                 let agent_rsa_crypto_fetcher = agent_rsa_crypto_fetcher.clone();
                                 let (client_stream, client_address) = match listener.accept().await {
                                     Err(e) => {
                                         error!("Fail to accept client connection because of error: {:#?}", e);
-                                        command_result_sender.send(AgentServerCommandResult {
-                                            error: Some(anyhow!(e)),
-                                            payload: None,
-                                        });
                                         return;
                                     },
                                     Ok((client_stream, client_address)) => (client_stream, client_address),
                                 };
                                 if let Err(e) = client_stream.set_nodelay(true) {
                                     error!("Fail to set client connection no delay because of error: {:#?}", e);
-                                    command_result_sender.send(AgentServerCommandResult {
-                                        error: Some(anyhow!(e)),
-                                        payload: None,
-                                    });
                                     return;
                                 }
                                 if let Some(so_linger) = configuration.client_stream_so_linger() {
@@ -257,7 +275,6 @@ impl AgentServer {
                                         error!("Fail to set client connection linger because of error: {:#?}", e);
                                     }
                                 }
-
                                 let configuration = configuration.clone();
                                 let proxy_connection_pool = proxy_connection_pool.clone();
                                 tokio::spawn(async move {
