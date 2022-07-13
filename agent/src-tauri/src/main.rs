@@ -221,7 +221,7 @@ fn main() -> Result<()> {
                                     .show(|ok_presed| {});
                                 error!("Fail to stop agent server because of exception: {e:#?}");
                             };
-                            if let Err(e) = main_window.emit_all(EVENT_AGENT_SERVER_START, true) {
+                            if let Err(e) = main_window.emit_all(EVENT_AGENT_SERVER_STOP, true) {
                                 error!("Fail to send stop single to agent server ui because of error: {e:#?}");
                             };
                         };
