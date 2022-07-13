@@ -11,7 +11,10 @@ use common::LogTimer;
 use config::{AgentArguments, AgentConfig, AgentLogConfig, UiConfiguration};
 
 use server::AgentServerHandler;
-use tauri::{api::dialog::MessageDialogBuilder, CustomMenuItem, Manager, PhysicalSize, State, SystemTray, SystemTrayMenu, SystemTrayMenuItem, Window};
+use tauri::{
+    api::dialog::{blocking, MessageDialogBuilder},
+    CustomMenuItem, Manager, PhysicalSize, State, SystemTray, SystemTrayMenu, SystemTrayMenuItem, Window,
+};
 use tracing::{debug, error, info, metadata::LevelFilter, Level};
 use tracing_subscriber::{fmt::Layer, prelude::__tracing_subscriber_SubscriberExt, Registry};
 
@@ -202,9 +205,7 @@ fn main() -> Result<()> {
                         if let Ok(window_state) = window_state.lock() {
                             let current_configuration = window_state.configuration.clone();
                             if let Err(e) = window_state.agent_server_handler.start(current_configuration) {
-                                MessageDialogBuilder::new("Error", e.to_string())
-                                    .buttons(tauri::api::dialog::MessageDialogButtons::Ok)
-                                    .show(|ok_presed| {});
+                                blocking::message(Some(&main_window), "Error", e.to_string());
                                 error!("Fail to start agent server because of exception: {e:#?}");
                             };
                             if let Err(e) = main_window.emit_all(EVENT_AGENT_SERVER_START, true) {
@@ -216,9 +217,7 @@ fn main() -> Result<()> {
                         let window_state = main_window.state::<Arc<Mutex<AgentWindowState>>>().clone();
                         if let Ok(window_state) = window_state.lock() {
                             if let Err(e) = window_state.agent_server_handler.stop() {
-                                MessageDialogBuilder::new("Error", e.to_string())
-                                    .buttons(tauri::api::dialog::MessageDialogButtons::Ok)
-                                    .show(|ok_presed| {});
+                                blocking::message(Some(&main_window), "Error", e.to_string());
                                 error!("Fail to stop agent server because of exception: {e:#?}");
                             };
                             if let Err(e) = main_window.emit_all(EVENT_AGENT_SERVER_STOP, true) {
