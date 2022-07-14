@@ -17,7 +17,7 @@
         "bundle": {
             "active": true,
             "category": "DeveloperTool",
-            "copyright": "",
+            "copyright": "The agent side of ppaass project",
             "deb": {
                 "depends": []
             },
@@ -38,7 +38,12 @@
                 "providerShortName": null,
                 "signingIdentity": null
             },
-            "resources": [],
+            "resources": [
+                "./AgentPrivateKey.pem",
+                "./ProxyPublicKey.pem",
+                "./ppaass-agent-log.toml",
+                "./ppaass-agent.toml"
+            ],
             "shortDescription": "",
             "targets": "all",
             "windows": {
