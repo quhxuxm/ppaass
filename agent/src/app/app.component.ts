@@ -12,11 +12,15 @@ import { appWindow } from '@tauri-apps/api/window';
 export class AppComponent implements OnInit {
     public userToken: string;
     public proxyServerAddresses: string;
+    public listeningPort: string;
+
     public enableCompressing: boolean;
     public disableStartButton: boolean;
     public disableStopButton: boolean;
 
     constructor(private changeRef: ChangeDetectorRef) {
+
+        this.listeningPort = "";
         this.userToken = "";
         this.proxyServerAddresses = "";
         this.enableCompressing = false;
@@ -25,10 +29,14 @@ export class AppComponent implements OnInit {
     }
 
     ngOnInit(): void {
-        appWindow.listen<any>('agent-initialized', (event) => {
-            this.userToken = event.payload.user_token;
-            console.log("Agent initialized event happen. ")
-            this.changeRef.detectChanges();
+        invoke("retrive_agent_configuration").then((response: any) => {
+            console.log(`:retrive_agent_configuration: ${response}`);
+            this.userToken = response.user_token;
+            this.proxyServerAddresses = response.proxy_addresses.toString();
+            this.enableCompressing = response.compress;
+            this.listeningPort = response.port.toString();
+        }).catch((exception) => {
+            console.log(`retrive_agent_configuration error: ${exception}`);
         });
         appWindow.listen<boolean>('agent-server-stop', (event) => {
             this.disableStartButton = false;
@@ -46,34 +54,36 @@ export class AppComponent implements OnInit {
         let commandPayload = {
             uiConfiguration: {
                 user_token: this.userToken,
-                proxy_addresses: this.proxyServerAddresses.split(";")
+                proxy_addresses: this.proxyServerAddresses.split(","),
+                compress: this.enableCompressing,
+                port: this.listeningPort
             }
         };
         invoke("save_agent_server_config", commandPayload).then((response) => {
-            console.log(`${response}`);
+            console.log(`save_agent_server_config: ${response}`);
         }).catch((exception) => {
-            console.log(`Error: ${exception}`);
+            console.log(`save_agent_server_config error: ${exception}`);
         });
     }
 
     startAgentServer(): void {
         invoke("start_agent_server").then((response) => {
-            console.log(`${response}`);
+            console.log(`start_agent_server: ${response}`);
             this.disableStartButton = true;
             this.disableStopButton = false;
         }).catch((exception) => {
-            console.log(`Error: ${exception}`);
+            console.log(`start_agent_server error: ${exception}`);
         });
 
     }
 
     stopAgentStop(): void {
         invoke("stop_agent_server").then((response) => {
-            console.log(`${response}`);
+            console.log(`stop_agent_server: ${response}`);
             this.disableStartButton = false;
             this.disableStopButton = true;
         }).catch((exception) => {
-            console.log(`Error: ${exception}`);
+            console.log(`stop_agent_server error: ${exception}`);
         });
 
     }

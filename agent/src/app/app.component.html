@@ -5,13 +5,19 @@
     </section>
 
     <section>
-        <label>Enter proxy servers(seperat with ";" between ip addresses):</label>
+        <label>Enter proxy servers(seperat with "," between ip addresses):</label>
         <textarea [(ngModel)]="proxyServerAddresses"></textarea>
     </section>
 
     <section>
         <label class="enable_compressing">Enable compressing:</label>
-        <input type="checkbox" [value]="enableCompressing" />
+        <input type="checkbox" [(ngModel)]="enableCompressing" />
+        <div class="placeholder"></div>
+    </section>
+
+    <section>
+        <label>Listening port:</label>
+        <input type="text" [(ngModel)]="listeningPort" />
         <div class="placeholder"></div>
     </section>
 

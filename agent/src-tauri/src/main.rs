@@ -68,39 +68,47 @@ fn prepare_agent_config(arguments: &AgentArguments) -> AgentConfig {
 }
 
 #[tauri::command]
+fn retrive_agent_configuration(window_state: State<'_, Arc<Mutex<AgentWindowState>>>) -> Result<AgentConfig, String> {
+    let window_state = window_state.lock().map_err(|e| e.to_string())?;
+    Ok(window_state.configuration.clone())
+}
+
+#[tauri::command]
 fn start_agent_server(window: Window, window_state: State<'_, Arc<Mutex<AgentWindowState>>>) -> Result<(), String> {
-    if let Ok(window_state) = window_state.lock() {
-        let current_configuration = window_state.configuration.clone();
-        window_state.agent_server_handler.start(current_configuration).map_err(|e| e.to_string())?;
-        if let Err(e) = window.emit_all(EVENT_AGENT_SERVER_START, true) {
-            error!("Fail to send start single to agent server ui because of error: {e:#?}");
-        };
-    };
+    let window_state = window_state.lock().map_err(|e| e.to_string())?;
+    let current_configuration = window_state.configuration.clone();
+    println!("The agent configuraiton going to start: {current_configuration:#?}");
+    window_state.agent_server_handler.start(current_configuration).map_err(|e| e.to_string())?;
+    window.emit_all(EVENT_AGENT_SERVER_START, true).map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
 fn stop_agent_server(window: Window, window_state: State<'_, Arc<Mutex<AgentWindowState>>>) -> Result<(), String> {
     debug!("Click to stop agent server button");
-    if let Ok(window_state) = window_state.lock() {
-        window_state.agent_server_handler.stop().map_err(|e| e.to_string())?;
-        if let Err(e) = window.emit_all(EVENT_AGENT_SERVER_STOP, true) {
-            error!("Fail to send start single to agent server ui because of error: {e:#?}");
-        };
-    };
+    let window_state = window_state.lock().map_err(|e| e.to_string())?;
+    window_state.agent_server_handler.stop().map_err(|e| e.to_string())?;
+    window.emit_all(EVENT_AGENT_SERVER_STOP, true).map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
 fn save_agent_server_config(ui_configuration: UiConfiguration, window_state: State<'_, Arc<Mutex<AgentWindowState>>>) -> Result<(), String> {
-    if let Ok(mut window_state) = window_state.lock() {
-        if let Some(user_token) = ui_configuration.user_token {
-            window_state.configuration.set_user_token(user_token);
-        }
-        if let Some(proxy_addresses) = ui_configuration.proxy_addresses {
-            window_state.configuration.set_proxy_addresses(proxy_addresses);
-        }
-    };
+    println!("The configuration from ui: {ui_configuration:#?}");
+    let mut window_state = window_state.lock().map_err(|e| e.to_string())?;
+    if let Some(user_token) = ui_configuration.user_token {
+        window_state.configuration.set_user_token(user_token);
+    }
+    if let Some(proxy_addresses) = ui_configuration.proxy_addresses {
+        window_state.configuration.set_proxy_addresses(proxy_addresses);
+    }
+    if let Some(compress) = ui_configuration.compress {
+        window_state.configuration.set_compress(compress);
+    }
+    if let Some(port) = ui_configuration.port {
+        window_state.configuration.set_port(u16::from_str(port.as_str()).map_err(|e| e.to_string())?);
+    }
+    println!("The configuration saved: {:#?}", window_state.configuration);
     Ok(())
 }
 
@@ -163,7 +171,12 @@ fn main() -> Result<()> {
             };
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![start_agent_server, stop_agent_server, save_agent_server_config])
+        .invoke_handler(tauri::generate_handler![
+            start_agent_server,
+            stop_agent_server,
+            save_agent_server_config,
+            retrive_agent_configuration
+        ])
         .system_tray(system_tray)
         .manage(Arc::new(Mutex::new(AgentWindowState {
             agent_server_handler,
