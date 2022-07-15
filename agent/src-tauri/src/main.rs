@@ -53,14 +53,12 @@ fn prepare_agent_config(arguments: &AgentArguments) -> AgentConfig {
     if let Some(compress) = arguments.compress {
         configuration.set_compress(compress);
     }
-
     if let Some(client_buffer_size) = arguments.client_buffer_size {
         configuration.set_client_buffer_size(client_buffer_size)
     }
     if let Some(message_framed_buffer_size) = arguments.message_framed_buffer_size {
         configuration.set_message_framed_buffer_size(message_framed_buffer_size)
     }
-
     if let Some(so_backlog) = arguments.so_backlog {
         configuration.set_so_backlog(so_backlog)
     }
