@@ -28,7 +28,8 @@ pub(crate) mod service;
 
 pub(crate) mod config;
 
-const AGNT_LOG_CONFIG_FILE: &str = "ppaass-agent-log.toml";
+const AGENT_LOG_CONFIG_FILE: &str = "ppaass-agent-log.toml";
+const AGENT_CONFIG_FILE: &str = "ppaass-agent.toml";
 const EVENT_AGENT_SERVER_START: &str = "agent-server-start";
 const EVENT_AGENT_SERVER_STOP: &str = "agent-server-stop";
 const EVENT_AGENT_EXIT: &str = "agent-exit";
@@ -38,8 +39,8 @@ const MAIN_WINDOW_LABEL: &str = "main";
 fn prepare_agent_config(arguments: &AgentArguments) -> AgentConfig {
     let configuration_file_content = match &arguments.configuration_file {
         None => {
-            println!("Starting ppaass-agent with default configuration file:  ppaass-agent.toml");
-            std::fs::read_to_string("ppaass-agent.toml").expect("Fail to read agent configuration file.")
+            println!("Starting ppaass-agent with default configuration file:  {AGENT_CONFIG_FILE}");
+            std::fs::read_to_string(AGENT_CONFIG_FILE).expect("Fail to read agent configuration file.")
         },
         Some(path) => {
             println!("Starting ppaass-agent with customized configuration file: {}", path.as_str());
@@ -106,6 +107,10 @@ fn save_agent_server_config(ui_configuration: UiConfiguration, window_state: Sta
     if let Some(port) = ui_configuration.port {
         window_state.configuration.set_port(u16::from_str(port.as_str()).map_err(|e| e.to_string())?);
     }
+    let configuration_to_save = window_state.configuration.clone();
+    let configuration_file_content = toml::to_string_pretty(&configuration_to_save).map_err(|e| e.to_string())?;
+    let configuration_file_path = window_state.arguments.log_configuration_file.as_deref().unwrap_or(AGENT_CONFIG_FILE);
+    std::fs::write(configuration_file_path, configuration_file_content).map_err(|e| e.to_string())?;
     println!("The configuration saved: {:#?}", window_state.configuration);
     Ok(())
 }
@@ -113,11 +118,12 @@ fn save_agent_server_config(ui_configuration: UiConfiguration, window_state: Sta
 struct AgentWindowState {
     agent_server_handler: AgentServerHandler,
     configuration: AgentConfig,
+    arguments: AgentArguments,
 }
 
 fn main() -> Result<()> {
     let arguments = AgentArguments::parse();
-    let log_configuration_file_content = std::fs::read_to_string(arguments.log_configuration_file.as_deref().unwrap_or(AGNT_LOG_CONFIG_FILE))
+    let log_configuration_file_content = std::fs::read_to_string(arguments.log_configuration_file.as_deref().unwrap_or(AGENT_LOG_CONFIG_FILE))
         .expect("Fail to read agnet log configuration file.");
     let log_configuration = toml::from_str::<AgentLogConfig>(&log_configuration_file_content).expect("Fail to parse agnet log configuration file");
     let log_directory = log_configuration.log_dir().as_ref().expect("No log directory given.");
@@ -179,6 +185,7 @@ fn main() -> Result<()> {
         .manage(Arc::new(Mutex::new(AgentWindowState {
             agent_server_handler,
             configuration,
+            arguments,
         })))
         .on_window_event(|event| match event.event() {
             tauri::WindowEvent::CloseRequested { .. } => {
