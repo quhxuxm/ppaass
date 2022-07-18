@@ -206,6 +206,5 @@ pub(crate) struct AgentArguments {
 pub(crate) struct UiConfiguration {
     pub user_token: Option<String>,
     pub proxy_addresses: Option<Vec<String>>,
-    pub compress: Option<bool>,
     pub port: Option<String>,
 }

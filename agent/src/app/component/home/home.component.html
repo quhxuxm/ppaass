@@ -1,0 +1,24 @@
+<main>
+    <section>
+        <label>Enter user token:</label>
+        <textarea [(ngModel)]="userToken"></textarea>
+    </section>
+
+    <section>
+        <label>Enter proxy servers(seperat with "," between ip addresses):</label>
+        <textarea [(ngModel)]="proxyAddresses"></textarea>
+    </section>
+
+    <section>
+        <label>Listening port:</label>
+        <input type="text" [(ngModel)]="listingingPort" />
+        <div class="placeholder"></div>
+    </section>
+
+    <section>
+        <button class="save_configuration" (click)="saveAgentServerConfiguration()">Save confiugration</button>
+        <button (click)="startAgentServer()" [disabled]="agentServerStarted">Start</button>
+        <button (click)="stopAgentServer()" [disabled]="!agentServerStarted">Stop</button>
+    </section>
+</main>
+<router-outlet></router-outlet>

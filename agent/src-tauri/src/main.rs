@@ -30,8 +30,8 @@ pub(crate) mod config;
 
 const AGENT_LOG_CONFIG_FILE: &str = "ppaass-agent-log.toml";
 const AGENT_CONFIG_FILE: &str = "ppaass-agent.toml";
-const EVENT_AGENT_SERVER_START: &str = "agent-server-start";
-const EVENT_AGENT_SERVER_STOP: &str = "agent-server-stop";
+const EVENT_AGENT_SERVER_START: &str = "agent-server-start-backend-event";
+const EVENT_AGENT_SERVER_STOP: &str = "agent-server-stop-backend-event";
 const EVENT_AGENT_EXIT: &str = "agent-exit";
 const EVENT_AGENT_INITIALIZED: &str = "agent-initialized";
 const MAIN_WINDOW_LABEL: &str = "main";
@@ -92,19 +92,16 @@ fn stop_agent_server(window: Window, window_state: State<'_, Arc<Mutex<AgentWind
 }
 
 #[tauri::command]
-fn save_agent_server_config(ui_configuration: UiConfiguration, window_state: State<'_, Arc<Mutex<AgentWindowState>>>) -> Result<(), String> {
-    println!("The configuration from ui: {ui_configuration:#?}");
+fn save_agent_server_config(configuration: UiConfiguration, window_state: State<'_, Arc<Mutex<AgentWindowState>>>) -> Result<(), String> {
+    println!("The configuration from ui: {configuration:#?}");
     let mut window_state = window_state.lock().map_err(|e| e.to_string())?;
-    if let Some(user_token) = ui_configuration.user_token {
+    if let Some(user_token) = configuration.user_token {
         window_state.configuration.set_user_token(user_token);
     }
-    if let Some(proxy_addresses) = ui_configuration.proxy_addresses {
+    if let Some(proxy_addresses) = configuration.proxy_addresses {
         window_state.configuration.set_proxy_addresses(proxy_addresses);
     }
-    if let Some(compress) = ui_configuration.compress {
-        window_state.configuration.set_compress(compress);
-    }
-    if let Some(port) = ui_configuration.port {
+    if let Some(port) = configuration.port {
         window_state.configuration.set_port(u16::from_str(port.as_str()).map_err(|e| e.to_string())?);
     }
     let configuration_to_save = window_state.configuration.clone();
