@@ -29,7 +29,7 @@ pub(crate) mod service;
 pub(crate) mod config;
 
 const AGENT_LOG_CONFIG_FILE: &str = "ppaass-agent-log.toml";
-const AGENT_CONFIG_FILE: &str = "ppaass-agent.toml";
+const DEFAULT_AGENT_CONFIGURATION_FILE: &str = "ppaass-agent.toml";
 const EVENT_AGENT_SERVER_START: &str = "agent-server-start-backend-event";
 const EVENT_AGENT_SERVER_STOP: &str = "agent-server-stop-backend-event";
 const EVENT_AGENT_EXIT: &str = "agent-exit";
@@ -39,8 +39,8 @@ const MAIN_WINDOW_LABEL: &str = "main";
 fn prepare_agent_config(arguments: &AgentArguments) -> AgentConfig {
     let configuration_file_content = match &arguments.configuration_file {
         None => {
-            println!("Starting ppaass-agent with default configuration file:  {AGENT_CONFIG_FILE}");
-            std::fs::read_to_string(AGENT_CONFIG_FILE).expect("Fail to read agent configuration file.")
+            println!("Starting ppaass-agent with default configuration file:  {DEFAULT_AGENT_CONFIGURATION_FILE}");
+            std::fs::read_to_string(DEFAULT_AGENT_CONFIGURATION_FILE).expect("Fail to read agent configuration file.")
         },
         Some(path) => {
             println!("Starting ppaass-agent with customized configuration file: {}", path.as_str());
@@ -106,7 +106,11 @@ fn save_agent_server_config(configuration: UiConfiguration, window_state: State<
     }
     let configuration_to_save = window_state.configuration.clone();
     let configuration_file_content = toml::to_string_pretty(&configuration_to_save).map_err(|e| e.to_string())?;
-    let configuration_file_path = window_state.arguments.log_configuration_file.as_deref().unwrap_or(AGENT_CONFIG_FILE);
+    let configuration_file_path = window_state
+        .arguments
+        .log_configuration_file
+        .as_deref()
+        .unwrap_or(DEFAULT_AGENT_CONFIGURATION_FILE);
     std::fs::write(configuration_file_path, configuration_file_content).map_err(|e| e.to_string())?;
     println!("The configuration saved: {:#?}", window_state.configuration);
     Ok(())
