@@ -64,11 +64,12 @@
     </section>
 
     <section class="agent_action_buttons_group">
-        <button mat-flat class="agent_action_button" (click)="operateAgentServer()"
-            [ngClass]="{'started': agentServerStarted, 'stopped': !agentServerStarted}">
-            <fa-icon *ngIf="!agentServerStarted" [icon]="iconStart"></fa-icon>
-            <fa-icon *ngIf="agentServerStarted" [icon]="iconStop"></fa-icon>
-        </button>
+        <fa-icon class="agent_action_button start" *ngIf="!agentServerStarted" [icon]="iconStart"
+            (click)="operateAgentServer()">
+        </fa-icon>
+        <fa-icon class="agent_action_button stop" *ngIf="agentServerStarted" [icon]="iconStop"
+            (click)="operateAgentServer()">
+        </fa-icon>
     </section>
 </main>
 <router-outlet></router-outlet>

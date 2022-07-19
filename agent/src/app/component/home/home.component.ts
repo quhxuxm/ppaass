@@ -1,7 +1,7 @@
 import { BackendService } from './../../service/backend.service';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import UiAgentConfiguration from 'src/app/dto/UiAgentConfiguration';
-import { faCoffee, faNetworkWired, faPlay, faServer, faStar, faStop, faUser } from '@fortawesome/free-solid-svg-icons';
+import { faCirclePause, faCirclePlay, faCoffee, faNetworkWired, faPlay, faServer, faStar, faStop, faUser } from '@fortawesome/free-solid-svg-icons';
 
 @Component({
     selector: 'app-home',
@@ -19,8 +19,8 @@ export class HomeComponent implements OnInit {
     iconUser = faUser;
     iconProxy = faNetworkWired;
     iconAgent = faServer;
-    iconStart = faPlay;
-    iconStop = faStop;
+    iconStart = faCirclePlay;
+    iconStop = faCirclePause;
 
     constructor(private changeRef: ChangeDetectorRef, private backendService: BackendService) {
         this.agentServerStarted = false;

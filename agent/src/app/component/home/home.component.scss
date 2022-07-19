@@ -39,18 +39,26 @@ main section {
     justify-self: flex-end;
     margin: 5px;
     margin-bottom: 20px;
-    width: 80px;
-    height: 80px;
     border-radius: 100%;
     border: none;
+    font-size: 60px;
+    cursor: pointer;
 }
 
-.agent_action_button.started {
-    color: rgb(240, 16, 16);
+.agent_action_button.stop {
+    color: #e57979
 }
 
-.agent_action_button.stopped {
-    color: rgb(153, 255, 0);
+.agent_action_button.stop:hover {
+    color: #d85656
+}
+
+.agent_action_button.start {
+    color: #CCCCCC
+}
+
+.agent_action_button.start:hover {
+    color: #888888
 }
 
 .pannel_header_icon {
