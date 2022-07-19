@@ -46,11 +46,11 @@ main section {
 }
 
 .agent_action_button.started {
-    color: red;
+    color: rgb(240, 16, 16);
 }
 
 .agent_action_button.stopped {
-    color: greenyellow;
+    color: rgb(153, 255, 0);
 }
 
 .pannel_header_icon {
@@ -65,6 +65,7 @@ section.agent_action_buttons_group {
     align-items: center;
     justify-content: center;
     justify-items: center;
+    font-weight: 700;
 }
 
 .field_hint {
