@@ -1,7 +1,7 @@
 import { BackendService } from './../../service/backend.service';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import UiAgentConfiguration from 'src/app/dto/UiAgentConfiguration';
-import { faCirclePause, faCirclePlay, faCoffee, faNetworkWired, faPlay, faServer, faStar, faStop, faUser } from '@fortawesome/free-solid-svg-icons';
+import { faCirclePause, faCirclePlay, faNetworkWired, faServer, faUser } from '@fortawesome/free-solid-svg-icons';
 
 @Component({
     selector: 'app-home',
