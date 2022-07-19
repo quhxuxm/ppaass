@@ -1,6 +1,6 @@
 export class BackendAgentConfiguration {
     private _user_token: string | undefined;
-    private _port: number | undefined;
+    private _port: string | undefined;
     private _proxy_addresses: string[] | undefined;
 
     public get user_token(): string | undefined {
@@ -17,10 +17,10 @@ export class BackendAgentConfiguration {
         this._proxy_addresses = value;
     }
 
-    public get port(): number | undefined {
+    public get port(): string | undefined {
         return this._port;
     }
-    public set port(value: number | undefined) {
+    public set port(value: string | undefined) {
         this._port = value;
     }
 }

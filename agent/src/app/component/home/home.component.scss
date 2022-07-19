@@ -1,68 +1,72 @@
 main {
     margin-left: 10px;
     margin-right: 10px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 }
 
 main section {
     width: 100%;
-    margin-left: 0;
-    margin-right: 0;
-    margin-bottom: 30px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 20px;
 }
 
-main section label {
-    margin-left: 0;
-    margin-right: 0;
-    clear: both;
+.user_token_input {
     width: 100%;
+}
+
+.user_token_input textarea {
+    height: 100px;
+}
+
+.proxy_address_input {
+    width: 100%;
+}
+
+.proxy_address_input textarea {
+    height: 100px;
+}
+
+.listening_port_input {
+    width: 100%;
+}
+
+.agent_action_button {
+    flex-grow: unset;
+    justify-self: flex-end;
+    margin: 5px;
+    margin-bottom: 20px;
+    width: 80px;
+    height: 80px;
+    border-radius: 100%;
+    border: none;
+}
+
+.agent_action_button.started {
+    color: red;
+}
+
+.agent_action_button.stopped {
+    color: greenyellow;
+}
+
+.pannel_header_icon {
+    margin-right: 5px;
+}
+
+section.agent_action_buttons_group {
+    flex-grow: 1;
+    align-self: center;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    justify-items: center;
+}
+
+.field_hint {
     margin-bottom: 5px;
-    display: block;
-    font-weight: bold;
-    font-size: 20px;
-}
-
-main section textarea {
-    display: block;
-    width: 100%;
-    box-sizing: border-box;
-    height: 165px;
-    padding: 10px;
-    font-size: 18px;
-    resize: none;
-}
-
-main section label.enable_compressing {
-    width: 200px;
-    cursor: pointer;
-    float: left;
-}
-
-main section input[type="checkbox"] {
-    float: left;
-    cursor: pointer;
-    margin-top: 5px;
-}
-
-main section button:nth-child(1) {
-    margin-left: 0px;
-}
-
-main section button {
-    padding: 10px;
-    margin: 10px;
-    width: 90px;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-main section button.save_configuration {
-    padding: 10px;
-    margin: 10px;
-    width: 150px;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-div.placeholder {
-    clear: both;
 }

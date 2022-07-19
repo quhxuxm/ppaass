@@ -1,16 +1,10 @@
 /* You can add global styles to this file, and also import other style files */
-
 html,
 body {
     height: 100%;
-    width: 100%;
-    font-family: -apple-system,
-        SF UI Text,
-        Arial,
-        PingFang SC,
-        Hiragino Sans GB,
-        Microsoft YaHei,
-        WenQuanYi Micro Hei,
-        sans-serif;
-    color: #0C0C0C;
+}
+
+body {
+    margin: 0;
+    font-family: Roboto, "Helvetica Neue", sans-serif;
 }

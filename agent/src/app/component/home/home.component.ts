@@ -1,6 +1,7 @@
 import { BackendService } from './../../service/backend.service';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import UiAgentConfiguration from 'src/app/dto/UiAgentConfiguration';
+import { faCoffee, faNetworkWired, faPlay, faServer, faStar, faStop, faUser } from '@fortawesome/free-solid-svg-icons';
 
 @Component({
     selector: 'app-home',
@@ -8,13 +9,24 @@ import UiAgentConfiguration from 'src/app/dto/UiAgentConfiguration';
     styleUrls: ['./home.component.scss']
 })
 export class HomeComponent implements OnInit {
-    public userToken: string | undefined;
-    public proxyAddresses: string[] | undefined;
-    public listingingPort: number | undefined;
-    public agentServerStarted: boolean;
+    userToken: string | undefined;
+    proxyAddresses: string[] | undefined;
+    listingingPort: string | undefined;
+    agentServerStarted: boolean;
+    userInfoPannelOpenState: boolean;
+    proxyInfoPannelOpenState: boolean;
+    agentInfoPannelOpenState: boolean;
+    iconUser = faUser;
+    iconProxy = faNetworkWired;
+    iconAgent = faServer;
+    iconStart = faPlay;
+    iconStop = faStop;
 
     constructor(private changeRef: ChangeDetectorRef, private backendService: BackendService) {
         this.agentServerStarted = false;
+        this.userInfoPannelOpenState = false;
+        this.proxyInfoPannelOpenState = false;
+        this.agentInfoPannelOpenState = false;
     }
 
     ngOnInit(): void {
@@ -39,14 +51,14 @@ export class HomeComponent implements OnInit {
         });
     }
 
-    public saveAgentServerConfiguration() {
+    private saveAgentServerConfiguration(successCallback: () => void) {
         let configuration = new UiAgentConfiguration();
         configuration.listeningPort = this.listingingPort;
         configuration.proxyAddresses = this.proxyAddresses;
         configuration.userToken = this.userToken;
         this.backendService.saveAgentConfiguration(configuration).subscribe({
             next(saveResult) {
-
+                successCallback();
             },
             error(err) {
                 alert(`Fail to save agent configuration because of error: ${err}`);
@@ -54,21 +66,27 @@ export class HomeComponent implements OnInit {
         });
     }
 
-    public startAgentServer() {
+    public operateAgentServer() {
         let thisObject = this;
-        this.backendService.startAgentServer().subscribe({
-            next(value) {
-                thisObject.agentServerStarted = true;
-            },
-            error(err) {
-                alert(`Fail to start agent server because of error: ${err}`);
-            },
-        })
+        if (!this.agentServerStarted) {
+            this.saveAgentServerConfiguration(() => {
+                this.backendService.startAgentServer().subscribe({
+                    next(value) {
+                        thisObject.agentServerStarted = true;
+                    },
+                    error(err) {
+                        alert(`Fail to start agent server because of error: ${err}`);
+                    },
+                })
+            })
+        } else {
+            this.stopAgentServer();
+        }
     }
 
-    public stopAgentServer() {
+    private stopAgentServer() {
         let thisObject = this;
-        this.backendService.startAgentServer().subscribe({
+        this.backendService.stopAgentServer().subscribe({
             next(value) {
                 thisObject.agentServerStarted = false;
             },

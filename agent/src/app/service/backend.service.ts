@@ -44,7 +44,7 @@ export class BackendService {
 
     public saveAgentConfiguration(uiConfiguration: UiAgentConfiguration): Observable<any> {
         let backendConfiguration = new BackendAgentConfiguration();
-        backendConfiguration.port = uiConfiguration.listeningPort;
+        backendConfiguration.port = uiConfiguration.listeningPort?.toString();
         backendConfiguration.proxy_addresses = uiConfiguration.proxyAddresses;
         backendConfiguration.user_token = uiConfiguration.userToken;
 

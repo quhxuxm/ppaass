@@ -1,7 +1,7 @@
 export default class UiAgentConfiguration {
     private _userToken: string | undefined;
     private _proxyAddresses: string[] | undefined;
-    private _listeningPort: number | undefined;
+    private _listeningPort: string | undefined;
     constructor() {
     }
     public get userToken(): string | undefined {
@@ -16,10 +16,10 @@ export default class UiAgentConfiguration {
     public set proxyAddresses(value: string[] | undefined) {
         this._proxyAddresses = value;
     }
-    public get listeningPort(): number | undefined {
+    public get listeningPort(): string | undefined {
         return this._listeningPort;
     }
-    public set listeningPort(value: number | undefined) {
+    public set listeningPort(value: string | undefined) {
         this._listeningPort = value;
     }
 }

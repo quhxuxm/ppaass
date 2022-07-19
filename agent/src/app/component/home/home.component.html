@@ -1,24 +1,74 @@
 <main>
     <section>
-        <label>Enter user token:</label>
-        <textarea [(ngModel)]="userToken"></textarea>
+        <h3>Ppaass Agent</h3>
+        <p>
+            {{agentServerStarted ? "Started": "Stoped"}}
+        </p>
     </section>
 
     <section>
-        <label>Enter proxy servers(seperat with "," between ip addresses):</label>
-        <textarea [(ngModel)]="proxyAddresses"></textarea>
+        <mat-expansion-panel (opened)="userInfoPannelOpenState = true" (closed)="userInfoPannelOpenState = false">
+            <mat-expansion-panel-header>
+                <mat-panel-title>
+                    <fa-icon class="pannel_header_icon" [icon]="iconUser"></fa-icon>
+                    User information
+                </mat-panel-title>
+            </mat-expansion-panel-header>
+            <section>
+                <mat-form-field class="user_token_input" appearance="outline">
+                    <mat-label>User token</mat-label>
+                    <textarea matInput [(ngModel)]="userToken"></textarea>
+                    <mat-hint class="field_hint">Register a user if not exist</mat-hint>
+                </mat-form-field>
+            </section>
+        </mat-expansion-panel>
+
     </section>
 
     <section>
-        <label>Listening port:</label>
-        <input type="text" [(ngModel)]="listingingPort" />
-        <div class="placeholder"></div>
+        <mat-expansion-panel (opened)="proxyInfoPannelOpenState = true" (closed)="proxyInfoPannelOpenState = false">
+            <mat-expansion-panel-header>
+                <mat-panel-title>
+                    <fa-icon class="pannel_header_icon" [icon]="iconProxy"></fa-icon>
+                    Proxy information
+                </mat-panel-title>
+            </mat-expansion-panel-header>
+            <section>
+                <mat-form-field class="proxy_address_input" appearance="outline">
+                    <mat-label>Proxy addresses</mat-label>
+                    <textarea matInput [(ngModel)]="proxyAddresses"></textarea>
+                    <mat-hint class="field_hint">"ip:port" and seperate with ","
+                    </mat-hint>
+                </mat-form-field>
+            </section>
+        </mat-expansion-panel>
     </section>
 
     <section>
-        <button class="save_configuration" (click)="saveAgentServerConfiguration()">Save confiugration</button>
-        <button (click)="startAgentServer()" [disabled]="agentServerStarted">Start</button>
-        <button (click)="stopAgentServer()" [disabled]="!agentServerStarted">Stop</button>
+        <mat-expansion-panel (opened)="agentInfoPannelOpenState = true" (closed)="agentInfoPannelOpenState = false">
+            <mat-expansion-panel-header>
+                <mat-panel-title>
+                    <fa-icon class="pannel_header_icon" [icon]="iconAgent"></fa-icon>
+                    Agent information
+                </mat-panel-title>
+            </mat-expansion-panel-header>
+            <section>
+                <mat-form-field class="listening_port_input" appearance="fill">
+                    <mat-label>Listning port</mat-label>
+                    <input matInput [(ngModel)]="listingingPort" />
+                    <mat-hint class="field_hint">Port number between 1~65535
+                    </mat-hint>
+                </mat-form-field>
+            </section>
+        </mat-expansion-panel>
+    </section>
+
+    <section class="agent_action_buttons_group">
+        <button mat-flat class="agent_action_button" (click)="operateAgentServer()"
+            [ngClass]="{'started': agentServerStarted, 'stopped': !agentServerStarted}">
+            <fa-icon *ngIf="!agentServerStarted" [icon]="iconStart"></fa-icon>
+            <fa-icon *ngIf="agentServerStarted" [icon]="iconStop"></fa-icon>
+        </button>
     </section>
 </main>
 <router-outlet></router-outlet>
