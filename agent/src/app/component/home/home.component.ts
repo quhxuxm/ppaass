@@ -38,7 +38,6 @@ export class HomeComponent implements OnInit {
                 thisObject.listingingPort = uiConfiguration.listeningPort;
             },
             error(e) {
-
             }
         });
         this.backendService.listenToAgentServerStart(event => {

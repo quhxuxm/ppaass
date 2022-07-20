@@ -17,11 +17,13 @@ main section {
 p.started_status_label {
     color: #aae466;
     font-size: 12px;
+    font-weight: bold;
 }
 
 p.stopped_status_label {
     color: #e47966;
     font-size: 12px;
+    font-weight: bold;
 }
 
 .user_token_input {
