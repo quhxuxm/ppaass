@@ -8,6 +8,9 @@ use serde_derive::Deserialize;
 use serde_derive::Serialize;
 use tracing::error;
 
+pub(crate) const DEFAULT_AGENT_LOG_CONFIG_FILE: &str = "ppaass-agent-log.toml";
+pub(crate) const DEFAULT_AGENT_CONFIGURATION_FILE: &str = "ppaass-agent.toml";
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AgentLogConfig {
     log_dir: Option<String>,
