@@ -1,0 +1,7 @@
+2022-07-21T14:34:17.240  INFO ThreadId(01) agent::ui::main_frame: agent\src-tauri\src\ui\main_frame.rs:106: Close agent GUI window.
+2022-07-21T14:37:39.559  INFO ThreadId(01) agent::ui::main_frame: agent\src-tauri\src\ui\main_frame.rs:106: Close agent GUI window.
+2022-07-21T14:38:42.318  INFO ThreadId(01) agent::ui::main_frame: agent\src-tauri\src\ui\main_frame.rs:106: Close agent GUI window.
+2022-07-21T14:40:07.901  INFO ThreadId(01) agent::ui::main_frame: agent\src-tauri\src\ui\main_frame.rs:106: Close agent GUI window.
+2022-07-21T14:43:12.668  INFO ThreadId(01) agent::ui::main_frame: agent\src-tauri\src\ui\main_frame.rs:106: Close agent GUI window.
+2022-07-21T14:45:32.251  INFO ThreadId(01) agent::ui::main_frame: agent\src-tauri\src\ui\main_frame.rs:106: Close agent GUI window.
+2022-07-21T14:46:37.058  INFO ThreadId(01) agent::ui::main_frame: agent\src-tauri\src\ui\main_frame.rs:106: Close agent GUI window.

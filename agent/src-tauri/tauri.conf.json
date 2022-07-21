@@ -62,10 +62,10 @@
             {
                 "label": "main",
                 "fullscreen": false,
-                "height": 550,
-                "resizable": false,
+                "height": 600,
+                "resizable": true,
                 "title": "Ppaass Agent",
-                "width": 368
+                "width": 800
             }
         ],
         "systemTray": {
