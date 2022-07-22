@@ -29,6 +29,13 @@ export class SettingsComponent implements OnInit {
                 thisObject.userToken = uiConfiguration.userToken;
                 thisObject.proxyAddressesAsString = uiConfiguration.proxyAddresses.toString();
                 thisObject.listingingPort = uiConfiguration.listeningPort;
+                thisObject.clientBufferSize = uiConfiguration.clientBufferSize;
+                thisObject.messageFramedBufferSize = uiConfiguration.messageFramedBufferSize;
+                thisObject.initProxyConnectionNumber = uiConfiguration.initProxyConnectionNumber;
+                thisObject.minProxyConnectionNumber = uiConfiguration.minProxyConnectionNumber;
+                thisObject.proxyConnectionNumberIncremental = uiConfiguration.proxyConnectionNumberIncremental;
+                thisObject.enableCompressing = uiConfiguration.enableCompressing;
+                thisObject.agentThreadNumber = uiConfiguration.agentThreadNumber;
             },
             error(e) {
             }
@@ -48,6 +55,14 @@ export class SettingsComponent implements OnInit {
         configuration.listeningPort = this.listingingPort;
         configuration.proxyAddresses = this.proxyAddressesAsString.split(",");
         configuration.userToken = this.userToken;
+        configuration.agentThreadNumber = this.agentThreadNumber;
+        configuration.clientBufferSize = this.clientBufferSize;
+        configuration.messageFramedBufferSize = this.messageFramedBufferSize;
+        configuration.enableCompressing = this.enableCompressing;
+        configuration.initProxyConnectionNumber = this.initProxyConnectionNumber;
+        configuration.minProxyConnectionNumber = this.minProxyConnectionNumber;
+        configuration.proxyConnectionNumberIncremental = this.proxyConnectionNumberIncremental;
+
         this.backendService.saveAgentConfiguration(configuration).subscribe({
             next(saveResult) {
                 successCallback();

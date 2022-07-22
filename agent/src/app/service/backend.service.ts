@@ -26,6 +26,13 @@ export class BackendService {
             uiConfiguration.listeningPort = item.port;
             uiConfiguration.proxyAddresses = item.proxy_addresses;
             uiConfiguration.userToken = item.user_token;
+            uiConfiguration.agentThreadNumber = item.thread_number;
+            uiConfiguration.clientBufferSize = item.client_buffer_size;
+            uiConfiguration.messageFramedBufferSize = item.message_framed_buffer_size;
+            uiConfiguration.enableCompressing = item.compress;
+            uiConfiguration.initProxyConnectionNumber = item.init_proxy_connection_number;
+            uiConfiguration.minProxyConnectionNumber = item.min_proxy_connection_number;
+            uiConfiguration.proxyConnectionNumberIncremental = item.proxy_connection_number_incremental;
             return uiConfiguration;
         }));
     }
@@ -47,12 +54,26 @@ export class BackendService {
         backendConfiguration.port = uiConfiguration.listeningPort?.toString();
         backendConfiguration.proxy_addresses = uiConfiguration.proxyAddresses;
         backendConfiguration.user_token = uiConfiguration.userToken;
+        backendConfiguration.compress = uiConfiguration.enableCompressing;
+        backendConfiguration.client_buffer_size = uiConfiguration.clientBufferSize;
+        backendConfiguration.message_framed_buffer_size = uiConfiguration.messageFramedBufferSize;
+        backendConfiguration.init_proxy_connection_number = uiConfiguration.initProxyConnectionNumber;
+        backendConfiguration.min_proxy_connection_number = uiConfiguration.minProxyConnectionNumber;
+        backendConfiguration.proxy_connection_number_incremental = uiConfiguration.proxyConnectionNumberIncremental;
+        backendConfiguration.thread_number = uiConfiguration.agentThreadNumber;
 
         return from(invoke<any>(SAVE_AGENT_CONFIGURATION_BACKEND_COMMAND, {
             configuration: {
                 port: backendConfiguration.port,
                 proxy_addresses: backendConfiguration.proxy_addresses,
-                user_token: backendConfiguration.user_token
+                user_token: backendConfiguration.user_token,
+                compress: backendConfiguration.compress,
+                client_buffer_size: backendConfiguration.client_buffer_size,
+                message_framed_buffer_size: backendConfiguration.message_framed_buffer_size,
+                init_proxy_connection_number: backendConfiguration.init_proxy_connection_number,
+                min_proxy_connection_number: backendConfiguration.min_proxy_connection_number,
+                proxy_connection_number_incremental: backendConfiguration.proxy_connection_number_incremental,
+                thread_number: backendConfiguration.thread_number
             }
         }));
     }

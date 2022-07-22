@@ -97,12 +97,16 @@ impl AgentConfig {
     pub fn thread_number(&self) -> Option<usize> {
         self.thread_number
     }
+    pub fn set_thread_number(&mut self, thread_number: usize) {
+        self.thread_number = Some(thread_number);
+    }
     pub fn max_blocking_threads(&self) -> Option<usize> {
         self.max_blocking_threads
     }
     pub fn thread_timeout(&self) -> Option<u64> {
         self.thread_timeout
     }
+
     pub fn compress(&self) -> Option<bool> {
         self.compress
     }
@@ -142,6 +146,12 @@ impl AgentConfig {
     pub fn init_proxy_connection_number(&self) -> Option<usize> {
         self.init_proxy_connection_number
     }
+    pub fn set_init_proxy_connection_number(&mut self, init_proxy_connection_number: usize) {
+        self.init_proxy_connection_number = Some(init_proxy_connection_number)
+    }
+    pub fn set_min_proxy_connection_number(&mut self, min_proxy_connection_number: usize) {
+        self.min_proxy_connection_number = Some(min_proxy_connection_number);
+    }
     pub fn min_proxy_connection_number(&self) -> Option<usize> {
         self.min_proxy_connection_number
     }
@@ -151,58 +161,12 @@ impl AgentConfig {
     pub fn proxy_connection_number_increasement(&self) -> Option<usize> {
         self.proxy_connection_number_incremental
     }
+    pub fn set_proxy_connection_number_incremental(&mut self, proxy_connection_number_increasement: usize) {
+        self.proxy_connection_number_incremental = Some(proxy_connection_number_increasement)
+    }
     pub fn proxy_connection_check_timeout(&self) -> Option<u64> {
         self.proxy_connection_check_timeout
     }
-}
-
-#[derive(Parser, Debug)]
-#[clap(name="ppaass-agent", author="Qu Hao", version="1.0", about, long_about = None)]
-/// The agent side of the ppaass, which will run as a http or sock5 agent
-/// in client side and transfer the connection to the ppaass proxy side.
-pub(crate) struct AgentArguments {
-    /// Log configuration file path
-    #[clap(long, value_parser)]
-    pub log_configuration_file: Option<String>,
-    /// Configuration file path
-    #[clap(short = 'c', long, value_parser)]
-    pub configuration_file: Option<String>,
-    /// Port of the ppaass proxy
-    #[clap(short = 'p', long, value_parser)]
-    pub port: Option<u16>,
-    /// The user token used to authenticate ppaass proxy
-    #[clap(short = 'u', long, value_parser)]
-    pub user_token: Option<String>,
-    /// The log directory
-    #[clap(long, value_parser)]
-    pub log_dir: Option<String>,
-    /// The log file name prefix
-    #[clap(long, value_parser)]
-    pub log_file: Option<String>,
-    /// Whether enable compressing
-    #[clap(short = 'z', long, value_parser)]
-    pub compress: Option<bool>,
-    /// The max log level
-    #[clap(long, value_parser)]
-    pub max_log_level: Option<String>,
-    /// The so_backlog
-    #[clap(long, value_parser)]
-    pub so_backlog: Option<u32>,
-    /// The client buffer size
-    #[clap(long, value_parser)]
-    pub client_buffer_size: Option<usize>,
-    /// The message framed buffer size
-    #[clap(long, value_parser)]
-    pub message_framed_buffer_size: Option<usize>,
-    /// The proxy addresses
-    #[clap(long, value_parser)]
-    pub proxy_addresses: Option<Vec<String>>,
-    /// The agent private key file path
-    #[clap(long, value_parser)]
-    pub agent_private_key_file: Option<String>,
-    /// The proxy public key file path
-    #[clap(long, value_parser)]
-    pub proxy_public_key_file: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -210,4 +174,14 @@ pub(crate) struct UiConfiguration {
     pub user_token: Option<String>,
     pub proxy_addresses: Option<Vec<String>>,
     pub port: Option<String>,
+
+    pub client_buffer_size: Option<usize>,
+    pub message_framed_buffer_size: Option<usize>,
+    pub thread_number: Option<usize>,
+
+    pub compress: Option<bool>,
+
+    pub init_proxy_connection_number: Option<usize>,
+    pub min_proxy_connection_number: Option<usize>,
+    pub proxy_connection_number_incremental: Option<usize>,
 }
