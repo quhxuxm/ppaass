@@ -1,0 +1,2 @@
+2022-07-22T09:08:22.460  INFO ThreadId(01) agent::ui::main_frame: agent\src-tauri\src\ui\main_frame.rs:106: Close agent GUI window.
+2022-07-22T09:21:58.720  INFO ThreadId(01) agent::ui::main_frame: agent\src-tauri\src\ui\main_frame.rs:106: Close agent GUI window.

@@ -20,17 +20,9 @@ export class AppMenuComponent implements OnInit {
                 ]
             },
             {
-                label: 'User',
+                label: 'Agent',
                 items: [
-                    { label: 'Register', icon: 'pi pi-fw pi-check-square', routerLink: ['/user/register'] },
-                    { label: 'Login', icon: 'pi pi-fw pi-id-card', routerLink: ['/uikit/formlayout'] },
-                ]
-            },
-            {
-                label: 'Settings',
-                items: [
-                    { label: 'Proxy server', icon: 'pi pi-fw pi-id-card', routerLink: ['/uikit/formlayout'] },
-                    { label: 'Input', icon: 'pi pi-fw pi-check-square', routerLink: ['/uikit/input'] },
+                    { label: 'Settings', icon: 'pi pi-fw pi-cog', routerLink: ['/uikit/settings'] },
                 ]
             },
         ];

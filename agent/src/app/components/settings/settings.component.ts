@@ -1,35 +1,28 @@
-import { BackendService } from './../../service/backend.service';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { BackendService } from 'src/app/service/backend.service';
 import UiAgentConfiguration from 'src/app/dto/UiAgentConfiguration';
-import { faCirclePause, faCirclePlay, faNetworkWired, faServer, faUser } from '@fortawesome/free-solid-svg-icons';
 
 @Component({
-    selector: 'app-home',
-    templateUrl: './home.component.html',
-    styleUrls: ['./home.component.scss']
+    templateUrl: './settings.component.html',
+    styleUrls: ['./settings.component.css']
 })
-export class HomeComponent implements OnInit {
+export class SettingsComponent implements OnInit {
     userToken: string | undefined;
     proxyAddresses: string[] | undefined;
     listingingPort: string | undefined;
-    agentServerStarted: boolean;
-    userInfoPannelOpenState: boolean;
-    proxyInfoPannelOpenState: boolean;
-    agentInfoPannelOpenState: boolean;
-    iconUser = faUser;
-    iconProxy = faNetworkWired;
-    iconAgent = faServer;
-    iconStart = faCirclePlay;
-    iconStop = faCirclePause;
+    clientBufferSize = 50;
+    messageFramedBufferSize = 50;
+    initProxyConnectionNumber = 64;
+    minProxyConnectionNumber = 64;
+    proxyConnectionNumberIncremental = 64;
+    agentThreadNumber = 1024;
+    enableCompressing: boolean = true;
+    agentStarted: boolean = false;
 
-    constructor(private changeRef: ChangeDetectorRef, private backendService: BackendService) {
-        this.agentServerStarted = false;
-        this.userInfoPannelOpenState = false;
-        this.proxyInfoPannelOpenState = false;
-        this.agentInfoPannelOpenState = false;
-    }
 
-    ngOnInit(): void {
+    constructor(private changeRef: ChangeDetectorRef, private backendService: BackendService) { }
+
+    ngOnInit() {
         let thisObject = this;
         this.backendService.loadAgentConfiguration().subscribe({
             next(uiConfiguration) {
@@ -41,11 +34,11 @@ export class HomeComponent implements OnInit {
             }
         });
         this.backendService.listenToAgentServerStart(event => {
-            this.agentServerStarted = true;
+            this.agentStarted = true;
             this.changeRef.detectChanges();
         });
         this.backendService.listenToAgentServerStop(event => {
-            this.agentServerStarted = false;
+            this.agentStarted = false;
             this.changeRef.detectChanges();
         });
     }
@@ -65,29 +58,27 @@ export class HomeComponent implements OnInit {
         });
     }
 
-    public operateAgentServer() {
+    public startAgentServer() {
         let thisObject = this;
-        if (!this.agentServerStarted) {
+        if (!this.agentStarted) {
             this.saveAgentServerConfiguration(() => {
                 this.backendService.startAgentServer().subscribe({
                     next(value) {
-                        thisObject.agentServerStarted = true;
+                        thisObject.agentStarted = true;
                     },
                     error(err) {
                         alert(`Fail to start agent server because of error: ${err}`);
                     },
                 })
             })
-        } else {
-            this.stopAgentServer();
         }
     }
 
-    private stopAgentServer() {
+    public stopAgentServer() {
         let thisObject = this;
         this.backendService.stopAgentServer().subscribe({
             next(value) {
-                thisObject.agentServerStarted = false;
+                thisObject.agentStarted = false;
             },
             error(err) {
                 alert(`Fail to start agent server because of error: ${err}`);

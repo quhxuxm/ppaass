@@ -1,0 +1,103 @@
+<div class="grid p-fluid">
+    <div class="col-12 md:col-6">
+
+        <div class="card">
+            <h4>Basic</h4>
+            <div class="grid">
+                <div class="col-12">
+                    <h5>User token</h5>
+                    <textarea pInputTextarea [(ngModel)]="userToken" placeholder="Input the user token" autoResize
+                        rows="3" cols="30"></textarea>
+                </div>
+
+                <div class="col-12">
+                    <h5>Proxy server</h5>
+                    <textarea pInputTextarea [(ngModel)]="proxyAddresses"
+                        placeholder="Input proxy server address, the format is: ip:port,ip:port" autoResize rows="3"
+                        cols="30"></textarea>
+                </div>
+
+                <div class="col-12">
+                    <h5>Listening port</h5>
+                    <p-inputNumber [(ngModel)]="listingingPort" mode="decimal" [showButtons]="true" [min]="1"
+                        [max]="65535" placeholder="Input port number">
+                    </p-inputNumber>
+                </div>
+
+            </div>
+
+        </div>
+        <div class="card">
+            <h4>Buffer</h4>
+            <div class="gird">
+                <div class="col-12">
+                    <h5>Client buffer size</h5>
+                    <input type="text" pInputText [(ngModel)]="clientBufferSize" readonly />
+                    <p-slider [(ngModel)]="clientBufferSize"></p-slider>
+                </div>
+                <div class="col-12">
+                    <h5>Message framed buffer size</h5>
+                    <input type="text" pInputText [(ngModel)]="messageFramedBufferSize" readonly />
+                    <p-slider [(ngModel)]="messageFramedBufferSize"></p-slider>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+
+    <div class="col-12 md:col-6">
+
+        <div class="card">
+            <h4>Connection</h4>
+            <div class="col-12">
+                <h5>Init proxy connection number</h5>
+                <input type="text" pInputText [(ngModel)]="initProxyConnectionNumber" readonly />
+                <p-slider [(ngModel)]="initProxyConnectionNumber"></p-slider>
+            </div>
+
+            <div class="col-12">
+                <h5>Min proxy connection number</h5>
+                <input type="text" pInputText [(ngModel)]="minProxyConnectionNumber" readonly />
+                <p-slider [(ngModel)]="minProxyConnectionNumber"></p-slider>
+            </div>
+
+            <div class="col-12">
+                <h5>Proxy connection number incremental</h5>
+                <input type="text" pInputText [(ngModel)]="proxyConnectionNumberIncremental" readonly />
+                <p-slider [(ngModel)]="proxyConnectionNumberIncremental"></p-slider>
+            </div>
+
+        </div>
+        <div class="card">
+            <h4>Thread</h4>
+            <div class="grid">
+                <div class="col-12">
+                    <h5>Agent thread number</h5>
+                    <input type="text" pInputText [(ngModel)]="agentThreadNumber" readonly />
+                    <p-slider max="1024" [(ngModel)]="agentThreadNumber"></p-slider>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <h4>Enable compressing</h4>
+            <p-inputSwitch [(ngModel)]="enableCompressing"></p-inputSwitch>
+        </div>
+    </div>
+
+    <div class="grid col-12">
+        <div class="lg:col-offset-6 lg:col-6 col-12 grid">
+            <div class="col-6">
+                <p-button label="Start" icon="pi pi-play" styleClass="mr-2 mb-2" [disabled]="agentStarted"
+                    (onClick)="startAgentServer()">
+                </p-button>
+            </div>
+            <div class="col-6">
+                <p-button label="Stop" icon="pi pi-power-off" styleClass="mr-2 mb-2" [disabled]="!agentStarted"
+                    (onClick)="stopAgentServer()">
+                </p-button>
+            </div>
+        </div>
+
+    </div>
+</div>
