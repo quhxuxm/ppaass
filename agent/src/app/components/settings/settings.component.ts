@@ -8,7 +8,7 @@ import UiAgentConfiguration from 'src/app/dto/UiAgentConfiguration';
 })
 export class SettingsComponent implements OnInit {
     userToken: string | undefined;
-    proxyAddresses: string[] | undefined;
+    proxyAddressesAsString: string | undefined;
     listingingPort: string | undefined;
     clientBufferSize = 50;
     messageFramedBufferSize = 50;
@@ -27,7 +27,7 @@ export class SettingsComponent implements OnInit {
         this.backendService.loadAgentConfiguration().subscribe({
             next(uiConfiguration) {
                 thisObject.userToken = uiConfiguration.userToken;
-                thisObject.proxyAddresses = uiConfiguration.proxyAddresses;
+                thisObject.proxyAddressesAsString = uiConfiguration.proxyAddresses.toString();
                 thisObject.listingingPort = uiConfiguration.listeningPort;
             },
             error(e) {
@@ -46,7 +46,7 @@ export class SettingsComponent implements OnInit {
     private saveAgentServerConfiguration(successCallback: () => void) {
         let configuration = new UiAgentConfiguration();
         configuration.listeningPort = this.listingingPort;
-        configuration.proxyAddresses = this.proxyAddresses;
+        configuration.proxyAddresses = this.proxyAddressesAsString.split(",");
         configuration.userToken = this.userToken;
         this.backendService.saveAgentConfiguration(configuration).subscribe({
             next(saveResult) {
