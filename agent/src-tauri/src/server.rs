@@ -8,6 +8,7 @@ use std::{str::FromStr, sync::mpsc::Sender};
 
 use anyhow::anyhow;
 use anyhow::Result;
+use chrono::Local;
 use tokio::net::TcpSocket;
 use tokio::runtime::{Builder as TokioRuntimeBuilder, Runtime};
 
@@ -24,6 +25,12 @@ pub(crate) enum AgentServerCommand {
     Stop,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) enum AgentServerStatus {
+    Started(i64),
+    Stopped(i64),
+}
+
 #[derive(Debug)]
 pub(crate) struct AgentServer {
     command_receiver: Receiver<AgentServerCommand>,
@@ -33,23 +40,32 @@ pub(crate) struct AgentServer {
 }
 
 pub(crate) struct AgentServerHandler {
+    status: Option<AgentServerStatus>,
     command_sender: Sender<AgentServerCommand>,
     command_result_receiver: Receiver<Result<()>>,
 }
 
 impl AgentServerHandler {
-    pub(crate) fn stop(&self) -> Result<()> {
+    pub(crate) fn status(&self) -> Option<AgentServerStatus> {
+        self.status.clone()
+    }
+
+    pub(crate) fn stop(&mut self) -> Result<()> {
         if let Err(e) = self.command_sender.send(AgentServerCommand::Stop) {
             error!("Fail to send stop command because of error: {e:#?}")
         };
-        Ok(self.command_result_receiver.recv()??)
+        let result = self.command_result_receiver.recv()??;
+        self.status = Some(AgentServerStatus::Stopped(Local::now().timestamp()));
+        Ok(result)
     }
 
-    pub(crate) fn start(&self, configuration: AgentConfig) -> Result<()> {
+    pub(crate) fn start(&mut self, configuration: AgentConfig) -> Result<()> {
         if let Err(e) = self.command_sender.send(AgentServerCommand::Start(configuration)) {
             error!("Fail to send start command because of error: {e:#?}")
         };
-        Ok(self.command_result_receiver.recv()??)
+        let result = self.command_result_receiver.recv()??;
+        self.status = Some(AgentServerStatus::Started(Local::now().timestamp()));
+        Ok(result)
     }
 }
 
@@ -68,7 +84,6 @@ impl AgentServer {
     pub(crate) fn init(self) -> AgentServerHandler {
         let command_receiver = self.command_receiver;
         let command_result_sender = self.command_result_sender;
-
         std::thread::spawn(move || {
             let mut _runtime_holder: Option<Runtime> = None;
             loop {
@@ -293,8 +308,8 @@ impl AgentServer {
                 };
             }
         });
-
         AgentServerHandler {
+            status: None,
             command_sender: self.command_sender,
             command_result_receiver: self.command_result_receiver,
         }

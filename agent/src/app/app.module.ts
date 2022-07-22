@@ -104,6 +104,7 @@ import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { BackendService } from './service/backend.service';
 import { ProductService } from './service/productservice';
 import { MenuService } from './service/app.menu.service';
+import { MessageService } from 'primeng/api';
 
 
 @NgModule({
@@ -209,7 +210,7 @@ import { MenuService } from './service/app.menu.service';
     ],
     providers: [
         { provide: LocationStrategy, useClass: HashLocationStrategy },
-        BackendService, ConfigService, ProductService, MenuService
+        BackendService, ConfigService, ProductService, MenuService, MessageService
     ],
     bootstrap: [AppComponent]
 })

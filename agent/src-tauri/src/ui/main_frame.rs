@@ -6,10 +6,10 @@ use tracing::{debug, error, info};
 
 use crate::{
     config::{AgentConfig, UiConfiguration, DEFAULT_AGENT_CONFIGURATION_FILE},
-    server::AgentServerHandler,
+    server::{AgentServerHandler, AgentServerStatus},
 };
 
-use super::common::UiState;
+use super::common::{UiServerStatus, UiState};
 
 const EVENT_AGENT_SERVER_START: &str = "agent-server-start-backend-event";
 const EVENT_AGENT_SERVER_STOP: &str = "agent-server-stop-backend-event";
@@ -23,8 +23,27 @@ fn retrive_agent_configuration(ui_state: State<'_, Arc<Mutex<UiState>>>) -> Resu
 }
 
 #[command]
-fn start_agent_server(window: Window, ui_state: State<'_, Arc<Mutex<UiState>>>) -> Result<(), String> {
+fn retrive_agent_server_status(ui_state: State<'_, Arc<Mutex<UiState>>>) -> Result<UiServerStatus, String> {
     let ui_state = ui_state.lock().map_err(|e| e.to_string())?;
+    match ui_state.agent_server_handler.status() {
+        Some(AgentServerStatus::Started(timestamp)) => Ok(UiServerStatus {
+            status: "STARTED".to_string(),
+            timestamp: Some(timestamp),
+        }),
+        Some(AgentServerStatus::Stopped(timestamp)) => Ok(UiServerStatus {
+            status: "STOPPED".to_string(),
+            timestamp: Some(timestamp),
+        }),
+        None => Ok(UiServerStatus {
+            status: "STOPPED".to_string(),
+            timestamp: None,
+        }),
+    }
+}
+
+#[command]
+fn start_agent_server(window: Window, ui_state: State<'_, Arc<Mutex<UiState>>>) -> Result<(), String> {
+    let mut ui_state = ui_state.lock().map_err(|e| e.to_string())?;
     let current_configuration = ui_state.configuration.clone();
     println!("The agent configuraiton going to start: {current_configuration:#?}");
     ui_state.agent_server_handler.start(current_configuration).map_err(|e| e.to_string())?;
@@ -35,7 +54,7 @@ fn start_agent_server(window: Window, ui_state: State<'_, Arc<Mutex<UiState>>>) 
 #[command]
 fn stop_agent_server(window: Window, ui_state: State<'_, Arc<Mutex<UiState>>>) -> Result<(), String> {
     debug!("Click to stop agent server button");
-    let ui_state = ui_state.lock().map_err(|e| e.to_string())?;
+    let mut ui_state = ui_state.lock().map_err(|e| e.to_string())?;
     ui_state.agent_server_handler.stop().map_err(|e| e.to_string())?;
     window.emit_all(EVENT_AGENT_SERVER_STOP, true).map_err(|e| e.to_string())?;
     Ok(())
@@ -113,7 +132,8 @@ impl MainFrame {
                 start_agent_server,
                 stop_agent_server,
                 save_agent_server_config,
-                retrive_agent_configuration
+                retrive_agent_configuration,
+                retrive_agent_server_status
             ])
             .system_tray(self.system_tray)
             .manage(Arc::new(Mutex::new(UiState {
@@ -157,10 +177,10 @@ impl MainFrame {
                             std::process::exit(0);
                         },
                         EVENT_AGENT_SERVER_START => {
-                            let window_state = main_window.state::<Arc<Mutex<UiState>>>().clone();
-                            if let Ok(window_state) = window_state.lock() {
-                                let current_configuration = window_state.configuration.clone();
-                                if let Err(e) = window_state.agent_server_handler.start(current_configuration) {
+                            let ui_state = main_window.state::<Arc<Mutex<UiState>>>().clone();
+                            if let Ok(mut ui_state) = ui_state.lock() {
+                                let current_configuration = ui_state.configuration.clone();
+                                if let Err(e) = ui_state.agent_server_handler.start(current_configuration) {
                                     blocking::message(Some(&main_window), "Error", e.to_string());
                                     error!("Fail to start agent server because of exception: {e:#?}");
                                 };
@@ -170,9 +190,9 @@ impl MainFrame {
                             };
                         },
                         EVENT_AGENT_SERVER_STOP => {
-                            let window_state = main_window.state::<Arc<Mutex<UiState>>>().clone();
-                            if let Ok(window_state) = window_state.lock() {
-                                if let Err(e) = window_state.agent_server_handler.stop() {
+                            let ui_state = main_window.state::<Arc<Mutex<UiState>>>().clone();
+                            if let Ok(mut ui_state) = ui_state.lock() {
+                                if let Err(e) = ui_state.agent_server_handler.stop() {
                                     blocking::message(Some(&main_window), "Error", e.to_string());
                                     error!("Fail to stop agent server because of exception: {e:#?}");
                                 };

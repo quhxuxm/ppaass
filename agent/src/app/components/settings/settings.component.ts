@@ -1,6 +1,7 @@
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { BackendService } from 'src/app/service/backend.service';
 import UiAgentConfiguration from 'src/app/dto/UiAgentConfiguration';
+import { MessageService } from 'primeng/api';
 
 @Component({
     templateUrl: './settings.component.html',
@@ -10,20 +11,51 @@ export class SettingsComponent implements OnInit {
     userToken: string | undefined;
     proxyAddressesAsString: string | undefined;
     listingingPort: string | undefined;
-    clientBufferSize = 50;
-    messageFramedBufferSize = 50;
-    initProxyConnectionNumber = 64;
-    minProxyConnectionNumber = 64;
-    proxyConnectionNumberIncremental = 64;
-    agentThreadNumber = 1024;
-    enableCompressing: boolean = true;
+    clientBufferSize = 0;
+    messageFramedBufferSize = 0;
+    initProxyConnectionNumber = 0;
+    minProxyConnectionNumber = 0;
+    proxyConnectionNumberIncremental = 0;
+    agentThreadNumber = 0;
+    enableCompressing: boolean = false;
     agentStarted: boolean = false;
 
 
-    constructor(private changeRef: ChangeDetectorRef, private backendService: BackendService) { }
+    constructor(private changeRef: ChangeDetectorRef, private messageService: MessageService, private backendService: BackendService,) { }
 
     ngOnInit() {
         let thisObject = this;
+        this.backendService.loadAgentServerStatus().subscribe({
+            next(value) {
+                if (value.status == "STARTED") {
+                    thisObject.agentStarted = true;
+                    thisObject.messageService.add(
+                        {
+                            severity: 'success',
+                            summary: 'Agent information',
+                            detail: 'Agent server started already'
+                        })
+                    return;
+                }
+                if (value.status == "STOPPED") {
+                    thisObject.agentStarted = false;
+                    thisObject.messageService.add(
+                        {
+                            severity: 'warn',
+                            summary: 'Agent information',
+                            detail: 'Agent server stopped already'
+                        })
+                }
+            },
+            error(e) {
+                thisObject.messageService.add(
+                    {
+                        severity: 'error',
+                        summary: 'Agent error',
+                        detail: e
+                    })
+            }
+        })
         this.backendService.loadAgentConfiguration().subscribe({
             next(uiConfiguration) {
                 thisObject.userToken = uiConfiguration.userToken;
@@ -38,14 +70,32 @@ export class SettingsComponent implements OnInit {
                 thisObject.agentThreadNumber = uiConfiguration.agentThreadNumber;
             },
             error(e) {
+                thisObject.messageService.add(
+                    {
+                        severity: 'error',
+                        summary: 'Agent error',
+                        detail: e
+                    })
             }
         });
         this.backendService.listenToAgentServerStart(event => {
             this.agentStarted = true;
+            thisObject.messageService.add(
+                {
+                    severity: 'success',
+                    summary: 'Agent information',
+                    detail: 'Agent server started already'
+                })
             this.changeRef.detectChanges();
         });
         this.backendService.listenToAgentServerStop(event => {
             this.agentStarted = false;
+            thisObject.messageService.add(
+                {
+                    severity: 'warn',
+                    summary: 'Agent information',
+                    detail: 'Agent server stopped already'
+                })
             this.changeRef.detectChanges();
         });
     }
@@ -67,8 +117,13 @@ export class SettingsComponent implements OnInit {
             next(saveResult) {
                 successCallback();
             },
-            error(err) {
-                alert(`Fail to save agent configuration because of error: ${err}`);
+            error(e) {
+                this.messageService.add(
+                    {
+                        severity: 'error',
+                        summary: 'Agent error',
+                        detail: e
+                    })
             },
         });
     }
@@ -81,8 +136,13 @@ export class SettingsComponent implements OnInit {
                     next(value) {
                         thisObject.agentStarted = true;
                     },
-                    error(err) {
-                        alert(`Fail to start agent server because of error: ${err}`);
+                    error(e) {
+                        thisObject.messageService.add(
+                            {
+                                severity: 'error',
+                                summary: 'Agent error',
+                                detail: e
+                            })
                     },
                 })
             })
@@ -95,8 +155,13 @@ export class SettingsComponent implements OnInit {
             next(value) {
                 thisObject.agentStarted = false;
             },
-            error(err) {
-                alert(`Fail to start agent server because of error: ${err}`);
+            error(e) {
+                thisObject.messageService.add(
+                    {
+                        severity: 'error',
+                        summary: 'Agent error',
+                        detail: e
+                    })
             },
         })
     }

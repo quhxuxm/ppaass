@@ -1,3 +1,4 @@
+import { BackendAgentServerStatus } from './../dto/BackendServerStatus';
 import { BackendAgentConfiguration } from '../dto/BackendAgentConfiguration';
 import { Injectable } from '@angular/core';
 import { invoke } from '@tauri-apps/api';
@@ -7,6 +8,7 @@ import { from, map, Observable } from 'rxjs';
 import UiAgentConfiguration from '../dto/UiAgentConfiguration';
 
 const RETRIVE_AGENT_CONFIGURATION_BACKEND_COMMAND = "retrive_agent_configuration";
+const RETRIVE_AGENT_SERVER_STATUS_BACKEND_COMMAND = "retrive_agent_server_status";
 const SAVE_AGENT_CONFIGURATION_BACKEND_COMMAND = "save_agent_server_config";
 const START_AGENT_SERVER_BACKEND_COMMAND = "start_agent_server";
 const STOP_AGENT_SERVER_BACKEND_COMMAND = "stop_agent_server";
@@ -17,8 +19,11 @@ const AGENT_SERVER_START_BACKEND_EVENT = "agent-server-start-backend-event";
     providedIn: 'root'
 })
 export class BackendService {
+    private agentStarted: boolean;
 
-    constructor() { }
+    constructor() {
+        this.agentStarted = false;
+    }
 
     public loadAgentConfiguration(): Observable<UiAgentConfiguration> {
         return from(invoke<BackendAgentConfiguration>(RETRIVE_AGENT_CONFIGURATION_BACKEND_COMMAND)).pipe(map(item => {
@@ -79,10 +84,18 @@ export class BackendService {
     }
 
     public startAgentServer(): Observable<any> {
-        return from(invoke<any>(START_AGENT_SERVER_BACKEND_COMMAND));
+        let thisObject = this;
+        return from(invoke<any>(START_AGENT_SERVER_BACKEND_COMMAND)).pipe(map(data => {
+            thisObject.agentStarted = true;
+            data
+        }));
     }
 
     public stopAgentServer(): Observable<any> {
         return from(invoke<any>(STOP_AGENT_SERVER_BACKEND_COMMAND));
+    }
+
+    public loadAgentServerStatus(): Observable<BackendAgentServerStatus> {
+        return from(invoke<BackendAgentServerStatus>(RETRIVE_AGENT_SERVER_STATUS_BACKEND_COMMAND));
     }
 }
