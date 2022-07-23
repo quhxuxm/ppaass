@@ -26,7 +26,7 @@ pub(crate) mod server;
 pub(crate) mod service;
 
 pub(crate) mod config;
-pub(crate) mod monitor;
+
 pub(crate) mod ui;
 
 fn prepare_agent_config() -> AgentConfig {
