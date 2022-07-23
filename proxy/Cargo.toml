@@ -19,12 +19,14 @@ split-debuginfo = '...' # Platform-specific.
 [[bin]]
 name = "ppaass-proxy"
 path = "src/main.rs"
+
 [dependencies]
 anyhow = "1"
 bytes = "1"
 chrono = "0.4"
 clap = {version = "3", features = ["derive"]}
 common = {path = "../common"}
+console-subscriber = "0.1.6"
 futures = "0.3"
 hotwatch = "0.4"
 pretty-hex = "0.3"
