@@ -9,21 +9,22 @@
             <div class="grid">
                 <div class="col-12">
                     <h5>User token</h5>
-                    <textarea pInputTextarea [(ngModel)]="userToken" placeholder="Input the user token" autoResize
-                        rows="3" cols="30"></textarea>
+                    <textarea [disabled]="agentStarted" pInputTextarea [(ngModel)]="userToken"
+                        placeholder="Input the user token" autoResize rows="3" cols="30"></textarea>
                 </div>
 
                 <div class="col-12">
                     <h5>Proxy server</h5>
-                    <textarea pInputTextarea [(ngModel)]="proxyAddressesAsString"
+                    <textarea [disabled]="agentStarted" pInputTextarea [(ngModel)]="proxyAddressesAsString"
                         placeholder="Input proxy server address, the format is: ip:port,ip:port" autoResize rows="3"
                         cols="30"></textarea>
                 </div>
 
                 <div class="col-12">
                     <h5>Listening port</h5>
-                    <p-inputNumber [(ngModel)]="listingingPort" mode="decimal" [useGrouping]="false"
-                        [showButtons]="true" [min]="1" [max]="65535" placeholder="Input port number">
+                    <p-inputNumber [disabled]="agentStarted" [(ngModel)]="listingingPort" mode="decimal"
+                        [useGrouping]="false" [showButtons]="true" [min]="1" [max]="65535"
+                        placeholder="Input port number">
                     </p-inputNumber>
                 </div>
 
@@ -35,13 +36,14 @@
             <div class="gird">
                 <div class="col-12">
                     <h5>Client buffer size(byte)</h5>
-                    <input type="text" pInputText [(ngModel)]="clientBufferSize" readonly />
-                    <p-slider [(ngModel)]="clientBufferSize" max="20971520"></p-slider>
+                    <input [disabled]="agentStarted" type="text" pInputText [(ngModel)]="clientBufferSize" readonly />
+                    <p-slider [disabled]="agentStarted" [(ngModel)]="clientBufferSize" max="20971520"></p-slider>
                 </div>
                 <div class="col-12">
                     <h5>Message framed buffer size(byte)</h5>
-                    <input type="text" pInputText [(ngModel)]="messageFramedBufferSize" readonly />
-                    <p-slider [(ngModel)]="messageFramedBufferSize" max="20971520"></p-slider>
+                    <input [disabled]="agentStarted" type="text" pInputText [(ngModel)]="messageFramedBufferSize"
+                        readonly />
+                    <p-slider [disabled]="agentStarted" [(ngModel)]="messageFramedBufferSize" max="20971520"></p-slider>
                 </div>
             </div>
         </div>
@@ -55,20 +57,24 @@
             <h4>Connection</h4>
             <div class="col-12">
                 <h5>Init proxy connection number</h5>
-                <input type="text" pInputText [(ngModel)]="initProxyConnectionNumber" readonly />
-                <p-slider [(ngModel)]="initProxyConnectionNumber" max="1024"></p-slider>
+                <input [disabled]="agentStarted" type="text" pInputText [(ngModel)]="initProxyConnectionNumber"
+                    readonly />
+                <p-slider [disabled]="agentStarted" [(ngModel)]="initProxyConnectionNumber" max="1024"></p-slider>
             </div>
 
             <div class="col-12">
                 <h5>Min proxy connection number</h5>
-                <input type="text" pInputText [(ngModel)]="minProxyConnectionNumber" readonly />
-                <p-slider [(ngModel)]="minProxyConnectionNumber" max="1024"></p-slider>
+                <input [disabled]="agentStarted" type="text" pInputText [(ngModel)]="minProxyConnectionNumber"
+                    readonly />
+                <p-slider [disabled]="agentStarted" [(ngModel)]="minProxyConnectionNumber" max="1024"></p-slider>
             </div>
 
             <div class="col-12">
                 <h5>Proxy connection number incremental</h5>
-                <input type="text" pInputText [(ngModel)]="proxyConnectionNumberIncremental" readonly />
-                <p-slider [(ngModel)]="proxyConnectionNumberIncremental" max="1024"></p-slider>
+                <input [disabled]="agentStarted" type="text" pInputText [(ngModel)]="proxyConnectionNumberIncremental"
+                    readonly />
+                <p-slider [disabled]="agentStarted" [(ngModel)]="proxyConnectionNumberIncremental" max="1024">
+                </p-slider>
             </div>
 
         </div>
@@ -77,14 +83,14 @@
             <div class="grid">
                 <div class="col-12">
                     <h5>Agent thread number</h5>
-                    <input type="text" pInputText [(ngModel)]="agentThreadNumber" readonly />
-                    <p-slider max="2048" [(ngModel)]="agentThreadNumber"></p-slider>
+                    <input [disabled]="agentStarted" type="text" pInputText [(ngModel)]="agentThreadNumber" readonly />
+                    <p-slider [disabled]="agentStarted" max="2048" [(ngModel)]="agentThreadNumber"></p-slider>
                 </div>
             </div>
         </div>
         <div class="card">
             <h4>Enable compressing</h4>
-            <p-inputSwitch [(ngModel)]="enableCompressing"></p-inputSwitch>
+            <p-inputSwitch [disabled]="agentStarted" [(ngModel)]="enableCompressing"></p-inputSwitch>
         </div>
     </div>
 

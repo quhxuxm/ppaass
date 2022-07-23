@@ -14,27 +14,27 @@ pub(crate) enum MonitorEvent {
         timestamp: u64,
     },
     ProxyConnectionCreate {
-        connection_id: String,
+        proxy_connection_id: String,
         timestamp: u64,
     },
     ProxyConnectionConnected {
-        connection_id: String,
+        proxy_connection_id: String,
         timestamp: u64,
     },
     ProxyConnectionClosed {
-        connection_id: String,
+        proxy_connection_id: String,
         timestamp: u64,
     },
     ProxyConnectionTimeout {
-        connection_id: String,
+        proxy_connection_id: String,
         timestamp: u64,
     },
     ProxyConnectionInitialized {
-        connection_id: String,
+        proxy_connection_id: String,
         timestamp: u64,
     },
     ProxyConnectionRelay {
-        connection_id: String,
+        proxy_connection_id: String,
         timestamp: u64,
     },
 }
