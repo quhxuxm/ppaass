@@ -25,6 +25,7 @@ anyhow = "1"
 bytes = "1"
 chrono = "0.4"
 clap = {version = "3", features = ["derive"]}
+coarsetime = "0.1"
 common = {path = "../common"}
 console-subscriber = "0.1.6"
 futures = "0.3"

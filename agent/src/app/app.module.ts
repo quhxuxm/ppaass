@@ -98,9 +98,6 @@ import { AppFooterComponent } from './app.footer.component';
 import { AppConfigComponent } from './app.config.component';
 import { AppMenuComponent } from './app.menu.component';
 import { AppMenuitemComponent } from './app.menuitem.component';
-
-import { DashboardComponent } from './components/dashboard/dashboard.component';
-
 import { BackendService } from './service/backend.service';
 import { ProductService } from './service/productservice';
 import { MenuService } from './service/app.menu.service';
@@ -194,7 +191,6 @@ import { MessageService } from 'primeng/api';
         TreeSelectModule,
         TreeTableModule,
         VirtualScrollerModule,
-
         StyleClassModule,
     ],
     declarations: [
@@ -205,7 +201,6 @@ import { MessageService } from 'primeng/api';
         AppConfigComponent,
         AppMenuComponent,
         AppMenuitemComponent,
-        DashboardComponent,
         SettingsComponent
     ],
     providers: [
