@@ -71,4 +71,19 @@ export default class UiAgentConfiguration {
     public set listeningPort(value: string | undefined) {
         this._listeningPort = value;
     }
+
+    private _proxyConnectionCheckInterval: number | undefined;
+    public get proxyConnectionCheckInterval(): number | undefined {
+        return this._proxyConnectionCheckInterval;
+    }
+    public set proxyConnectionCheckInterval(value: number | undefined) {
+        this._proxyConnectionCheckInterval = value;
+    }
+    private _proxyConnectionCheckTimeout: number | undefined;
+    public get proxyConnectionCheckTimeout(): number | undefined {
+        return this._proxyConnectionCheckTimeout;
+    }
+    public set proxyConnectionCheckTimeout(value: number | undefined) {
+        this._proxyConnectionCheckTimeout = value;
+    }
 }

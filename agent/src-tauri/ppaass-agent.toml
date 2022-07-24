@@ -19,5 +19,5 @@ proxy_public_key_file = 'ProxyPublicKey.pem'
 init_proxy_connection_number = 64
 min_proxy_connection_number = 32
 proxy_connection_number_incremental = 16
-proxy_connection_check_interval_seconds = 20
-proxy_connection_check_timeout = 2
+proxy_connection_check_interval_seconds = 435
+proxy_connection_check_timeout = 242

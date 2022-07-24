@@ -158,6 +158,9 @@ impl AgentConfig {
     pub fn proxy_connection_check_interval_seconds(&self) -> Option<u64> {
         self.proxy_connection_check_interval_seconds
     }
+    pub fn set_proxy_connection_check_interval_seconds(&mut self, proxy_connection_check_interval_seconds: u64) {
+        self.proxy_connection_check_interval_seconds = Some(proxy_connection_check_interval_seconds)
+    }
     pub fn proxy_connection_number_increasement(&self) -> Option<usize> {
         self.proxy_connection_number_incremental
     }
@@ -167,6 +170,9 @@ impl AgentConfig {
     pub fn proxy_connection_check_timeout(&self) -> Option<u64> {
         self.proxy_connection_check_timeout
     }
+    pub fn set_proxy_connection_check_timeout(&mut self, proxy_connection_check_timeout: u64) {
+        self.proxy_connection_check_timeout = Some(proxy_connection_check_timeout)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -174,14 +180,13 @@ pub(crate) struct UiConfiguration {
     pub user_token: Option<String>,
     pub proxy_addresses: Option<Vec<String>>,
     pub port: Option<String>,
-
     pub client_buffer_size: Option<usize>,
     pub message_framed_buffer_size: Option<usize>,
     pub thread_number: Option<usize>,
-
     pub compress: Option<bool>,
-
     pub init_proxy_connection_number: Option<usize>,
     pub min_proxy_connection_number: Option<usize>,
     pub proxy_connection_number_incremental: Option<usize>,
+    pub proxy_connection_check_interval_seconds: Option<u64>,
+    pub proxy_connection_check_timeout: Option<u64>,
 }

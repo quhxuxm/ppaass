@@ -16,6 +16,8 @@ export class SettingsComponent implements OnInit {
     initProxyConnectionNumber = 0;
     minProxyConnectionNumber = 0;
     proxyConnectionNumberIncremental = 0;
+    proxyConnectionCheckInterval = 0;
+    proxyConnectionCheckTimeout = 0;
     agentThreadNumber = 0;
     enableCompressing: boolean = false;
     agentStarted: boolean = false;
@@ -65,6 +67,8 @@ export class SettingsComponent implements OnInit {
                 thisObject.messageFramedBufferSize = uiConfiguration.messageFramedBufferSize;
                 thisObject.initProxyConnectionNumber = uiConfiguration.initProxyConnectionNumber;
                 thisObject.minProxyConnectionNumber = uiConfiguration.minProxyConnectionNumber;
+                thisObject.proxyConnectionCheckTimeout = uiConfiguration.proxyConnectionCheckTimeout;
+                thisObject.proxyConnectionCheckInterval = uiConfiguration.proxyConnectionCheckInterval;
                 thisObject.proxyConnectionNumberIncremental = uiConfiguration.proxyConnectionNumberIncremental;
                 thisObject.enableCompressing = uiConfiguration.enableCompressing;
                 thisObject.agentThreadNumber = uiConfiguration.agentThreadNumber;
@@ -112,6 +116,8 @@ export class SettingsComponent implements OnInit {
         configuration.initProxyConnectionNumber = this.initProxyConnectionNumber;
         configuration.minProxyConnectionNumber = this.minProxyConnectionNumber;
         configuration.proxyConnectionNumberIncremental = this.proxyConnectionNumberIncremental;
+        configuration.proxyConnectionCheckInterval = this.proxyConnectionCheckInterval;
+        configuration.proxyConnectionCheckTimeout = this.proxyConnectionCheckTimeout;
 
         this.backendService.saveAgentConfiguration(configuration).subscribe({
             next(saveResult) {

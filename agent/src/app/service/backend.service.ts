@@ -38,6 +38,8 @@ export class BackendService {
             uiConfiguration.initProxyConnectionNumber = item.init_proxy_connection_number;
             uiConfiguration.minProxyConnectionNumber = item.min_proxy_connection_number;
             uiConfiguration.proxyConnectionNumberIncremental = item.proxy_connection_number_incremental;
+            uiConfiguration.proxyConnectionCheckInterval = item.proxy_connection_check_interval_seconds;
+            uiConfiguration.proxyConnectionCheckTimeout = item.proxy_connection_check_timeout
             return uiConfiguration;
         }));
     }
@@ -66,6 +68,8 @@ export class BackendService {
         backendConfiguration.min_proxy_connection_number = uiConfiguration.minProxyConnectionNumber;
         backendConfiguration.proxy_connection_number_incremental = uiConfiguration.proxyConnectionNumberIncremental;
         backendConfiguration.thread_number = uiConfiguration.agentThreadNumber;
+        backendConfiguration.proxy_connection_check_interval_seconds = uiConfiguration.proxyConnectionCheckInterval;
+        backendConfiguration.proxy_connection_check_timeout = uiConfiguration.proxyConnectionCheckTimeout
 
         return from(invoke<any>(SAVE_AGENT_CONFIGURATION_BACKEND_COMMAND, {
             configuration: {
@@ -78,7 +82,9 @@ export class BackendService {
                 init_proxy_connection_number: backendConfiguration.init_proxy_connection_number,
                 min_proxy_connection_number: backendConfiguration.min_proxy_connection_number,
                 proxy_connection_number_incremental: backendConfiguration.proxy_connection_number_incremental,
-                thread_number: backendConfiguration.thread_number
+                thread_number: backendConfiguration.thread_number,
+                proxy_connection_check_interval_seconds: backendConfiguration.proxy_connection_check_interval_seconds,
+                proxy_connection_check_timeout: backendConfiguration.proxy_connection_check_timeout
             }
         }));
     }

@@ -96,6 +96,14 @@ fn save_agent_server_config(configuration: UiConfiguration, ui_state: State<'_, 
             .configuration
             .set_proxy_connection_number_incremental(proxy_connection_number_incremental);
     }
+    if let Some(proxy_connection_check_timeout) = configuration.proxy_connection_check_timeout {
+        ui_state.configuration.set_proxy_connection_check_timeout(proxy_connection_check_timeout);
+    }
+    if let Some(proxy_connection_check_interval_seconds) = configuration.proxy_connection_check_interval_seconds {
+        ui_state
+            .configuration
+            .set_proxy_connection_check_interval_seconds(proxy_connection_check_interval_seconds);
+    }
     let configuration_to_save = ui_state.configuration.clone();
     let configuration_file_content = toml::to_string_pretty(&configuration_to_save).map_err(|e| e.to_string())?;
     std::fs::write(DEFAULT_AGENT_CONFIGURATION_FILE, configuration_file_content).map_err(|e| e.to_string())?;
