@@ -15,7 +15,7 @@ use common::{
 
 use pretty_hex::*;
 use tokio::net::{TcpStream, UdpSocket};
-use tracing::{debug, error, instrument};
+use tracing::{debug, error};
 
 use crate::{config::AgentConfig, message::socks5::Socks5UdpDataPacket, service::pool::ProxyConnection};
 
@@ -44,7 +44,7 @@ pub struct Socks5UdpRelayFlowResult {}
 pub struct Socks5UdpRelayFlow;
 
 impl Socks5UdpRelayFlow {
-    #[instrument(skip_all, fields(request.client_connection_id, request.proxy_connection_id))]
+
     pub async fn exec<'a, T>(request: Socks5UdpRelayFlowRequest<'a, T>, configuration: Arc<AgentConfig>) -> Result<Socks5UdpRelayFlowResult>
     where
         T: RsaCryptoFetcher + Send + Sync + Debug + 'static,

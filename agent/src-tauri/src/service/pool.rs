@@ -21,7 +21,7 @@ use tokio::{
     sync::{mpsc, Mutex},
 };
 use tokio_util::codec::FramedParts;
-use tracing::{debug, debug_span, error, info, instrument, Instrument};
+use tracing::{debug, error, info};
 
 use crate::config::AgentConfig;
 use anyhow::anyhow;
@@ -114,7 +114,6 @@ pub struct ProxyConnectionPool {
 }
 
 impl ProxyConnectionPool {
-    #[instrument(skip_all, fields(proxy_addresses))]
     pub async fn new<T>(proxy_addresses: Arc<Vec<SocketAddr>>, configuration: Arc<AgentConfig>, rsa_crypto_fetcher: Arc<T>) -> Result<Self>
     where
         T: RsaCryptoFetcher + Send + Sync + Debug + 'static,
@@ -256,13 +255,11 @@ impl ProxyConnectionPool {
                     }
                     interval.tick().await;
                 }
-            }
-            .instrument(debug_span!("PROXY_CONNECTION_POOL_HEARTBEAT_TIMER")),
+            },
         );
         Ok(result)
     }
 
-    #[instrument(skip_all, fields(proxy_addresses))]
     async fn initialize_pool(
         proxy_addresses: Arc<Vec<SocketAddr>>, configuration: Arc<AgentConfig>, pool: &mut VecDeque<Option<ProxyConnection>>,
     ) -> Result<()> {
@@ -325,7 +322,6 @@ impl ProxyConnectionPool {
         Ok(())
     }
 
-    #[instrument(skip_all)]
     pub async fn fetch_connection(&self) -> Result<ProxyConnection> {
         let min_proxy_connection_number = self.configuration.min_proxy_connection_number().unwrap_or(DEFAULT_MIN_PROXY_CONNECTION_NUMBER);
         let mut pool = self.pool.lock().await;

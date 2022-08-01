@@ -14,7 +14,7 @@ use tokio::{
 };
 use tokio_util::codec::Framed;
 
-use tracing::{debug, error, info, instrument, trace};
+use tracing::{debug, error, info, trace};
 
 use crate::{crypto::RsaCryptoFetcher, generate_uuid, Message, MessageCodec, MessagePayload, MessageStream, PayloadEncryptionType, PpaassError};
 
@@ -33,7 +33,7 @@ where
 pub struct MessageFramedGenerator;
 
 impl MessageFramedGenerator {
-    #[instrument(skip_all, fields(input_stream))]
+
     pub async fn generate<T, S>(input_stream: S, buffer_size: usize, compress: bool, rsa_crypto_fetcher: Arc<T>) -> MessageFramedGenerateResult<T, S>
     where
         T: RsaCryptoFetcher + Debug,
@@ -98,7 +98,7 @@ where
 pub struct MessageFramedWriter;
 
 impl MessageFramedWriter {
-    #[instrument(fields(request.connection_id))]
+
     pub async fn write<'a, T, S>(request: WriteMessageFramedRequest<'a, T, S>) -> Result<WriteMessageFramedResult<T, S>, WriteMessageFramedError<T, S>>
     where
         T: RsaCryptoFetcher,
@@ -201,7 +201,7 @@ where
 pub struct MessageFramedReader;
 
 impl MessageFramedReader {
-    #[instrument(skip_all, fields(request.connection_id))]
+
     pub async fn read<'a, T, S>(request: ReadMessageFramedRequest<'a, T, S>) -> Result<ReadMessageFramedResult<T, S>, ReadMessageFramedError<T, S>>
     where
         T: RsaCryptoFetcher + Debug,
@@ -281,7 +281,7 @@ pub struct PayloadEncryptionTypeSelectResult {
 pub struct PayloadEncryptionTypeSelector;
 
 impl PayloadEncryptionTypeSelector {
-    #[instrument(fields(request.user_token))]
+
     pub async fn select<'a>(request: PayloadEncryptionTypeSelectRequest<'a>) -> Result<PayloadEncryptionTypeSelectResult, PpaassError> {
         let PayloadEncryptionTypeSelectRequest { user_token, encryption_token } = request;
         Ok(PayloadEncryptionTypeSelectResult {
@@ -306,7 +306,7 @@ pub struct TcpConnectResult {
 pub struct TcpConnector;
 
 impl TcpConnector {
-    #[instrument(fields(request.connect_addresses))]
+
     pub async fn connect(request: TcpConnectRequest) -> Result<TcpConnectResult, PpaassError> {
         let TcpConnectRequest {
             connect_addresses,

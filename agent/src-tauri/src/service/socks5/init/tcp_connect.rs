@@ -5,7 +5,7 @@ use std::{io::ErrorKind, sync::Arc};
 use anyhow::anyhow;
 use anyhow::Result;
 
-use tracing::{debug, error, instrument};
+use tracing::{debug, error};
 
 use common::{
     generate_uuid, AgentMessagePayloadTypeValue, MessageFramedGenerateResult, MessageFramedGenerator, MessageFramedRead, MessageFramedReader,
@@ -45,7 +45,7 @@ where
 }
 
 impl Socks5TcpConnectFlow {
-    #[instrument(skip_all, fields(request.client_connection_id))]
+
     pub async fn exec<'a, T>(
         request: Socks5TcpConnectFlowRequest<'a>, rsa_crypto_fetcher: Arc<T>, configuration: Arc<AgentConfig>, proxy_connection_pool: Arc<ProxyConnectionPool>,
     ) -> Result<Socks5TcpConnectFlowResult<T>>

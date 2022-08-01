@@ -12,7 +12,7 @@ use std::{fmt::Debug, net::SocketAddr};
 
 use tokio::net::TcpStream;
 
-use tracing::{debug, error, instrument};
+use tracing::{debug, error};
 
 use crate::{
     config::ProxyConfig,
@@ -68,7 +68,7 @@ where
 pub(crate) struct InitializeFlow;
 
 impl InitializeFlow {
-    #[instrument(skip_all, fields(request.connection_id))]
+
     pub async fn exec<'a, T>(
         InitFlowRequest {
             connection_id,

@@ -17,7 +17,7 @@ use tokio::{net::TcpSocket, runtime::Builder as TokioRuntimeBuilder};
 
 use anyhow::anyhow;
 use anyhow::Result;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info};
 
 const DEFAULT_SERVER_PORT: u16 = 80;
 
@@ -32,7 +32,7 @@ pub(crate) struct ProxyServer {
 }
 
 impl ProxyServer {
-    #[instrument(skip_all)]
+
     pub(crate) fn new(signal_receiver: Receiver<ProxyServerSignal>) -> Result<Self> {
         Ok(Self { signal_receiver })
     }

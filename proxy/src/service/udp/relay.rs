@@ -13,7 +13,7 @@ use common::{
 };
 use pretty_hex;
 use tokio::net::{TcpStream, UdpSocket};
-use tracing::{debug, error, instrument};
+use tracing::{debug, error};
 
 use pretty_hex::*;
 const SIZE_64KB: usize = 65535;
@@ -36,7 +36,7 @@ pub(crate) struct UdpRelayFlowResult;
 pub(crate) struct UdpRelayFlow;
 
 impl UdpRelayFlow {
-    #[instrument(skip_all, fields(request.connection_id))]
+
     pub async fn exec<'a, T>(
         UdpRelayFlowRequest {
             connection_id,

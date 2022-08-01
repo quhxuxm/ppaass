@@ -12,7 +12,7 @@ use tcp_connect::Socks5TcpConnectFlow;
 use tokio::net::{TcpStream, UdpSocket};
 use tokio_util::codec::{Framed, FramedParts};
 
-use tracing::{debug, error, instrument};
+use tracing::{debug, error};
 
 use crate::service::{
     pool::{ProxyConnection, ProxyConnectionPool},
@@ -74,7 +74,7 @@ pub(crate) struct Socks5InitFlowRequest<'a> {
 pub(crate) struct Socks5InitFlow;
 
 impl Socks5InitFlow {
-    #[instrument(fields(request.client_connection_id), skip_all)]
+
     pub async fn exec<'a, T>(
         request: Socks5InitFlowRequest<'a>, rsa_crypto_fetcher: Arc<T>, configuration: Arc<AgentConfig>, proxy_connection_pool: Arc<ProxyConnectionPool>,
     ) -> Result<Socks5InitFlowResult<T>>
@@ -210,7 +210,7 @@ impl Socks5InitFlow {
     }
 }
 
-#[instrument(fields(_client_connection_id), skip_all)]
+
 async fn send_socks5_init_failure(_client_connection_id: &str, socks5_client_framed: &mut Socks5InitFramed<'_>) -> Result<(), PpaassError> {
     let connect_result = Socks5InitCommandResultContent::new(Socks5InitCommandResultStatus::Failure, None);
     socks5_client_framed.send(connect_result).await?;

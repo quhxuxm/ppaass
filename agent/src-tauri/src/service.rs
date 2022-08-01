@@ -3,7 +3,6 @@ use std::{fs, sync::Arc};
 use ::common::{PpaassError, RsaCrypto, RsaCryptoFetcher};
 
 use anyhow::Result;
-use tracing::instrument;
 
 use crate::config::AgentConfig;
 pub(crate) mod common;
@@ -26,7 +25,6 @@ impl AgentRsaCryptoFetcher {
 }
 
 impl RsaCryptoFetcher for AgentRsaCryptoFetcher {
-    #[instrument(skip_all, fields(_user_token))]
     fn fetch<Q>(&self, _user_token: Q) -> Result<Option<&RsaCrypto>, PpaassError>
     where
         Q: AsRef<str>,

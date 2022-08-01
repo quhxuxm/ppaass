@@ -16,7 +16,7 @@ use common::{
 };
 
 use tokio::net::UdpSocket;
-use tracing::{debug, error, instrument};
+use tracing::{debug, error};
 
 use crate::service::{
     common::DEFAULT_BUFFER_SIZE,
@@ -46,7 +46,7 @@ where
 pub(crate) struct Socks5UdpAssociateFlow;
 
 impl Socks5UdpAssociateFlow {
-    #[instrument(skip_all, fields(request.client_connection_id))]
+
     pub(crate) async fn exec<'a, T>(
         request: Socks5UdpAssociateFlowRequest<'a>, rsa_crypto_fetcher: Arc<T>, configuration: Arc<AgentConfig>,
         proxy_connection_pool: Arc<ProxyConnectionPool>,

@@ -11,7 +11,7 @@ use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, FramedParts};
 
-use tracing::{debug, error, instrument};
+use tracing::{debug, error};
 
 use common::{
     generate_uuid, AgentMessagePayloadTypeValue, MessageFramedRead, MessageFramedReader, MessageFramedWrite, MessageFramedWriter, MessagePayload, NetAddress,
@@ -47,7 +47,6 @@ pub(crate) struct ClientConnection {
 }
 
 impl ClientConnection {
-    #[instrument(skip(client_stream))]
     pub(crate) fn new(client_stream: TcpStream, client_address: SocketAddr) -> Self {
         Self {
             id: generate_uuid(),
@@ -56,7 +55,6 @@ impl ClientConnection {
         }
     }
 
-    #[instrument(skip_all)]
     pub async fn exec<T>(self, rsa_crypto_fetcher: Arc<T>, configuration: Arc<AgentConfig>, proxy_connection_pool: Arc<ProxyConnectionPool>) -> Result<()>
     where
         T: RsaCryptoFetcher + Send + Sync + Debug + 'static,

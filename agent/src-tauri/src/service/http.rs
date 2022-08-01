@@ -6,7 +6,6 @@ use anyhow::Result;
 use bytes::BytesMut;
 use common::RsaCryptoFetcher;
 use tokio::net::TcpStream;
-use tracing::instrument;
 
 use crate::service::http::connect::{HttpConnectFlow, HttpConnectFlowRequest};
 use crate::{
@@ -34,7 +33,6 @@ pub(crate) struct HttpFlowResult;
 pub(crate) struct HttpFlow;
 
 impl HttpFlow {
-    #[instrument(level = "error")]
     pub async fn exec<'a, T>(
         request: HttpFlowRequest<'a>, rsa_crypto_fetcher: Arc<T>, configuration: Arc<AgentConfig>, proxy_connection_pool: Arc<ProxyConnectionPool>,
     ) -> Result<HttpFlowResult>

@@ -6,7 +6,7 @@ use tokio::net::TcpStream;
 
 use common::{generate_uuid, MessageFramedGenerateResult, MessageFramedGenerator, PpaassError, RsaCrypto, RsaCryptoFetcher};
 
-use tracing::{debug, error, instrument};
+use tracing::{debug, error};
 
 use crate::service::{
     init::{InitFlowRequest, InitFlowResult},
@@ -28,7 +28,7 @@ pub(crate) struct ProxyRsaCryptoFetcher {
 }
 
 impl ProxyRsaCryptoFetcher {
-    #[instrument(skip_all)]
+
     pub fn new(configuration: &ProxyConfig) -> Result<Self> {
         let mut result = Self { cache: HashMap::new() };
         let rsa_dir_path = configuration.rsa_root_dir().as_ref().expect("Fail to read rsa root directory.");
@@ -78,7 +78,7 @@ impl ProxyRsaCryptoFetcher {
 }
 
 impl RsaCryptoFetcher for ProxyRsaCryptoFetcher {
-    #[instrument(skip_all, fields(user_token))]
+
     fn fetch<Q>(&self, user_token: Q) -> Result<Option<&RsaCrypto>, PpaassError>
     where
         Q: AsRef<str>,
@@ -106,7 +106,6 @@ impl AgentConnection {
         self.id.as_str()
     }
 
-    #[instrument(skip_all)]
     pub async fn exec<T>(self, rsa_crypto_fetcher: Arc<T>, configuration: Arc<ProxyConfig>) -> Result<()>
     where
         T: RsaCryptoFetcher + Send + Sync + Debug + 'static,
