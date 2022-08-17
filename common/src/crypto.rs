@@ -1,9 +1,12 @@
 use std::fs;
 use std::path::Path;
 
-use bytes::{BufMut, Bytes, BytesMut};
-use crypto::symmetriccipher::{BlockDecryptor, BlockEncryptor};
-use crypto::{aessafe, blowfish};
+use aes::Aes256;
+
+use bytes::Bytes;
+use cipher::{block_padding::Pkcs7, BlockEncryptMut};
+use cipher::{BlockDecryptMut, KeyInit};
+
 use rand::rngs::OsRng;
 use rsa::pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding};
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
@@ -11,12 +14,15 @@ use tracing::error;
 
 use crate::PpaassError;
 
-const BLOWFISH_CHUNK_LENGTH: usize = 8;
-const AES_CHUNK_LENGTH: usize = 16;
 const AGENT_PRIVATE_KEY_PATH: &str = "AgentPrivateKey.pem";
 const AGENT_PUBLIC_KEY_PATH: &str = "AgentPublicKey.pem";
 const PROXY_PRIVATE_KEY_PATH: &str = "ProxyPrivateKey.pem";
 const PROXY_PUBLIC_KEY_PATH: &str = "ProxyPublicKey.pem";
+
+type AesEncryptor = ecb::Encryptor<Aes256>;
+type AesDecryptor = ecb::Decryptor<Aes256>;
+
+type PaddingMode = Pkcs7;
 
 /// The rsa crypto fetcher,
 /// each player have a rsa crypto
@@ -82,84 +88,40 @@ impl RsaCrypto {
     }
 }
 
-pub(crate) fn encrypt_with_aes(encryption_token: &Bytes, target: &Bytes) -> Bytes {
-    let mut result = BytesMut::new();
-    let aes_encryptor = aessafe::AesSafe256Encryptor::new(encryption_token);
-    let target_chunks = target.chunks(AES_CHUNK_LENGTH);
-    target_chunks.for_each(|chunk| {
-        let mut chunk_to_encrypt = [0u8; AES_CHUNK_LENGTH];
-        let mut chunk_encrypted = [0u8; AES_CHUNK_LENGTH];
-        if chunk.len() < AES_CHUNK_LENGTH {
-            for (i, v) in chunk.iter().enumerate() {
-                chunk_to_encrypt[i] = *v;
-            }
-        } else {
-            chunk_encrypted.copy_from_slice(chunk);
-        }
-        aes_encryptor.encrypt_block(&chunk_to_encrypt, &mut chunk_encrypted);
-        result.put_slice(&chunk_encrypted);
-    });
-    result.into()
+pub fn encrypt_with_aes<'a>(encryption_token: &[u8], target: &'a mut [u8]) -> Result<Vec<u8>, PpaassError> {
+    let target_length = target.len();
+    let length_mod = target_length % 16;
+    let target_with_padding_length = if length_mod == 0 {
+        target_length
+    } else {
+        (target_length / 16 + 1) * 16
+    };
+    let mut target_with_padding = vec![0u8; target_with_padding_length];
+    target_with_padding[..target_length].copy_from_slice(&target);
+    let aes_encryptor = AesEncryptor::new(encryption_token.into());
+    let result = match aes_encryptor.encrypt_padded_mut::<PaddingMode>(&mut target_with_padding, target_length) {
+        Ok(result) => result,
+        Err(_) => return Err(PpaassError::CodecError),
+    };
+    Ok(result.to_vec())
 }
 
-pub(crate) fn decrypt_with_aes(encryption_token: &Bytes, target: &Bytes) -> Bytes {
-    let mut result = BytesMut::new();
-    let aes_decryptor = aessafe::AesSafe256Decryptor::new(encryption_token);
-    let target_chunks = target.chunks(AES_CHUNK_LENGTH);
-    target_chunks.for_each(|chunk| {
-        let mut chunk_to_decrypt = [0u8; AES_CHUNK_LENGTH];
-        if chunk.len() < AES_CHUNK_LENGTH {
-            for (i, v) in chunk.iter().enumerate() {
-                chunk_to_decrypt[i] = *v;
-            }
-        } else {
-            chunk_to_decrypt.copy_from_slice(chunk);
-        }
-        let mut chunk_decrypted = [0u8; AES_CHUNK_LENGTH];
-        aes_decryptor.decrypt_block(&chunk_to_decrypt, &mut chunk_decrypted);
-        result.put_slice(&chunk_decrypted);
-    });
-    result.into()
-}
-
-pub(crate) fn encrypt_with_blowfish(encryption_token: &Bytes, target: &Bytes) -> Bytes {
-    let mut result = BytesMut::new();
-    let blowfish_encryption = blowfish::Blowfish::new(encryption_token);
-    let target_chunks = target.chunks(BLOWFISH_CHUNK_LENGTH);
-    target_chunks.for_each(|chunk| {
-        let mut chunk_to_encrypt = [0u8; BLOWFISH_CHUNK_LENGTH];
-        if chunk.len() < BLOWFISH_CHUNK_LENGTH {
-            for (i, v) in chunk.iter().enumerate() {
-                chunk_to_encrypt[i] = *v;
-            }
-        } else {
-            chunk_to_encrypt.copy_from_slice(chunk);
-        }
-        let mut chunk_encrypted = [0u8; BLOWFISH_CHUNK_LENGTH];
-        blowfish_encryption.encrypt_block(&chunk_to_encrypt, &mut chunk_encrypted);
-        result.put_slice(&chunk_encrypted);
-    });
-    result.into()
-}
-
-pub(crate) fn decrypt_with_blowfish(encryption_token: &Bytes, target: &Bytes) -> Bytes {
-    let mut result = BytesMut::new();
-    let blowfish_encryption = blowfish::Blowfish::new(encryption_token);
-    let target_chunks = target.chunks(BLOWFISH_CHUNK_LENGTH);
-    target_chunks.for_each(|chunk| {
-        let mut chunk_to_decrypt = [0u8; BLOWFISH_CHUNK_LENGTH];
-        if chunk.len() < BLOWFISH_CHUNK_LENGTH {
-            for (i, v) in chunk.iter().enumerate() {
-                chunk_to_decrypt[i] = *v;
-            }
-        } else {
-            chunk_to_decrypt.copy_from_slice(chunk);
-        }
-        let mut chunk_decrypted = [0u8; BLOWFISH_CHUNK_LENGTH];
-        blowfish_encryption.decrypt_block(&chunk_to_decrypt, &mut chunk_decrypted);
-        result.put_slice(&chunk_decrypted);
-    });
-    result.into()
+pub fn decrypt_with_aes<'a>(encryption_token: &[u8], target: &'a mut [u8]) -> Result<Vec<u8>, PpaassError> {
+    let target_length = target.len();
+    let length_mod = target_length % 16;
+    let target_with_padding_length = if length_mod == 0 {
+        target_length
+    } else {
+        (target_length / 16 + 1) * 16
+    };
+    let mut target_with_padding = vec![0u8; target_with_padding_length];
+    target_with_padding[..target_length].copy_from_slice(&target);
+    let aes_decryptor = AesDecryptor::new(encryption_token.into());
+    let result = match aes_decryptor.decrypt_padded_mut::<PaddingMode>(&mut target_with_padding) {
+        Ok(result) => result,
+        Err(_) => return Err(PpaassError::CodecError),
+    };
+    Ok(result.to_vec())
 }
 
 pub fn generate_agent_key_pairs(base_dir: &str, user_token: &str) -> Result<(), PpaassError> {

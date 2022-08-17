@@ -33,7 +33,6 @@ where
 pub struct MessageFramedGenerator;
 
 impl MessageFramedGenerator {
-
     pub async fn generate<T, S>(input_stream: S, buffer_size: usize, compress: bool, rsa_crypto_fetcher: Arc<T>) -> MessageFramedGenerateResult<T, S>
     where
         T: RsaCryptoFetcher + Debug,
@@ -98,7 +97,6 @@ where
 pub struct MessageFramedWriter;
 
 impl MessageFramedWriter {
-
     pub async fn write<'a, T, S>(request: WriteMessageFramedRequest<'a, T, S>) -> Result<WriteMessageFramedResult<T, S>, WriteMessageFramedError<T, S>>
     where
         T: RsaCryptoFetcher,
@@ -201,7 +199,6 @@ where
 pub struct MessageFramedReader;
 
 impl MessageFramedReader {
-
     pub async fn read<'a, T, S>(request: ReadMessageFramedRequest<'a, T, S>) -> Result<ReadMessageFramedResult<T, S>, ReadMessageFramedError<T, S>>
     where
         T: RsaCryptoFetcher + Debug,
@@ -281,11 +278,10 @@ pub struct PayloadEncryptionTypeSelectResult {
 pub struct PayloadEncryptionTypeSelector;
 
 impl PayloadEncryptionTypeSelector {
-
     pub async fn select<'a>(request: PayloadEncryptionTypeSelectRequest<'a>) -> Result<PayloadEncryptionTypeSelectResult, PpaassError> {
         let PayloadEncryptionTypeSelectRequest { user_token, encryption_token } = request;
         Ok(PayloadEncryptionTypeSelectResult {
-            payload_encryption_type: PayloadEncryptionType::Blowfish(encryption_token.clone()),
+            payload_encryption_type: PayloadEncryptionType::Aes(encryption_token.clone()),
             user_token: user_token.to_owned(),
             encryption_token,
         })
@@ -306,7 +302,6 @@ pub struct TcpConnectResult {
 pub struct TcpConnector;
 
 impl TcpConnector {
-
     pub async fn connect(request: TcpConnectRequest) -> Result<TcpConnectResult, PpaassError> {
         let TcpConnectRequest {
             connect_addresses,

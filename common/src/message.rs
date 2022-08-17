@@ -26,7 +26,6 @@ use crate::NetAddress::IpV4;
 use crate::{error::PpaassError, util::generate_uuid};
 
 const ENCRYPTION_TYPE_PLAIN: u8 = 0;
-const ENCRYPTION_TYPE_BLOWFISH: u8 = 1;
 const ENCRYPTION_TYPE_AES: u8 = 2;
 
 const IPV4_TYPE: u8 = 0;
@@ -290,7 +289,6 @@ impl From<NetAddress> for Bytes {
 #[derive(Debug, Clone)]
 pub enum PayloadEncryptionType {
     Plain,
-    Blowfish(Bytes),
     Aes(Bytes),
 }
 
@@ -402,7 +400,6 @@ impl TryFrom<&mut Bytes> for PayloadEncryptionType {
         let enc_token = value.split_to(enc_type_token_length);
         match enc_type_value {
             ENCRYPTION_TYPE_PLAIN => Ok(PayloadEncryptionType::Plain),
-            ENCRYPTION_TYPE_BLOWFISH => Ok(PayloadEncryptionType::Blowfish(enc_token)),
             ENCRYPTION_TYPE_AES => Ok(PayloadEncryptionType::Aes(enc_token)),
             invalid_type => {
                 error!("Fail to parse PayloadEncryptionType because of invalid type: {}.", invalid_type);
@@ -428,11 +425,6 @@ impl From<PayloadEncryptionType> for Bytes {
             PayloadEncryptionType::Plain => {
                 result.put_u8(ENCRYPTION_TYPE_PLAIN);
                 result.put_u32(0);
-            },
-            PayloadEncryptionType::Blowfish(token) => {
-                result.put_u8(ENCRYPTION_TYPE_BLOWFISH);
-                result.put_u32(token.len() as u32);
-                result.put(token);
             },
             PayloadEncryptionType::Aes(token) => {
                 result.put_u8(ENCRYPTION_TYPE_AES);

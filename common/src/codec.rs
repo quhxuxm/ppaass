@@ -10,7 +10,7 @@ use pretty_hex::*;
 use tokio_util::codec::{Decoder, Encoder};
 use tracing::{debug, error, trace};
 
-use crate::crypto::{decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_with_blowfish, RsaCryptoFetcher};
+use crate::crypto::{decrypt_with_aes, encrypt_with_aes, RsaCryptoFetcher};
 use crate::{Message, PayloadEncryptionType, PpaassError};
 
 const PPAASS_FLAG: &[u8] = "__PPAASS__".as_bytes();
@@ -112,24 +112,15 @@ where
         })?;
         debug!("Decode input message (before decrypt): {:?}", message);
         match message.payload_encryption_type {
-            PayloadEncryptionType::Blowfish(ref encryption_token) => match message.payload {
-                None => {
-                    debug!("Nothing to decrypt for blowfish.")
-                },
-                Some(ref content) => {
-                    let original_encryption_token = rsa_crypto.decrypt(encryption_token)?;
-                    let decrypt_payload = decrypt_with_blowfish(&original_encryption_token, content);
-                    message.payload = Some(decrypt_payload);
-                },
-            },
             PayloadEncryptionType::Aes(ref encryption_token) => match message.payload {
                 None => {
                     debug!("Nothing to decrypt for aes.")
                 },
-                Some(ref content) => {
+                Some(content) => {
                     let original_encryption_token = rsa_crypto.decrypt(encryption_token)?;
-                    let decrypt_payload = decrypt_with_aes(&original_encryption_token, content);
-                    message.payload = Some(decrypt_payload);
+                    let mut content_to_decrypt = content.to_vec();
+                    let decrypt_payload = decrypt_with_aes(original_encryption_token.chunk(), content_to_decrypt.as_mut())?;
+                    message.payload = Some(Bytes::from(decrypt_payload));
                 },
             },
             PayloadEncryptionType::Plain => {},
@@ -179,17 +170,12 @@ where
         let rsa_crypto = self.rsa_crypto_fetcher.fetch(user_token.as_str())?.ok_or(PpaassError::CodecError)?;
         let (encrypted_payload, encrypted_payload_encryption_type) = match payload_encryption_type {
             PayloadEncryptionType::Plain => (payload, PayloadEncryptionType::Plain),
-            PayloadEncryptionType::Blowfish(ref original_token) => {
-                let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token)?;
-                (
-                    Some(encrypt_with_blowfish(original_token, &payload.unwrap())),
-                    PayloadEncryptionType::Blowfish(encrypted_payload_encryption_token),
-                )
-            },
             PayloadEncryptionType::Aes(ref original_token) => {
+                let mut mutable_content = payload.unwrap().to_vec();
                 let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token)?;
+                let encrypted_payload_content = encrypt_with_aes(original_token, mutable_content.as_mut())?;
                 (
-                    Some(encrypt_with_aes(original_token, &payload.unwrap())),
+                    Some(Bytes::from(encrypted_payload_content)),
                     PayloadEncryptionType::Aes(encrypted_payload_encryption_token),
                 )
             },
