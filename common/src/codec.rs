@@ -118,8 +118,7 @@ where
                 },
                 Some(content) => {
                     let original_encryption_token = rsa_crypto.decrypt(encryption_token)?;
-                    let mut content_to_decrypt = content.to_vec();
-                    let decrypt_payload = decrypt_with_aes(original_encryption_token.chunk(), content_to_decrypt.as_mut())?;
+                    let decrypt_payload = decrypt_with_aes(original_encryption_token.chunk(), content.chunk())?;
                     message.payload = Some(Bytes::from(decrypt_payload));
                 },
             },
