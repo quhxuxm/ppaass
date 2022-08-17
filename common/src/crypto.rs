@@ -88,14 +88,21 @@ impl RsaCrypto {
     }
 }
 
+fn count_length_padding(length: usize) -> usize {
+    if length == 0 {
+        return 16;
+    }
+    let result = if (length % 16) == 0 {
+        length
+    } else {
+        (length / 16 + 1) * 16
+    };
+    return result;
+}
+
 pub fn encrypt_with_aes<'a>(encryption_token: &[u8], target: &'a mut [u8]) -> Result<Vec<u8>, PpaassError> {
     let target_length = target.len();
-    let length_mod = target_length % 16;
-    let target_with_padding_length = if length_mod == 0 {
-        target_length
-    } else {
-        (target_length / 16 + 1) * 16
-    };
+    let target_with_padding_length = count_length_padding(target_length);
     let mut target_with_padding = vec![0u8; target_with_padding_length];
     target_with_padding[..target_length].copy_from_slice(&target);
     let aes_encryptor = AesEncryptor::new(encryption_token.into());
@@ -108,12 +115,7 @@ pub fn encrypt_with_aes<'a>(encryption_token: &[u8], target: &'a mut [u8]) -> Re
 
 pub fn decrypt_with_aes<'a>(encryption_token: &[u8], target: &'a mut [u8]) -> Result<Vec<u8>, PpaassError> {
     let target_length = target.len();
-    let length_mod = target_length % 16;
-    let target_with_padding_length = if length_mod == 0 {
-        target_length
-    } else {
-        (target_length / 16 + 1) * 16
-    };
+    let target_with_padding_length = count_length_padding(target_length);
     let mut target_with_padding = vec![0u8; target_with_padding_length];
     target_with_padding[..target_length].copy_from_slice(&target);
     let aes_decryptor = AesDecryptor::new(encryption_token.into());

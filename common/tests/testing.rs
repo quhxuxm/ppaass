@@ -7,19 +7,15 @@ mod testing {
 
     #[test]
     fn test1() -> Result<(), PpaassError> {
-        let o = generate_uuid();
-        let key = o.as_bytes();
-        let mut plaintext = *b"hello world! this is my plaintext.";
-        let mut ciphertext = hex!(
-            "42b153410851a931eb3e6c048867ae5f"
-            "95eb20b42e176b07840db75688be9c70"
-            "e4670ea0d87a71be5f9f3099b4fff3dc"
-        );
+        let uid = generate_uuid();
+        let key = uid.as_bytes();
+        let mut plaintext = *b"hello world! this is my plaintext.dhello world! this is my plaintext.dhello world! this is my plaintext.dhello world! this is my plaintext.dhello world! this is my plaintext.dhello world! this is my plaintext.dhello world! this is my plaintext.dhello world! this is my plaintext.dhello world! this is my plaintext.dhello world! this is my plaintext.dswssd";
+        // let mut plaintext = *b"";
         let mut encrypt_result = encrypt_with_aes(&key, &mut plaintext)?;
-        println!("{:?}", plaintext);
+        println!("{:?}", encrypt_result);
         let decrypt_result = decrypt_with_aes(&key, encrypt_result.as_mut_slice());
         println!("{:?}", plaintext);
-        println!("{:?}", encrypt_result);
+        println!("{:?}", decrypt_result);
         Ok(())
     }
     #[test]
