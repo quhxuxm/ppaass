@@ -4,7 +4,11 @@ use std::path::Path;
 use aes::Aes256;
 
 use bytes::Bytes;
-use cipher::{block_padding::Pkcs7, BlockEncryptMut};
+use cipher::{
+    block_padding::{Padding, Pkcs7},
+    generic_array::GenericArray,
+    typenum, BlockEncryptMut,
+};
 use cipher::{BlockDecryptMut, KeyInit};
 
 use rand::rngs::OsRng;
@@ -88,42 +92,31 @@ impl RsaCrypto {
     }
 }
 
-fn count_length_padding(length: usize) -> usize {
+fn count_length_padding(length: usize) -> (usize, u8) {
     if length == 0 {
-        return 16;
+        return (16, 0u8);
     }
-    let result = if (length % 16) == 0 {
-        length
+    if (length % 16) == 0 {
+        (length, 0u8)
     } else {
-        (length / 16 + 1) * 16
-    };
-    return result;
+        let padding_length = (length / 16 + 1) * 16;
+        (padding_length, (16 - length % 16) as u8)
+    }
 }
 
-pub fn encrypt_with_aes<'a>(encryption_token: &[u8], target: &'a mut [u8]) -> Result<Vec<u8>, PpaassError> {
+pub fn encrypt_with_aes(encryption_token: &[u8], target: &[u8]) -> Vec<u8> {
     let target_length = target.len();
-    let target_with_padding_length = count_length_padding(target_length);
-    let mut target_with_padding = vec![0u8; target_with_padding_length];
-    target_with_padding[..target_length].copy_from_slice(&target);
     let aes_encryptor = AesEncryptor::new(encryption_token.into());
-    let result = match aes_encryptor.encrypt_padded_mut::<PaddingMode>(&mut target_with_padding, target_length) {
-        Ok(result) => result,
-        Err(_) => return Err(PpaassError::CodecError),
-    };
-    Ok(result.to_vec())
+    aes_encryptor.encrypt_padded_vec_mut::<PaddingMode>(target)
 }
 
 pub fn decrypt_with_aes<'a>(encryption_token: &[u8], target: &'a mut [u8]) -> Result<Vec<u8>, PpaassError> {
-    let target_length = target.len();
-    let target_with_padding_length = count_length_padding(target_length);
-    let mut target_with_padding = vec![0u8; target_with_padding_length];
-    target_with_padding[..target_length].copy_from_slice(&target);
     let aes_decryptor = AesDecryptor::new(encryption_token.into());
-    let result = match aes_decryptor.decrypt_padded_mut::<PaddingMode>(&mut target_with_padding) {
+    let result = match aes_decryptor.decrypt_padded_vec_mut::<PaddingMode>(target) {
         Ok(result) => result,
         Err(_) => return Err(PpaassError::CodecError),
     };
-    Ok(result.to_vec())
+    Ok(result)
 }
 
 pub fn generate_agent_key_pairs(base_dir: &str, user_token: &str) -> Result<(), PpaassError> {

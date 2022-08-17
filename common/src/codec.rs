@@ -171,9 +171,8 @@ where
         let (encrypted_payload, encrypted_payload_encryption_type) = match payload_encryption_type {
             PayloadEncryptionType::Plain => (payload, PayloadEncryptionType::Plain),
             PayloadEncryptionType::Aes(ref original_token) => {
-                let mut mutable_content = payload.unwrap().to_vec();
                 let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token)?;
-                let encrypted_payload_content = encrypt_with_aes(original_token, mutable_content.as_mut())?;
+                let encrypted_payload_content = encrypt_with_aes(original_token, &payload.unwrap());
                 (
                     Some(Bytes::from(encrypted_payload_content)),
                     PayloadEncryptionType::Aes(encrypted_payload_encryption_token),

@@ -10,7 +10,7 @@ bytes = "1"
 cfb-mode = "0.8.1"
 chrono = "0.4"
 cipher = "0.4.3"
-ecb = "0.1.1"
+ecb = {version = "0.1.1", features = ["std"]}
 futures = "0.3"
 hex-literal = "0.3.4"
 lz4 = "1"
