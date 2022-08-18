@@ -69,7 +69,7 @@ impl RsaCrypto {
         Ok(Self { public_key, private_key })
     }
 
-    pub(crate) fn encrypt(&self, target: &Bytes) -> Result<Bytes, PpaassError> {
+    pub fn encrypt(&self, target: &Bytes) -> Result<Bytes, PpaassError> {
         self.public_key
             .encrypt(&mut OsRng, PaddingScheme::PKCS1v15Encrypt, target)
             .map_err(|e| {
@@ -79,7 +79,7 @@ impl RsaCrypto {
             .map(|v| v.into())
     }
 
-    pub(crate) fn decrypt(&self, target: &Bytes) -> Result<Bytes, PpaassError> {
+    pub fn decrypt(&self, target: &Bytes) -> Result<Bytes, PpaassError> {
         self.private_key
             .decrypt(PaddingScheme::PKCS1v15Encrypt, target)
             .map_err(|e| {

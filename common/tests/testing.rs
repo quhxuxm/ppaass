@@ -1,8 +1,9 @@
 #[cfg(test)]
 mod testing {
     use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyInit};
+    use bytes::{Buf, Bytes};
     use cipher::block_padding::NoPadding;
-    use common::{decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_with_blowfish, generate_uuid, PpaassError};
+    use common::{decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_with_blowfish, generate_uuid, PpaassError, RsaCrypto};
     use hex_literal::hex;
 
     #[test]
@@ -29,6 +30,24 @@ mod testing {
         let decrypt_result = decrypt_with_blowfish(key, encrypt_result.as_mut_slice());
         println!("{:?}", plaintext);
         println!("{:?}", decrypt_result);
+        Ok(())
+    }
+
+    #[test]
+    fn test3() -> Result<(), PpaassError> {
+        let rsa_token = "0123456789abcedf0123456789abcedf";
+        let public_key = std::fs::read_to_string("D:\\Git\\ppaass\\rsa\\user1\\AgentPublicKey.pem")?;
+        let private_key = std::fs::read_to_string("D:\\Git\\ppaass\\rsa\\user1\\ProxyPrivateKey.pem")?;
+        let rsa_crypto = RsaCrypto::new(public_key, private_key)?;
+        let rsa_token_bytes = Bytes::from(rsa_token);
+        let rsa_encrypted_token = rsa_crypto.encrypt(&rsa_token_bytes)?;
+        std::fs::write("D:\\rsa", rsa_encrypted_token.to_vec());
+        println!("RSA encrypted token: {:?}", rsa_encrypted_token.to_vec());
+        let aes_encrypt_target = "hello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhaohello, i am quhao";
+        let aes_encrypt_result = encrypt_with_aes(rsa_token_bytes.chunk(), aes_encrypt_target.as_bytes());
+        std::fs::write("D:\\aes", aes_encrypt_result.to_vec());
+        println!("AES encrypted result: {:?}", aes_encrypt_result.to_vec());
+
         Ok(())
     }
 }
