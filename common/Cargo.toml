@@ -6,8 +6,8 @@ version = "0.1.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 aes = "0.8.1"
+blowfish = "0.9.1"
 bytes = "1"
-cfb-mode = "0.8.1"
 chrono = "0.4"
 cipher = "0.4.3"
 ecb = {version = "0.1.1", features = ["std"]}

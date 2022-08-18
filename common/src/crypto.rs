@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use aes::Aes256;
-
+use blowfish::Blowfish;
 use bytes::Bytes;
 use cipher::{block_padding::Pkcs7, BlockEncryptMut};
 use cipher::{BlockDecryptMut, KeyInit};
@@ -21,6 +21,8 @@ const PROXY_PUBLIC_KEY_PATH: &str = "ProxyPublicKey.pem";
 
 type AesEncryptor = ecb::Encryptor<Aes256>;
 type AesDecryptor = ecb::Decryptor<Aes256>;
+type BlowfishEncryptor = ecb::Encryptor<Blowfish>;
+type BlowfishDecryptor = ecb::Decryptor<Blowfish>;
 
 type PaddingMode = Pkcs7;
 
@@ -88,14 +90,28 @@ impl RsaCrypto {
     }
 }
 
+pub fn encrypt_with_blowfish(encryption_token: &[u8], target: &[u8]) -> Vec<u8> {
+    let encryptor = BlowfishEncryptor::new(encryption_token.into());
+    encryptor.encrypt_padded_vec_mut::<PaddingMode>(target)
+}
+
+pub fn decrypt_with_blowfish<'a>(encryption_token: &[u8], target: &[u8]) -> Result<Vec<u8>, PpaassError> {
+    let decryptor = BlowfishDecryptor::new(encryption_token.into());
+    let result = match decryptor.decrypt_padded_vec_mut::<PaddingMode>(target) {
+        Ok(result) => result,
+        Err(_) => return Err(PpaassError::CodecError),
+    };
+    Ok(result)
+}
+
 pub fn encrypt_with_aes(encryption_token: &[u8], target: &[u8]) -> Vec<u8> {
-    let aes_encryptor = AesEncryptor::new(encryption_token.into());
-    aes_encryptor.encrypt_padded_vec_mut::<PaddingMode>(target)
+    let encryptor = AesEncryptor::new(encryption_token.into());
+    encryptor.encrypt_padded_vec_mut::<PaddingMode>(target)
 }
 
 pub fn decrypt_with_aes<'a>(encryption_token: &[u8], target: &[u8]) -> Result<Vec<u8>, PpaassError> {
-    let aes_decryptor = AesDecryptor::new(encryption_token.into());
-    let result = match aes_decryptor.decrypt_padded_vec_mut::<PaddingMode>(target) {
+    let decryptor = AesDecryptor::new(encryption_token.into());
+    let result = match decryptor.decrypt_padded_vec_mut::<PaddingMode>(target) {
         Ok(result) => result,
         Err(_) => return Err(PpaassError::CodecError),
     };
