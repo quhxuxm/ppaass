@@ -57,7 +57,7 @@ where
     type Error = PpaassError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        let header_length = PPAASS_FLAG.len() + size_of::<u8>() + size_of::<u64>();
+        let header_length = PPAASS_FLAG.len() + size_of::<u8>() + size_of::<u32>();
         let (body_is_compressed, body_length) = match self.status {
             DecodeStatus::Head => {
                 if src.len() < header_length {
