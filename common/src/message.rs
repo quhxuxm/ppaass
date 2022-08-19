@@ -392,7 +392,7 @@ impl TryFrom<&mut Bytes> for PayloadEncryptionType {
             return Err(PpaassError::CodecError);
         }
         let enc_type_value = value.get_u8();
-        let enc_type_token_length = value.get_u32() as usize;
+        let enc_type_token_length = value.get_u16() as usize;
         if value.remaining() < enc_type_token_length {
             error!("Fail to parse PayloadEncryptionType because of no remining in byte buffer.");
             return Err(PpaassError::CodecError);
@@ -424,11 +424,11 @@ impl From<PayloadEncryptionType> for Bytes {
         match value {
             PayloadEncryptionType::Plain => {
                 result.put_u8(ENCRYPTION_TYPE_PLAIN);
-                result.put_u32(0);
+                result.put_u16(0);
             },
             PayloadEncryptionType::Aes(token) => {
                 result.put_u8(ENCRYPTION_TYPE_AES);
-                result.put_u32(token.len() as u32);
+                result.put_u16(token.len() as u16);
                 result.put(token);
             },
         }
@@ -666,11 +666,11 @@ impl TryFrom<Bytes> for Message {
     type Error = PpaassError;
 
     fn try_from(mut value: Bytes) -> Result<Self, Self::Error> {
-        if value.remaining() < size_of::<u32>() {
+        if value.remaining() < size_of::<u16>() {
             error!("Fail to parse message because of no remaining");
             return Err(PpaassError::CodecError);
         };
-        let id_length = value.get_u32() as usize;
+        let id_length = value.get_u16() as usize;
         if value.remaining() < id_length {
             error!("Fail to parse message because of no remaining");
             return Err(PpaassError::CodecError);
@@ -683,11 +683,11 @@ impl TryFrom<Bytes> for Message {
                 return Err(PpaassError::CodecError);
             },
         };
-        if value.remaining() < size_of::<u32>() {
+        if value.remaining() < size_of::<u16>() {
             error!("Fail to parse message because of no remaining");
             return Err(PpaassError::CodecError);
         };
-        let ref_id_length = value.get_u32() as usize;
+        let ref_id_length = value.get_u16() as usize;
         if value.remaining() < ref_id_length {
             error!("Fail to parse message because of no remaining");
             return Err(PpaassError::CodecError);
@@ -700,7 +700,11 @@ impl TryFrom<Bytes> for Message {
                 return Err(PpaassError::CodecError);
             },
         };
-        let connection_id_length = value.get_u32() as usize;
+        if value.remaining() < size_of::<u16>() {
+            error!("Fail to parse message because of no remaining");
+            return Err(PpaassError::CodecError);
+        };
+        let connection_id_length = value.get_u16() as usize;
         if value.remaining() < connection_id_length {
             error!("Fail to parse message because of no remaining");
             return Err(PpaassError::CodecError);
@@ -713,11 +717,11 @@ impl TryFrom<Bytes> for Message {
                 return Err(PpaassError::CodecError);
             },
         };
-        if value.remaining() < size_of::<u64>() {
+        if value.remaining() < size_of::<u16>() {
             error!("Fail to parse message because of no remaining");
             return Err(PpaassError::CodecError);
         };
-        let user_token_length = value.get_u64() as usize;
+        let user_token_length = value.get_u16() as usize;
         if value.remaining() < user_token_length {
             error!("Fail to parse message because of no remaining");
             return Err(PpaassError::CodecError);
@@ -765,27 +769,27 @@ impl TryFrom<Bytes> for Message {
 impl From<Message> for Bytes {
     fn from(value: Message) -> Self {
         let mut result = BytesMut::new();
-        result.put_u32(value.id.len() as u32);
+        result.put_u16(value.id.len() as u16);
         result.put_slice(value.id.as_bytes());
         match value.ref_id {
             Some(v) => {
-                result.put_u32(v.len() as u32);
+                result.put_u16(v.len() as u16);
                 result.put_slice(v.as_bytes());
             },
             None => {
-                result.put_u32(0);
+                result.put_u16(0);
             },
         }
         match value.connection_id {
             Some(v) => {
-                result.put_u32(v.len() as u32);
+                result.put_u16(v.len() as u16);
                 result.put_slice(v.as_bytes());
             },
             None => {
-                result.put_u32(0);
+                result.put_u16(0);
             },
         }
-        result.put_u64(value.user_token.len() as u64);
+        result.put_u16(value.user_token.len() as u16);
         result.put_slice(value.user_token.as_bytes());
         result.put::<Bytes>(value.payload_encryption_type.into());
         match value.payload {
