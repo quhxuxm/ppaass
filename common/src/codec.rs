@@ -17,7 +17,7 @@ const PPAASS_FLAG: &[u8] = "__PPAASS__".as_bytes();
 
 enum DecodeStatus {
     Head,
-    Data(bool, u64),
+    Data(bool, u32),
 }
 
 pub struct MessageCodec<T: RsaCryptoFetcher> {
@@ -74,7 +74,7 @@ where
                     return Err(PpaassError::CodecError);
                 }
                 let compressed = src.get_u8() == 1;
-                let body_length = src.get_u64();
+                let body_length = src.get_u32();
                 src.reserve(body_length as usize);
                 debug!("The body length of the input message is {}", body_length);
                 self.status = DecodeStatus::Data(compressed, body_length);
@@ -154,7 +154,7 @@ where
                 result_bytes
             };
             let result_bytes_length = result_bytes.len();
-            dst.put_u64(result_bytes_length as u64);
+            dst.put_u32(result_bytes_length as u32);
             dst.put(result_bytes);
             return Ok(());
         }
