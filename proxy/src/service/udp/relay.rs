@@ -13,7 +13,7 @@ use common::{
 };
 use pretty_hex;
 use tokio::net::{TcpStream, UdpSocket};
-use tracing::{debug, error};
+use tracing::{error, info};
 
 use pretty_hex::*;
 const SIZE_64KB: usize = 65535;
@@ -36,7 +36,6 @@ pub(crate) struct UdpRelayFlowResult;
 pub(crate) struct UdpRelayFlow;
 
 impl UdpRelayFlow {
-
     pub async fn exec<'a, T>(
         UdpRelayFlowRequest {
             connection_id,
@@ -63,14 +62,11 @@ impl UdpRelayFlow {
                 .await
                 {
                     Err(ReadMessageFramedError { source, .. }) => {
-                        error!("Connection [{}] has a error when read from agent, error: {:#?}.", connection_id, source);
+                        error!("Udp relay has a error when read from agent, connection id: [{connection_id}] , error: {source:#?}.");
                         return;
                     },
                     Ok(ReadMessageFramedResult { content: None, .. }) => {
-                        debug!(
-                            "Connection [{}] nothing to read, message id:{}, user token:{}",
-                            connection_id, message_id, user_token
-                        );
+                        info!("Udp relay nothing to read, connection id: [{connection_id}] , message id:{message_id}, user token:{user_token}",);
                         return;
                     },
                     Ok(ReadMessageFramedResult {
@@ -90,49 +86,43 @@ impl UdpRelayFlow {
                     }) => {
                         let udp_socket = match UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0))).await {
                             Err(e) => {
-                                error!("Connection [{}] fail to create udp socket because of error : {:#?}", connection_id, e);
+                                error!("Udp relay fail to bind udp socket, connection id: [{connection_id}], error : {e:#?}");
                                 return;
                             },
                             Ok(v) => v,
                         };
                         let udp_target_addresses = match target_address.clone().to_socket_addrs() {
                             Err(e) => {
-                                error!("Connection [{}] fail to convert addresses because of error : {:#?}", connection_id, e);
+                                error!("Udp relay fail to convert target address, connection id: [{connection_id}], error : {e:#?}");
                                 return;
                             },
                             Ok(v) => v,
                         };
                         if let Err(e) = udp_socket.connect(udp_target_addresses.collect::<Vec<_>>().as_slice()).await {
-                            error!(
-                                "Connection [{}] fail to connect target address [{:?}] because of error : {:#?}",
-                                connection_id, target_address, e
-                            );
+                            error!("Udp relay fail connect to target, target: [{target_address:?}], connection id: [{connection_id}], error: {e:#?}");
                             return;
                         };
-                        debug!(
-                            "Connection [{}] begin to send udp data from agent to target:\n{}\n",
-                            connection_id,
+                        info!(
+                            "Udp relay begin to send udp data from agent to target: [{target_address:?}], connection id: [{connection_id}], data:\n{}\n",
                             pretty_hex::pretty_hex(&data)
                         );
                         if let Err(e) = udp_socket.send(&data).await {
-                            error!("Connection [{}] fail to send udp packet to target because of error:{:#?}", connection_id, e);
+                            error!("Udp relay fail to send udp packet to target, connection id:[{connection_id}], target: [{target_address:?}], error: {e:#?}");
                             return;
                         };
                         let mut receive_buffer = [0u8; SIZE_64KB];
                         let received_data_size = match udp_socket.recv(&mut receive_buffer).await {
                             Err(e) => {
                                 error!(
-                                    "Connection [{}] fail to receive udp packet from target because of error:{:#?}",
-                                    connection_id, e
+                                    "Udp relay fail to receive udp packet from target, connection id: [{connection_id}], target: [{target_address:?}], error:{e:#?}"
                                 );
                                 return;
                             },
                             Ok(v) => v,
                         };
                         let received_data = &receive_buffer[0..received_data_size];
-                        debug!(
-                            "Connection [{}] receive udp data from target:\n\n{}\n\n",
-                            connection_id,
+                        info!(
+                            "Udp relay receive data from target, connection id:[{connection_id}], target:[{target_address:?}], data:\n{}\n",
                             pretty_hex(&received_data)
                         );
                         let PayloadEncryptionTypeSelectResult {
@@ -146,7 +136,7 @@ impl UdpRelayFlow {
                         .await
                         {
                             Err(e) => {
-                                error!("Connection [{}] fail to select payload encryption because of error:{:#?}", connection_id, e);
+                                error!("Udp relay fail to select payload encryption, connection id: [{connection_id}], target address: [{target_address:?}], error:{e:#?}");
                                 return;
                             },
                             Ok(v) => v,
@@ -159,7 +149,7 @@ impl UdpRelayFlow {
                                 data: Some(Bytes::copy_from_slice(received_data)),
                                 payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpData),
                                 source_address,
-                                target_address: Some(target_address),
+                                target_address: Some(target_address.clone()),
                             }]),
                             payload_encryption_type,
                             ref_id: Some(message_id.as_str()),
@@ -168,17 +158,16 @@ impl UdpRelayFlow {
                         .await
                         {
                             Err(WriteMessageFramedError { message_framed_write, source }) => {
-                                error!("Connection [{}] fail to write udp data because of error:{:#?}", connection_id, source);
+                                error!("Udp relay fail to write data to target, connection id: [{connection_id}], target address: [{target_address:?}], error:{source:#?}");
                                 message_framed_write
                             },
                             Ok(WriteMessageFramedResult { message_framed_write }) => message_framed_write,
                         };
                         message_framed_read = message_framed_read_return_back;
                     },
-                    Ok(ReadMessageFramedResult { .. }) => {
+                    Ok(unknown_content) => {
                         error!(
-                            "Connection [{}] has a invalid payload when read from agent, message id:{}, user token:{}.",
-                            connection_id, message_id, user_token
+                            "Udp relay fail, invalid payload when read from agent, connection id: [{connection_id}], invalid payload:\n{unknown_content:#?}\n"
                         );
                         return;
                     },
