@@ -68,7 +68,6 @@ where
 pub(crate) struct InitializeFlow;
 
 impl InitializeFlow {
-
     pub async fn exec<'a, T>(
         InitFlowRequest {
             connection_id,
@@ -264,8 +263,8 @@ impl InitializeFlow {
                     },
                 }
             },
-            Ok(ReadMessageFramedResult { .. }) => {
-                error!("Connection [{connection_id}] handle agent connection fail because of invalid message content.");
+            Ok(read_message_framed_result) => {
+                error!("Connection [{connection_id}] handle agent connection fail because of invalid message content:\n{read_message_framed_result:#?}\n.");
                 Err(anyhow!(
                     "Connection [{connection_id}] handle agent connection fail because of invalid message content."
                 ))
