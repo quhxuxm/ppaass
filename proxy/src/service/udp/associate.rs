@@ -101,7 +101,7 @@ impl UdpAssociateFlow {
             payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateSuccess),
             data: None,
         };
-        info!("Udp associate success, connection id: [{connection_id}], payload:\n {udp_associate_success_payload:#?}\n");
+        info!("Udp associate success, connection id: [{connection_id}], source address: [{source_address:?}], payload:\n {udp_associate_success_payload:#?}\n");
         let message_framed_write = match MessageFramedWriter::write(WriteMessageFramedRequest {
             message_framed_write,
             message_payloads: Some(vec![udp_associate_success_payload]),
@@ -115,7 +115,7 @@ impl UdpAssociateFlow {
             Err(WriteMessageFramedError {
                 source, message_framed_write, ..
             }) => {
-                error!("Fail to write udp associate success response to connection [{connection_id}], error:\n {source:#?}\n");
+                error!("Udp associate, fail to write udp associate success response to connection [{connection_id}], source address: [{source_address:?}], error:\n {source:#?}\n");
                 return Err(UdpAssociateFlowError {
                     connection_id: connection_id.to_owned(),
                     message_id: message_id.to_owned(),
@@ -128,6 +128,7 @@ impl UdpAssociateFlow {
             },
             Ok(WriteMessageFramedResult { message_framed_write }) => message_framed_write,
         };
+        info!("Udp associate, success to write udp associate success response to connection [{connection_id}], source address: [{source_address:?}]");
         Ok(UdpAssociateFlowResult {
             connection_id: connection_id.to_string(),
             message_framed_read,
