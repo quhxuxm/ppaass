@@ -59,7 +59,7 @@ where
         message_framed_read: MessageFramedRead<T, TcpStream>,
         message_framed_write: MessageFramedWrite<T, TcpStream>,
         message_id: String,
-        source_address: NetAddress,
+        source_address: Option<NetAddress>,
         user_token: String,
     },
 }
@@ -216,7 +216,7 @@ impl InitializeFlow {
                             Some(MessagePayload {
                                 payload_type: PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpAssociate),
                                 target_address: None,
-                                source_address: Some(source_address),
+                                source_address,
                                 ..
                             }),
                         ..

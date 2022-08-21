@@ -22,7 +22,7 @@ where
     pub connection_id: &'a str,
     pub message_id: &'a str,
     pub user_token: &'a str,
-    pub source_address: NetAddress,
+    pub source_address: Option<NetAddress>,
     pub agent_address: SocketAddr,
     pub message_framed_read: MessageFramedRead<T, TcpStream>,
     pub message_framed_write: MessageFramedWrite<T, TcpStream>,
@@ -38,7 +38,7 @@ where
     pub user_token: String,
     pub message_framed_read: MessageFramedRead<T, TcpStream>,
     pub message_framed_write: MessageFramedWrite<T, TcpStream>,
-    pub source_address: NetAddress,
+    pub source_address: Option<NetAddress>,
 }
 
 #[allow(unused)]
@@ -51,7 +51,7 @@ where
     pub user_token: String,
     pub message_framed_read: MessageFramedRead<T, TcpStream>,
     pub message_framed_write: MessageFramedWrite<T, TcpStream>,
-    pub source_address: NetAddress,
+    pub source_address: Option<NetAddress>,
     pub source: anyhow::Error,
 }
 
@@ -96,7 +96,7 @@ impl UdpAssociateFlow {
         };
 
         let udp_associate_success_payload = MessagePayload {
-            source_address: Some(source_address.clone()),
+            source_address: source_address.clone(),
             target_address: None,
             payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateSuccess),
             data: None,
