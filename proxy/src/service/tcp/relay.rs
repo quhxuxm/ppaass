@@ -154,6 +154,8 @@ impl TcpRelayFlow {
                         "Connection [{}] error happen when relay data from proxy to target,  agent address={:?}, target address={:?}, error: {:#?}",
                         connection_id, agent_address, target_peer_addr, source
                     );
+                    target_write.flush().await?;
+                    target_write.shutdown().await?;
                     return Err(source.into());
                 },
                 Ok(ReadMessageFramedResult { content: None, .. }) => {
@@ -163,6 +165,7 @@ impl TcpRelayFlow {
                         connection_id, agent_address, target_peer_addr
                     );
                     target_write.flush().await?;
+                    target_write.shutdown().await?;
                     return Ok(());
                 },
                 Ok(ReadMessageFramedResult {
@@ -184,6 +187,8 @@ impl TcpRelayFlow {
                         "Connection [{}] receive invalid data from agent when relay data from proxy to target,  agent address={:?}, target address={:?}",
                         connection_id, agent_address, target_peer_addr
                     );
+                    target_write.flush().await?;
+                    target_write.shutdown().await?;
                     return Err(anyhow!(
                         "Connection [{}] receive invalid data from agent when relay data from proxy to target,  agent address={:?}, target address={:?}",
                         connection_id,
@@ -222,6 +227,8 @@ impl TcpRelayFlow {
                         "Connection [{}] error happen when relay data from target to proxy, target address={:?}, source address={:?}, error: {:#?}",
                         connection_id, target_address, source_address, e
                     );
+                    message_framed_write.flush().await?;
+                    message_framed_write.close().await?;
                     return Err(e.into());
                 },
                 Ok(0) => {
@@ -265,6 +272,8 @@ impl TcpRelayFlow {
                             "Connection [{}] fail to select payload encryption type when transfer data from target to proxy, target address={:?}, source address={:?}, error: {:#?}.",
                             connection_id, target_address, source_address, e
                         );
+                    message_framed_write.flush().await?;
+                    message_framed_write.close().await?;
                     return Err(e.into());
                 },
                 Ok(PayloadEncryptionTypeSelectResult { payload_encryption_type, .. }) => payload_encryption_type,

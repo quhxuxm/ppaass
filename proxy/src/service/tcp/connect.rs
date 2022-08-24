@@ -114,6 +114,7 @@ impl TcpConnectFlow {
             },
         };
         let connect_to_target_result = TcpConnector::connect(TcpConnectRequest {
+            connection_id: connection_id.to_owned(),
             connect_addresses,
             connected_stream_so_linger: target_stream_so_linger,
         })
@@ -122,8 +123,7 @@ impl TcpConnectFlow {
             connected_stream: target_stream,
         } = match connect_to_target_result {
             Err(e) => {
-                let error_message = format!("Connection [{connection_id}] fail connect to target {target_address:#?} because of error: {e:#?}");
-                error!("{error_message}");
+                error!("Connection [{connection_id}] fail connect to target: [{target_address:?}] because of error: {e:?}");
                 let connect_fail_payload = MessagePayload {
                     source_address: Some(source_address.clone()),
                     target_address: Some(target_address.clone()),
@@ -146,17 +146,17 @@ impl TcpConnectFlow {
                             message_id: message_id.to_owned(),
                             user_token: user_token.to_owned(),
                             source_address,
-                            target_address,
+                            target_address: target_address.clone(),
                             message_framed_write,
                             message_framed_read,
                             agent_address,
-                            source: anyhow!(error_message),
+                            source: anyhow!("Connection [{connection_id}] fail connect to target: [{target_address:?}] because of error: {e:?}"),
                         })
                     },
                     Err(WriteMessageFramedError {
                         source, message_framed_write, ..
                     }) => {
-                        error!("Connection [{connection_id}] fail to write connect fail result to agent because of error: {source:#?}");
+                        error!("Connection [{connection_id}] fail to write connect fail result to agent because of error: {source:?}");
                         return Err(TcpConnectFlowError {
                             connection_id: connection_id.to_owned(),
                             message_id: message_id.to_owned(),

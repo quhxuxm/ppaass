@@ -290,6 +290,7 @@ impl PayloadEncryptionTypeSelector {
 
 #[derive(Debug)]
 pub struct TcpConnectRequest {
+    pub connection_id: String,
     pub connect_addresses: Vec<SocketAddr>,
     pub connected_stream_so_linger: u64,
 }
@@ -302,16 +303,18 @@ pub struct TcpConnectResult {
 pub struct TcpConnector;
 
 impl TcpConnector {
-    pub async fn connect(request: TcpConnectRequest) -> Result<TcpConnectResult, PpaassError> {
-        let TcpConnectRequest {
+    pub async fn connect(
+        TcpConnectRequest {
+            connection_id,
             connect_addresses,
             connected_stream_so_linger,
-        } = request;
-        debug!("Begin connect to target: {connect_addresses:?}");
+        }: TcpConnectRequest,
+    ) -> Result<TcpConnectResult, PpaassError> {
+        debug!("Connection [{connection_id}] begin connect to target: {connect_addresses:?}");
         let connected_stream = TcpStream::connect(&connect_addresses.as_slice()).await?;
         connected_stream.set_nodelay(true)?;
         connected_stream.set_linger(Some(Duration::from_secs(connected_stream_so_linger)))?;
-        debug!("Success connect to target: {connect_addresses:?}");
+        debug!("Connection [{connection_id}] success connect to target: {connect_addresses:?}");
         Ok(TcpConnectResult { connected_stream })
     }
 }
