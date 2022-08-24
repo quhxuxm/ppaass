@@ -178,28 +178,6 @@ impl UdpRelayFlow {
                             },
                             Ok(WriteMessageFramedResult { message_framed_write }) => message_framed_write,
                         };
-
-                        message_framed_write = match MessageFramedWriter::write(WriteMessageFramedRequest {
-                            connection_id: Some(connection_id.as_str()),
-                            message_framed_write,
-                            message_payloads: Some(vec![MessagePayload {
-                                data: None,
-                                payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpDataComplete),
-                                source_address,
-                                target_address: Some(target_address.clone()),
-                            }]),
-                            payload_encryption_type,
-                            ref_id: Some(message_id.as_str()),
-                            user_token: user_token.as_str(),
-                        })
-                        .await
-                        {
-                            Err(WriteMessageFramedError { message_framed_write, source }) => {
-                                error!("Udp relay fail to write data to target, connection id: [{connection_id}], target address: [{target_address:?}], error:{source:#?}");
-                                message_framed_write
-                            },
-                            Ok(WriteMessageFramedResult { message_framed_write }) => message_framed_write,
-                        };
                         message_framed_read = message_framed_read_return_back;
                     },
                     Ok(unknown_content) => {
