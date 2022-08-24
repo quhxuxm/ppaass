@@ -84,6 +84,8 @@ impl TcpRelayFlow {
         let (target_read, target_write) = target_stream.into_split();
         {
             let connection_id = connection_id.to_owned();
+            let source_address = source_address.clone();
+            let target_address = target_address.clone();
             tokio::spawn(async move {
                 if let Err(e) = Self::relay_proxy_to_target(TcpRelayProxyToTargetRequest {
                     connection_id: &connection_id,
@@ -94,7 +96,7 @@ impl TcpRelayFlow {
                 .await
                 {
                     error!(
-                        "Connection [{}] error happen when relay data from proxy to target, error: {:#?}",
+                        "Connection [{}] error happen when relay data from proxy to target, source address: [{source_address:?}], target address: [{target_address:?}], error: {:#?}",
                         connection_id, e
                     );
                 }
@@ -110,8 +112,8 @@ impl TcpRelayFlow {
                     connection_id: &connection_id,
                     message_framed_write,
                     user_token: &user_token,
-                    source_address,
-                    target_address,
+                    source_address: source_address.clone(),
+                    target_address: target_address.clone(),
                     target_read,
                     target_buffer_size,
                     message_framed_buffer_size,
@@ -119,7 +121,7 @@ impl TcpRelayFlow {
                 .await
                 {
                     error!(
-                        "Connection [{}] error happen when relay data from target to proxy, error: {:#?}",
+                        "Connection [{}] error happen when relay data from target to proxy, source address: [{source_address:?}], target address: [{target_address:?}], error: {:#?}",
                         connection_id, e
                     );
                 }
