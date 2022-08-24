@@ -111,15 +111,20 @@ impl UdpRelayFlow {
                             return;
                         };
                         let mut receive_buffer = [0u8; SIZE_64KB];
-                        let received_data_size = match udp_socket.recv(&mut receive_buffer).await {
-                            Err(e) => {
+                        let received_data_size = match tokio::time::timeout(std::time::Duration::from_secs(5), udp_socket.recv(&mut receive_buffer)).await {
+                            Err(_elapsed) => {
+                                error!("Timeout(5 seconds) to receive udp packet from target, connection id: [{connection_id}], target: [{target_address:?}]");
+                                return;
+                            },
+                            Ok(Err(e)) => {
                                 error!(
                                     "Udp relay fail to receive udp packet from target, connection id: [{connection_id}], target: [{target_address:?}], error:{e:#?}"
                                 );
                                 return;
                             },
-                            Ok(v) => v,
+                            Ok(Ok(received_data_size)) => received_data_size,
                         };
+
                         let received_data = &receive_buffer[0..received_data_size];
                         info!(
                             "Udp relay receive data from target, connection id:[{connection_id}], target:[{target_address:?}], data:\n{}\n",
