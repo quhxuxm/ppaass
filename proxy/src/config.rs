@@ -10,7 +10,7 @@ pub const DEFAULT_READ_AGENT_TIMEOUT_SECONDS: u64 = 20;
 pub const DEFAULT_CONNECT_TARGET_RETRY: u16 = 2;
 pub const DEFAULT_CONNECT_TARGET_TIMEOUT_SECONDS: u64 = 20;
 pub const DEFAULT_TARGET_STREAM_SO_LINGER: u64 = 20;
-
+pub const DEFAULT_UDP_RELAY_TIMEOUT_SECONDS: u64 = 20;
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub(crate) struct ProxyLogConfig {
     /// The log directory
@@ -63,11 +63,15 @@ pub(crate) struct ProxyConfig {
     max_blocking_threads: Option<usize>,
     /// The thread timeout
     thread_timeout: Option<u64>,
+    /// The timeout for udp relay
+    udp_relay_timeout: Option<u64>,
     /// Whether enable compressing
     compress: Option<bool>,
     agent_stream_so_linger: Option<u64>,
     target_stream_so_linger: Option<u64>,
+    /// The agent connection read timeout
     agent_connection_read_timeout: Option<u64>,
+    /// The sobacklog of tcp connection
     so_backlog: Option<u32>,
 }
 
@@ -136,6 +140,12 @@ impl ProxyConfig {
     }
     pub fn ipv6(&self) -> Option<bool> {
         self.ipv6
+    }
+    pub fn set_udp_relay_timeout(&mut self, udp_relay_timeout: u64) {
+        self.udp_relay_timeout = Some(udp_relay_timeout)
+    }
+    pub fn udp_relay_timeout(&self) -> Option<u64> {
+        self.udp_relay_timeout
     }
 }
 

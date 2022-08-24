@@ -12,5 +12,6 @@ so_backlog = 2048
 target_stream_so_linger = 20
 thread_number = 2048
 thread_timeout = 10
+udp_relay_timeout = 3
 #so_recv_buffer_size=8192
 #so_send_buffer_size=262144

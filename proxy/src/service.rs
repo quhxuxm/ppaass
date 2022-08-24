@@ -28,7 +28,6 @@ pub(crate) struct ProxyRsaCryptoFetcher {
 }
 
 impl ProxyRsaCryptoFetcher {
-
     pub fn new(configuration: &ProxyConfig) -> Result<Self> {
         let mut result = Self { cache: HashMap::new() };
         let rsa_dir_path = configuration.rsa_root_dir().as_ref().expect("Fail to read rsa root directory.");
@@ -78,7 +77,6 @@ impl ProxyRsaCryptoFetcher {
 }
 
 impl RsaCryptoFetcher for ProxyRsaCryptoFetcher {
-
     fn fetch<Q>(&self, user_token: Q) -> Result<Option<&RsaCrypto>, PpaassError>
     where
         Q: AsRef<str>,
@@ -178,13 +176,16 @@ impl AgentConnection {
                     ..
                 } => {
                     debug!("Connection [{}] is going to handle udp relay.", connection_id);
-                    UdpRelayFlow::exec(UdpRelayFlowRequest {
-                        connection_id: connection_id.as_str(),
-                        message_framed_read,
-                        message_framed_write,
-                        message_id: message_id.as_str(),
-                        user_token: user_token.as_str(),
-                    })
+                    UdpRelayFlow::exec(
+                        UdpRelayFlowRequest {
+                            connection_id: connection_id.as_str(),
+                            message_framed_read,
+                            message_framed_write,
+                            message_id: message_id.as_str(),
+                            user_token: user_token.as_str(),
+                        },
+                        &configuration,
+                    )
                     .await?;
                     debug!("Connection [{}] is finish udp relay.", connection_id);
                     break;

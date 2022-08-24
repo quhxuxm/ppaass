@@ -16,6 +16,8 @@ use tokio::net::{TcpStream, UdpSocket};
 use tracing::{error, info};
 
 use pretty_hex::*;
+
+use crate::config::{ProxyConfig, DEFAULT_UDP_RELAY_TIMEOUT_SECONDS};
 const SIZE_64KB: usize = 65535;
 
 #[allow(unused)]
@@ -45,6 +47,7 @@ impl UdpRelayFlow {
             mut message_framed_write,
             ..
         }: UdpRelayFlowRequest<'a, T>,
+        _configuration: &ProxyConfig,
     ) -> Result<UdpRelayFlowResult>
     where
         T: RsaCryptoFetcher + Send + Sync + Debug + 'static,
@@ -52,6 +55,7 @@ impl UdpRelayFlow {
         let connection_id = connection_id.to_owned();
         let message_id = message_id.to_owned();
         let user_token = user_token.to_owned();
+        let udp_relay_timeout = _configuration.udp_relay_timeout().unwrap_or(DEFAULT_UDP_RELAY_TIMEOUT_SECONDS);
         tokio::spawn(async move {
             loop {
                 match MessageFramedReader::read(ReadMessageFramedRequest {
@@ -111,7 +115,13 @@ impl UdpRelayFlow {
                             return;
                         };
                         let mut receive_buffer = [0u8; SIZE_64KB];
-                        let received_data_size = match tokio::time::timeout(std::time::Duration::from_secs(5), udp_socket.recv(&mut receive_buffer)).await {
+
+                        let received_data_size = match tokio::time::timeout(
+                            std::time::Duration::from_secs(udp_relay_timeout),
+                            udp_socket.recv(&mut receive_buffer),
+                        )
+                        .await
+                        {
                             Err(_elapsed) => {
                                 error!("Timeout(5 seconds) to receive udp packet from target, connection id: [{connection_id}], target: [{target_address:?}]");
                                 return;

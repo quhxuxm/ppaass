@@ -106,7 +106,6 @@ fn main() -> Result<()> {
         let mut configuration_file_watch = match Hotwatch::new() {
             Err(e) => {
                 eprintln!("Fail to start proxy server configuration file watch because of error: {:#?}", e);
-
                 return Err(anyhow!(e));
             },
             Ok(v) => v,
