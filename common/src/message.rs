@@ -321,6 +321,7 @@ pub enum ProxyMessagePayloadTypeValue {
     UdpAssociateSuccess,
     UdpAssociateFail,
     UdpData,
+    UdpDataComplete,
     UdpDataRelayFail,
     HeartbeatSuccess,
 }
@@ -335,6 +336,7 @@ impl From<ProxyMessagePayloadTypeValue> for u8 {
             ProxyMessagePayloadTypeValue::UdpAssociateFail => 222,
             ProxyMessagePayloadTypeValue::UdpDataRelayFail => 223,
             ProxyMessagePayloadTypeValue::UdpData => 224,
+            ProxyMessagePayloadTypeValue::UdpDataComplete => 225,
             ProxyMessagePayloadTypeValue::HeartbeatSuccess => 230,
         }
     }
@@ -367,6 +369,7 @@ impl TryFrom<u8> for PayloadType {
             222 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateFail)),
             223 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpDataRelayFail)),
             224 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpData)),
+            225 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpDataComplete)),
             230 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::HeartbeatSuccess)),
 
             110 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::TcpConnect)),
