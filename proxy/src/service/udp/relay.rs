@@ -156,6 +156,7 @@ impl UdpRelayFlow {
                             if let Err(e) = udp_response_sender_for_receive.send(message_payload).await {
                                 error!("Fail to receive udp data because of error: {:?}", e)
                             };
+                            drop(udp_response_sender_for_receive);
                         });
 
                         message_framed_read = message_framed_read_return_back;
@@ -210,6 +211,7 @@ impl UdpRelayFlow {
                     Ok(WriteMessageFramedResult { message_framed_write }) => message_framed_write,
                 };
             }
+            udp_response_receiver.close();
         });
         drop(udp_response_sender);
         Ok(UdpRelayFlowResult)
