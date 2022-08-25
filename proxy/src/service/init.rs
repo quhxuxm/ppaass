@@ -237,29 +237,38 @@ impl InitializeFlow {
                 let udp_socket = match UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0))).await {
                     Err(e) => {
                         error!("Udp data relay [android] fail to bind udp socket, connection id: [{connection_id}], error : {e:#?}");
-                        return Err(anyhow!(
-                            "Udp data relay [android] fail to bind udp socket, connection id: [{connection_id}], error : {:#?}",
-                            e
-                        ));
+                        return Ok(InitFlowResult::UdpAndroid {
+                            message_framed_write,
+                            message_framed_read,
+                            message_id,
+                            source_address: Some(source_address),
+                            user_token,
+                        });
                     },
                     Ok(v) => v,
                 };
                 let udp_target_addresses = match target_address.clone().to_socket_addrs() {
                     Err(e) => {
                         error!("Udp relay [android] fail to convert target address, connection id: [{connection_id}], error : {e:#?}");
-                        return Err(anyhow!(
-                            "Udp relay [android] fail to convert target address, connection id: [{connection_id}], error : {:#?}",
-                            e
-                        ));
+                        return Ok(InitFlowResult::UdpAndroid {
+                            message_framed_write,
+                            message_framed_read,
+                            message_id,
+                            source_address: Some(source_address),
+                            user_token,
+                        });
                     },
                     Ok(v) => v,
                 };
                 if let Err(e) = udp_socket.connect(udp_target_addresses.collect::<Vec<_>>().as_slice()).await {
                     error!("Udp relay fail [android] connect to target, target: [{target_address:?}], connection id: [{connection_id}], error: {e:#?}");
-                    return Err(anyhow!(
-                        "Udp relay fail [android] connect to target, target: [{target_address:?}], connection id: [{connection_id}], error: {:#?}",
-                        e
-                    ));
+                    return Ok(InitFlowResult::UdpAndroid {
+                        message_framed_write,
+                        message_framed_read,
+                        message_id,
+                        source_address: Some(source_address),
+                        user_token,
+                    });
                 };
                 info!(
                     "Udp relay [android] begin to send udp data from agent to target: [{target_address:?}], connection id: [{connection_id}], data:\n{}\n",
@@ -269,10 +278,13 @@ impl InitializeFlow {
                     error!(
                         "Udp relay [android] fail to send udp packet to target, connection id:[{connection_id}], target: [{target_address:?}], error: {e:#?}"
                     );
-                    return Err(anyhow!(
-                        "Udp relay [android] fail to send udp packet to target, connection id:[{connection_id}], target: [{target_address:?}], error: {:#?}",
-                        e
-                    ));
+                    return Ok(InitFlowResult::UdpAndroid {
+                        message_framed_write,
+                        message_framed_read,
+                        message_id,
+                        source_address: Some(source_address),
+                        user_token,
+                    });
                 };
                 let mut receive_buffer = [0u8; SIZE_64KB];
 
@@ -282,15 +294,25 @@ impl InitializeFlow {
                 {
                     Err(_elapsed) => {
                         error!("Timeout({udp_relay_timeout} seconds) [android] to receive udp packet from target, connection id: [{connection_id}], target: [{target_address:?}]");
-                        return Err(anyhow!("Timeout({udp_relay_timeout} seconds) to receive udp packet from target, connection id: [{connection_id}], target: [{target_address:?}]"));
+                        return Ok(InitFlowResult::UdpAndroid {
+                            message_framed_write,
+                            message_framed_read,
+                            message_id,
+                            source_address: Some(source_address),
+                            user_token,
+                        });
                     },
                     Ok(Err(e)) => {
                         error!(
                             "Udp relay [android] fail to receive udp packet from target, connection id: [{connection_id}], target: [{target_address:?}], error:{e:#?}"
                         );
-                        return Err(anyhow!(
-                            "Udp relay [android] fail to receive udp packet from target, connection id: [{connection_id}], target: [{target_address:?}], error:{e:#?}"
-                        ));
+                        return Ok(InitFlowResult::UdpAndroid {
+                            message_framed_write,
+                            message_framed_read,
+                            message_id,
+                            source_address: Some(source_address),
+                            user_token,
+                        });
                     },
                     Ok(Ok(v)) => v,
                 };
@@ -314,7 +336,13 @@ impl InitializeFlow {
                         error!(
                             "Udp relay [android] fail to select payload encryption, connection id: [{connection_id}], target address: [{target_address:?}], error:{e:#?}"
                         );
-                        return Err(anyhow!("Udp relay [android] fail to select payload encryption, connection id: [{connection_id}], target address: [{target_address:?}], error:{e:#?}"));
+                        return Ok(InitFlowResult::UdpAndroid {
+                            message_framed_write,
+                            message_framed_read,
+                            message_id,
+                            source_address: Some(source_address),
+                            user_token,
+                        });
                     },
                     Ok(v) => v,
                 };
