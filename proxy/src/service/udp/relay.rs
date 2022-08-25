@@ -211,6 +211,7 @@ impl UdpRelayFlow {
                 };
             }
         });
+        drop(udp_response_sender);
         Ok(UdpRelayFlowResult)
     }
 }
