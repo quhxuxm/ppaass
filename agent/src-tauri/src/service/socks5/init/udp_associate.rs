@@ -88,7 +88,7 @@ impl Socks5UdpAssociateFlow {
                 // client side receiving the udp packets
                 source_address: Some(client_address.clone().into()),
                 target_address: None,
-                payload_type: PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpAssociateSocks),
+                payload_type: PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpAssociate),
                 data: None,
             }]),
         })
@@ -116,7 +116,7 @@ impl Socks5UdpAssociateFlow {
                         message_id,
                         message_payload:
                             Some(MessagePayload {
-                                payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateSocksSuccess),
+                                payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateSuccess),
                                 source_address: Some(client_address),
                                 ..
                             }),
@@ -143,7 +143,7 @@ impl Socks5UdpAssociateFlow {
                         message_id,
                         message_payload:
                             Some(MessagePayload {
-                                payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateSocksFail),
+                                payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateFail),
                                 ..
                             }),
                         ..

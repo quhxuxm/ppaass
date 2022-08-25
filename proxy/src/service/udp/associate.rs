@@ -1,8 +1,8 @@
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use anyhow::anyhow;
 use anyhow::Result;
-use tokio::net::TcpStream;
+use tokio::net::{TcpStream, UdpSocket};
 use tracing::{error, info};
 
 use common::{
@@ -38,6 +38,7 @@ where
     pub message_framed_read: MessageFramedRead<T, TcpStream>,
     pub message_framed_write: MessageFramedWrite<T, TcpStream>,
     pub source_address: Option<NetAddress>,
+    pub udp_binded_socket: UdpSocket,
 }
 
 #[allow(unused)]
@@ -94,10 +95,26 @@ impl UdpAssociateFlow {
             Ok(PayloadEncryptionTypeSelectResult { payload_encryption_type, .. }) => payload_encryption_type,
         };
 
+        let udp_binded_socket = match UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0))).await {
+            Err(e) => {
+                error!("Udp associate fail because of bind udp socket, connection id: [{connection_id}], error : {e:#?}");
+                return Err(UdpAssociateFlowError {
+                    connection_id: connection_id.to_owned(),
+                    message_id: message_id.to_owned(),
+                    user_token: user_token.to_owned(),
+                    message_framed_read,
+                    message_framed_write,
+                    source_address,
+                    source: anyhow!(e),
+                });
+            },
+            Ok(v) => v,
+        };
+
         let udp_associate_success_payload = MessagePayload {
             source_address: source_address.clone(),
             target_address: None,
-            payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateSocksSuccess),
+            payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateSuccess),
             data: None,
         };
         info!("Udp associate success, connection id: [{connection_id}], source address: [{source_address:?}], payload:\n {udp_associate_success_payload:#?}\n");
@@ -135,6 +152,7 @@ impl UdpAssociateFlow {
             message_id: message_id.to_string(),
             user_token: user_token.to_string(),
             source_address,
+            udp_binded_socket,
         })
     }
 }

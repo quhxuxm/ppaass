@@ -31,6 +31,7 @@ where
     pub user_token: &'a str,
     pub message_framed_read: MessageFramedRead<T, TcpStream>,
     pub message_framed_write: MessageFramedWrite<T, TcpStream>,
+    pub udp_binded_socket: UdpSocket,
 }
 
 #[derive(Debug)]
@@ -45,6 +46,7 @@ impl UdpRelayFlow {
             user_token,
             mut message_framed_read,
             mut message_framed_write,
+            udp_binded_socket,
             ..
         }: UdpRelayFlowRequest<'a, T>,
         _configuration: &ProxyConfig,
@@ -82,19 +84,12 @@ impl UdpRelayFlow {
                                     Some(MessagePayload {
                                         source_address,
                                         target_address: Some(target_address),
-                                        payload_type: PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpDataSocks),
+                                        payload_type: PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpData),
                                         data: Some(data),
                                     }),
                                 user_token,
                             }),
                     }) => {
-                        let udp_socket = match UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0))).await {
-                            Err(e) => {
-                                error!("Udp relay fail to bind udp socket, connection id: [{connection_id}], error : {e:#?}");
-                                return;
-                            },
-                            Ok(v) => v,
-                        };
                         let udp_target_addresses = match target_address.clone().to_socket_addrs() {
                             Err(e) => {
                                 error!("Udp relay fail to convert target address, connection id: [{connection_id}], error : {e:#?}");
@@ -102,7 +97,7 @@ impl UdpRelayFlow {
                             },
                             Ok(v) => v,
                         };
-                        if let Err(e) = udp_socket.connect(udp_target_addresses.collect::<Vec<_>>().as_slice()).await {
+                        if let Err(e) = udp_binded_socket.connect(udp_target_addresses.collect::<Vec<_>>().as_slice()).await {
                             error!("Udp relay fail connect to target, target: [{target_address:?}], connection id: [{connection_id}], error: {e:#?}");
                             return;
                         };
@@ -110,7 +105,7 @@ impl UdpRelayFlow {
                             "Udp relay begin to send udp data from agent to target: [{target_address:?}], connection id: [{connection_id}], data:\n{}\n",
                             pretty_hex::pretty_hex(&data)
                         );
-                        if let Err(e) = udp_socket.send(&data).await {
+                        if let Err(e) = udp_binded_socket.send(&data).await {
                             error!("Udp relay fail to send udp packet to target, connection id:[{connection_id}], target: [{target_address:?}], error: {e:#?}");
                             return;
                         };
@@ -118,7 +113,7 @@ impl UdpRelayFlow {
 
                         let received_data_size = match tokio::time::timeout(
                             std::time::Duration::from_secs(udp_relay_timeout),
-                            udp_socket.recv(&mut receive_buffer),
+                            udp_binded_socket.recv(&mut receive_buffer),
                         )
                         .await
                         {
@@ -162,7 +157,7 @@ impl UdpRelayFlow {
                             message_framed_write,
                             message_payloads: Some(vec![MessagePayload {
                                 data: Some(Bytes::copy_from_slice(received_data)),
-                                payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpDataSocks),
+                                payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpData),
                                 source_address: source_address.clone(),
                                 target_address: Some(target_address.clone()),
                             }]),

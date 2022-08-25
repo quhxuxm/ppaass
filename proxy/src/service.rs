@@ -168,14 +168,12 @@ impl AgentConnection {
                     debug!("Connection [{}] is finish tcp relay.", connection_id);
                     break;
                 },
-                InitFlowResult::UdpAndroid { .. } => {
-                    break;
-                },
-                InitFlowResult::UdpSocks {
+                InitFlowResult::Udp {
                     message_framed_read,
                     message_framed_write,
                     message_id,
                     user_token,
+                    udp_binded_socket,
                     ..
                 } => {
                     debug!("Connection [{}] is going to handle udp relay.", connection_id);
@@ -186,6 +184,7 @@ impl AgentConnection {
                             message_framed_write,
                             message_id: message_id.as_str(),
                             user_token: user_token.as_str(),
+                            udp_binded_socket,
                         },
                         &configuration,
                     )
