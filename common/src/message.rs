@@ -371,11 +371,13 @@ impl TryFrom<u8> for PayloadType {
             222 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateSocksFail)),
             223 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpDataRelayFail)),
             224 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpDataSocks)),
+            225 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpDataAndroid)),
             230 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::HeartbeatSuccess)),
             110 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::TcpConnect)),
             111 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::TcpData)),
             120 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpAssociateSocks)),
             121 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpDataSocks)),
+            122 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpDataAndroid)),
             130 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::Heartbeat)),
 
             invalid_type => {
