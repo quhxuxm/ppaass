@@ -1,15 +1,12 @@
 use std::fmt::Debug;
-
 use std::net::SocketAddr;
 
 use anyhow::{anyhow, Result};
 use bytes::{Bytes, BytesMut};
-
 use futures::SinkExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
-
 use tracing::{debug, error};
 
 use common::{
@@ -234,18 +231,14 @@ impl TcpRelayFlow {
                     return Err(e.into());
                 },
                 Ok(0) => {
-                    debug!(
-                        "Connection [{}] read all data from target, target address={:?}, source address={:?}.",
-                        connection_id, target_address, source_address
-                    );
+                    debug!("Connection [{connection_id}] read all data from target, target address={target_address:?}, source address={source_address:?}.",);
                     message_framed_write.flush().await?;
                     message_framed_write.close().await?;
                     return Ok(());
                 },
                 Ok(size) => {
                     debug!(
-                        "Connection [{}] read {} bytes from target to proxy, target address={:?}, source address={:?}.",
-                        connection_id, size, target_address, source_address
+                        "Connection [{connection_id}] read {size} bytes from target to proxy, target address={target_address:?}, source address={source_address:?}.",
                     );
                     size
                 },

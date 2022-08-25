@@ -296,8 +296,9 @@ pub enum PayloadEncryptionType {
 pub enum AgentMessagePayloadTypeValue {
     TcpConnect,
     TcpData,
-    UdpAssociate,
-    UdpData,
+    UdpAssociateSocks,
+    UdpDataSocks,
+    UdpDataAndroid,
     Heartbeat,
 }
 
@@ -306,8 +307,9 @@ impl From<AgentMessagePayloadTypeValue> for u8 {
         match value {
             AgentMessagePayloadTypeValue::TcpConnect => 110,
             AgentMessagePayloadTypeValue::TcpData => 111,
-            AgentMessagePayloadTypeValue::UdpAssociate => 120,
-            AgentMessagePayloadTypeValue::UdpData => 121,
+            AgentMessagePayloadTypeValue::UdpAssociateSocks => 120,
+            AgentMessagePayloadTypeValue::UdpDataSocks => 121,
+            AgentMessagePayloadTypeValue::UdpDataAndroid => 122,
             AgentMessagePayloadTypeValue::Heartbeat => 130,
         }
     }
@@ -318,9 +320,10 @@ pub enum ProxyMessagePayloadTypeValue {
     TcpConnectSuccess,
     TcpConnectFail,
     TcpData,
-    UdpAssociateSuccess,
-    UdpAssociateFail,
-    UdpData,
+    UdpAssociateSocksSuccess,
+    UdpAssociateSocksFail,
+    UdpDataSocks,
+    UdpDataAndroid,
     UdpDataRelayFail,
     HeartbeatSuccess,
 }
@@ -331,10 +334,11 @@ impl From<ProxyMessagePayloadTypeValue> for u8 {
             ProxyMessagePayloadTypeValue::TcpConnectSuccess => 210,
             ProxyMessagePayloadTypeValue::TcpConnectFail => 211,
             ProxyMessagePayloadTypeValue::TcpData => 212,
-            ProxyMessagePayloadTypeValue::UdpAssociateSuccess => 221,
-            ProxyMessagePayloadTypeValue::UdpAssociateFail => 222,
+            ProxyMessagePayloadTypeValue::UdpAssociateSocksSuccess => 221,
+            ProxyMessagePayloadTypeValue::UdpAssociateSocksFail => 222,
             ProxyMessagePayloadTypeValue::UdpDataRelayFail => 223,
-            ProxyMessagePayloadTypeValue::UdpData => 224,
+            ProxyMessagePayloadTypeValue::UdpDataSocks => 224,
+            ProxyMessagePayloadTypeValue::UdpDataAndroid => 225,
             ProxyMessagePayloadTypeValue::HeartbeatSuccess => 230,
         }
     }
@@ -363,15 +367,15 @@ impl TryFrom<u8> for PayloadType {
             210 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::TcpConnectSuccess)),
             211 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::TcpConnectFail)),
             212 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::TcpData)),
-            221 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateSuccess)),
-            222 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateFail)),
+            221 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateSocksSuccess)),
+            222 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateSocksFail)),
             223 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpDataRelayFail)),
-            224 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpData)),
+            224 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpDataSocks)),
             230 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::HeartbeatSuccess)),
             110 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::TcpConnect)),
             111 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::TcpData)),
-            120 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpAssociate)),
-            121 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpData)),
+            120 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpAssociateSocks)),
+            121 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpDataSocks)),
             130 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::Heartbeat)),
 
             invalid_type => {

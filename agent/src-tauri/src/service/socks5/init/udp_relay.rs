@@ -44,7 +44,6 @@ pub struct Socks5UdpRelayFlowResult {}
 pub struct Socks5UdpRelayFlow;
 
 impl Socks5UdpRelayFlow {
-
     pub async fn exec<'a, T>(request: Socks5UdpRelayFlowRequest<'a, T>, configuration: Arc<AgentConfig>) -> Result<Socks5UdpRelayFlowResult>
     where
         T: RsaCryptoFetcher + Send + Sync + Debug + 'static,
@@ -117,7 +116,7 @@ impl Socks5UdpRelayFlow {
                             message_payloads: Some(vec![MessagePayload {
                                 source_address: Some(client_address_a2p.clone()),
                                 target_address: Some(udp_destination_address.into()),
-                                payload_type: PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpData),
+                                payload_type: PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpDataSocks),
                                 data: Some(socks5_udp_data.data),
                             }]),
                         })
@@ -164,7 +163,7 @@ impl Socks5UdpRelayFlow {
                                     Some(MessagePayload {
                                         source_address: Some(source_address),
                                         target_address: Some(target_address),
-                                        payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpData),
+                                        payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpDataSocks),
                                         data: Some(data),
                                     }),
                                 ..

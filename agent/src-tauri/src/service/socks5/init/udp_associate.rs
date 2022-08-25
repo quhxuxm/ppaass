@@ -46,7 +46,6 @@ where
 pub(crate) struct Socks5UdpAssociateFlow;
 
 impl Socks5UdpAssociateFlow {
-
     pub(crate) async fn exec<'a, T>(
         request: Socks5UdpAssociateFlowRequest<'a>, rsa_crypto_fetcher: Arc<T>, configuration: Arc<AgentConfig>,
         proxy_connection_pool: Arc<ProxyConnectionPool>,
@@ -89,7 +88,7 @@ impl Socks5UdpAssociateFlow {
                 // client side receiving the udp packets
                 source_address: Some(client_address.clone().into()),
                 target_address: None,
-                payload_type: PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpAssociate),
+                payload_type: PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpAssociateSocks),
                 data: None,
             }]),
         })
@@ -117,7 +116,7 @@ impl Socks5UdpAssociateFlow {
                         message_id,
                         message_payload:
                             Some(MessagePayload {
-                                payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateSuccess),
+                                payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateSocksSuccess),
                                 source_address: Some(client_address),
                                 ..
                             }),
@@ -144,7 +143,7 @@ impl Socks5UdpAssociateFlow {
                         message_id,
                         message_payload:
                             Some(MessagePayload {
-                                payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateFail),
+                                payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateSocksFail),
                                 ..
                             }),
                         ..

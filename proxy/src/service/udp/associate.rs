@@ -2,15 +2,14 @@ use std::net::SocketAddr;
 
 use anyhow::anyhow;
 use anyhow::Result;
+use tokio::net::TcpStream;
+use tracing::{error, info};
 
 use common::{
     generate_uuid, MessageFramedRead, MessageFramedWrite, MessageFramedWriter, MessagePayload, NetAddress, PayloadEncryptionTypeSelectRequest,
     PayloadEncryptionTypeSelectResult, PayloadEncryptionTypeSelector, PayloadType, ProxyMessagePayloadTypeValue, RsaCryptoFetcher, WriteMessageFramedError,
     WriteMessageFramedRequest, WriteMessageFramedResult,
 };
-
-use tokio::net::TcpStream;
-use tracing::{error, info};
 
 use crate::config::ProxyConfig;
 
@@ -98,7 +97,7 @@ impl UdpAssociateFlow {
         let udp_associate_success_payload = MessagePayload {
             source_address: source_address.clone(),
             target_address: None,
-            payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateSuccess),
+            payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateSocksSuccess),
             data: None,
         };
         info!("Udp associate success, connection id: [{connection_id}], source address: [{source_address:?}], payload:\n {udp_associate_success_payload:#?}\n");

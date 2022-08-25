@@ -39,6 +39,7 @@ where
     pub user_token: String,
     pub message_id: String,
 }
+
 #[allow(unused)]
 pub(crate) struct TcpConnectFlowError<T>
 where
@@ -58,7 +59,7 @@ where
 pub(crate) struct TcpConnectFlow;
 
 impl TcpConnectFlow {
-    pub async fn exec<'a, T>(
+    pub async fn exec<T>(
         TcpConnectFlowRequest {
             connection_id,
             message_id,
@@ -69,7 +70,7 @@ impl TcpConnectFlow {
             message_framed_read,
             agent_address,
             ..
-        }: TcpConnectFlowRequest<'a, T>,
+        }: TcpConnectFlowRequest<'_, T>,
         configuration: &ProxyConfig,
     ) -> Result<TcpConnectFlowResult<T>, TcpConnectFlowError<T>>
     where

@@ -82,7 +82,7 @@ impl UdpRelayFlow {
                                     Some(MessagePayload {
                                         source_address,
                                         target_address: Some(target_address),
-                                        payload_type: PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpData),
+                                        payload_type: PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpDataSocks),
                                         data: Some(data),
                                     }),
                                 user_token,
@@ -132,7 +132,7 @@ impl UdpRelayFlow {
                                 );
                                 return;
                             },
-                            Ok(Ok(received_data_size)) => received_data_size,
+                            Ok(Ok(v)) => v,
                         };
 
                         let received_data = &receive_buffer[0..received_data_size];
@@ -162,7 +162,7 @@ impl UdpRelayFlow {
                             message_framed_write,
                             message_payloads: Some(vec![MessagePayload {
                                 data: Some(Bytes::copy_from_slice(received_data)),
-                                payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpData),
+                                payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpDataSocks),
                                 source_address: source_address.clone(),
                                 target_address: Some(target_address.clone()),
                             }]),
