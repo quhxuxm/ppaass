@@ -127,7 +127,7 @@ impl UdpRelayFlow {
                             {
                                 Err(_elapsed) => {
                                     error!(
-                                        "Timeout(5 seconds) to receive udp packet from target, connection id: [{connection_id}], target: [{target_address:?}]"
+                                        "Timeout( {udp_relay_timeout} seconds) to receive udp packet from target, connection id: [{connection_id}], target: [{target_address:?}]"
                                     );
                                     return;
                                 },
