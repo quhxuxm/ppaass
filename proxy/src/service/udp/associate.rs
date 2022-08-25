@@ -1,4 +1,7 @@
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::{
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    sync::Arc,
+};
 
 use anyhow::anyhow;
 use anyhow::Result;
@@ -38,7 +41,7 @@ where
     pub message_framed_read: MessageFramedRead<T, TcpStream>,
     pub message_framed_write: MessageFramedWrite<T, TcpStream>,
     pub source_address: Option<NetAddress>,
-    pub udp_binded_socket: UdpSocket,
+    pub udp_binded_socket: Arc<UdpSocket>,
 }
 
 #[allow(unused)]
@@ -152,7 +155,7 @@ impl UdpAssociateFlow {
             message_id: message_id.to_string(),
             user_token: user_token.to_string(),
             source_address,
-            udp_binded_socket,
+            udp_binded_socket: Arc::new(udp_binded_socket),
         })
     }
 }

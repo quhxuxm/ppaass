@@ -1,7 +1,6 @@
 use anyhow::anyhow;
 use anyhow::Result;
 
-use bytes::Bytes;
 use common::{
     generate_uuid, AgentMessagePayloadTypeValue, MessageFramedRead, MessageFramedReader, MessageFramedWrite, MessageFramedWriter, MessagePayload, NetAddress,
     PayloadEncryptionTypeSelectRequest, PayloadEncryptionTypeSelectResult, PayloadEncryptionTypeSelector, PayloadType, ProxyMessagePayloadTypeValue,
@@ -9,19 +8,16 @@ use common::{
     WriteMessageFramedRequest, WriteMessageFramedResult,
 };
 
-use std::{
-    fmt::Debug,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs},
-};
+use std::{fmt::Debug, net::SocketAddr, sync::Arc};
 
 use tokio::net::{TcpStream, UdpSocket};
 
 use crate::{
-    config::{ProxyConfig, DEFAULT_UDP_RELAY_TIMEOUT_SECONDS},
+    config::ProxyConfig,
     service::{tcp::connect::TcpConnectFlowError, udp::associate::UdpAssociateFlowError},
 };
-use pretty_hex::pretty_hex;
-use tracing::{debug, error, info};
+
+use tracing::{debug, error};
 
 use super::{
     tcp::connect::{TcpConnectFlow, TcpConnectFlowRequest, TcpConnectFlowResult},
@@ -65,7 +61,7 @@ where
         message_id: String,
         source_address: Option<NetAddress>,
         user_token: String,
-        udp_binded_socket: UdpSocket,
+        udp_binded_socket: Arc<UdpSocket>,
     },
 }
 
