@@ -64,7 +64,6 @@ impl UdpRelayFlow {
         tokio::spawn(async move {
             loop {
                 let connection_id = connection_id.clone();
-                let udp_response_sender_for_receive = udp_response_sender_for_receive.clone();
                 match MessageFramedReader::read(ReadMessageFramedRequest {
                     connection_id: connection_id.as_str(),
                     message_framed_read,
@@ -116,7 +115,7 @@ impl UdpRelayFlow {
                         };
 
                         let udp_binded_socket_for_receive = Arc::clone(&udp_binded_socket);
-
+                        let udp_response_sender_for_receive = udp_response_sender_for_receive.clone();
                         tokio::spawn(async move {
                             let mut receive_buffer = [0u8; SIZE_64KB];
                             let received_data_size = match tokio::time::timeout(
@@ -129,12 +128,14 @@ impl UdpRelayFlow {
                                     error!(
                                         "Timeout( {udp_relay_timeout} seconds) to receive udp packet from target, connection id: [{connection_id}], target: [{target_address:?}]"
                                     );
+                                    drop(udp_response_sender_for_receive);
                                     return;
                                 },
                                 Ok(Err(e)) => {
                                     error!(
                                     "Udp relay fail to receive udp packet from target, connection id: [{connection_id}], target: [{target_address:?}], error:{e:#?}"
                                 );
+                                    drop(udp_response_sender_for_receive);
                                     return;
                                 },
                                 Ok(Ok(v)) => v,
@@ -187,7 +188,7 @@ impl UdpRelayFlow {
                         error!(
                             "Udp relay fail to select payload encryption, connection id: [{connection_id_for_relay_to_agent}], target address: [{target_address:?}], error:{e:#?}"
                         );
-                        return;
+                        continue;
                     },
                     Ok(v) => v,
                 };
