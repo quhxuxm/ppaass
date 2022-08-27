@@ -1,14 +1,19 @@
 use anyhow::anyhow;
 use anyhow::Result;
 
+use bytes::Buf;
 use common::{
-    generate_uuid, AgentMessagePayloadTypeValue, MessageFramedRead, MessageFramedReader, MessageFramedWrite, MessageFramedWriter, MessagePayload, NetAddress,
-    PayloadEncryptionTypeSelectRequest, PayloadEncryptionTypeSelectResult, PayloadEncryptionTypeSelector, PayloadType, ProxyMessagePayloadTypeValue,
-    ReadMessageFramedError, ReadMessageFramedRequest, ReadMessageFramedResult, ReadMessageFramedResultContent, RsaCryptoFetcher, WriteMessageFramedError,
-    WriteMessageFramedRequest, WriteMessageFramedResult,
+    generate_uuid, AgentMessagePayloadTypeValue, DomainResolveRequest, DomainResolveResponse, MessageFramedRead, MessageFramedReader, MessageFramedWrite,
+    MessageFramedWriter, MessagePayload, NetAddress, PayloadEncryptionTypeSelectRequest, PayloadEncryptionTypeSelectResult, PayloadEncryptionTypeSelector,
+    PayloadType, ProxyMessagePayloadTypeValue, ReadMessageFramedError, ReadMessageFramedRequest, ReadMessageFramedResult, ReadMessageFramedResultContent,
+    RsaCryptoFetcher, WriteMessageFramedError, WriteMessageFramedRequest, WriteMessageFramedResult,
 };
 
-use std::{fmt::Debug, net::SocketAddr, sync::Arc};
+use std::{
+    fmt::Debug,
+    net::{SocketAddr, ToSocketAddrs},
+    sync::Arc,
+};
 
 use tokio::net::{TcpStream, UdpSocket};
 
@@ -43,6 +48,10 @@ where
     T: RsaCryptoFetcher,
 {
     Heartbeat {
+        message_framed_read: MessageFramedRead<T, TcpStream>,
+        message_framed_write: MessageFramedWrite<T, TcpStream>,
+    },
+    DomainResolve {
         message_framed_read: MessageFramedRead<T, TcpStream>,
         message_framed_write: MessageFramedWrite<T, TcpStream>,
     },
@@ -135,6 +144,111 @@ impl InitializeFlow {
                     Ok(WriteMessageFramedResult { message_framed_write }) => message_framed_write,
                 };
                 return Ok(InitFlowResult::Heartbeat {
+                    message_framed_write,
+                    message_framed_read,
+                });
+            },
+            Ok(ReadMessageFramedResult {
+                message_framed_read,
+                content:
+                    Some(ReadMessageFramedResultContent {
+                        user_token,
+                        message_id,
+                        message_payload:
+                            Some(MessagePayload {
+                                source_address,
+                                target_address,
+                                payload_type: PayloadType::AgentPayload(AgentMessagePayloadTypeValue::DomainResolve),
+                                data,
+                            }),
+                        ..
+                    }),
+                ..
+            }) => {
+                let data = match data {
+                    None => {
+                        error!("Connection [{}] fail to do domain resolve success to agent because of no data, source address: {:?}, target address: {:?}, client address: {:?}", connection_id, source_address, target_address, agent_address);
+                        return Err(anyhow!("Connection [{}] fail to do domain resolve success to agent because of no data, source address: {:?}, target address: {:?}, client address: {:?}", connection_id, source_address, target_address, agent_address));
+                    },
+                    Some(v) => v,
+                };
+                let PayloadEncryptionTypeSelectResult { payload_encryption_type, .. } =
+                    PayloadEncryptionTypeSelector::select(PayloadEncryptionTypeSelectRequest {
+                        encryption_token: generate_uuid().into(),
+                        user_token: user_token.as_str(),
+                    })
+                    .await?;
+                let domain_resolve_request: DomainResolveRequest = serde_json::from_slice(data.chunk())?;
+                let resolved_addresses = match domain_resolve_request.name.to_socket_addrs() {
+                    Err(e) => {
+                        error!(
+                            "Connection [{connection_id}] fail to resolve domain  because of error, source address: {source_address:?}, target address: {target_address:?}, client address: {agent_address:?}, error: {e:#?}"
+                        );
+                        let domain_resolve_fail = MessagePayload {
+                            source_address: None,
+                            target_address: None,
+                            payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::DomainResolveFail),
+                            data: None,
+                        };
+                        match MessageFramedWriter::write(WriteMessageFramedRequest {
+                            message_framed_write,
+                            message_payloads: Some(vec![domain_resolve_fail]),
+                            payload_encryption_type,
+                            user_token: user_token.as_str(),
+                            ref_id: Some(message_id.as_str()),
+                            connection_id: Some(connection_id),
+                        })
+                        .await
+                        {
+                            Err(WriteMessageFramedError { source, .. }) => {
+                                error!("Connection [{}] fail to resolve domain  because of error, source address: {:?}, target address: {:?}, client address: {:?}", connection_id, source_address, target_address, agent_address);
+                                return Err(anyhow!(source));
+                            },
+                            Ok(WriteMessageFramedResult { message_framed_write }) => message_framed_write,
+                        };
+                        return Err(anyhow!( "Connection [{connection_id}] fail to resolve domain  because of error, source address: {source_address:?}, target address: {target_address:?}, client address: {agent_address:?}, error: {e:#?}"));
+                    },
+                    Ok(v) => {
+                        let mut addresses = Vec::new();
+                        v.for_each(|addr| {
+                            if let SocketAddr::V4(addr) = addr {
+                                let ip_bytes = addr.ip().octets();
+                                addresses.push(ip_bytes);
+                            }
+                        });
+                        addresses
+                    },
+                };
+
+                let domain_resolve_response = DomainResolveResponse {
+                    name: domain_resolve_request.name,
+                    addresses: resolved_addresses,
+                };
+                let domain_resolve_response_bytes = serde_json::to_vec(&domain_resolve_response)?;
+
+                let domain_resolve_success = MessagePayload {
+                    source_address: None,
+                    target_address: None,
+                    payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::DomainResolveSuccess),
+                    data: Some(domain_resolve_response_bytes.into()),
+                };
+                let message_framed_write = match MessageFramedWriter::write(WriteMessageFramedRequest {
+                    message_framed_write,
+                    message_payloads: Some(vec![domain_resolve_success]),
+                    payload_encryption_type,
+                    user_token: user_token.as_str(),
+                    ref_id: Some(message_id.as_str()),
+                    connection_id: Some(connection_id),
+                })
+                .await
+                {
+                    Err(WriteMessageFramedError { source, .. }) => {
+                        error!("Connection [{}] fail to write domain resolve success to agent because of error, source address: {:?}, target address: {:?}, client address: {:?}", connection_id, source_address, target_address, agent_address);
+                        return Err(anyhow!(source));
+                    },
+                    Ok(WriteMessageFramedResult { message_framed_write }) => message_framed_write,
+                };
+                return Ok(InitFlowResult::DomainResolve {
                     message_framed_write,
                     message_framed_read,
                 });

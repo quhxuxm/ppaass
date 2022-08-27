@@ -20,6 +20,7 @@ use futures::{Stream, TryStream};
 use pin_project::pin_project;
 use pretty_hex::*;
 use rsa::pkcs8::der::bigint::generic_array::typenum::PowerOfTwo;
+use serde::{Deserialize, Serialize};
 use tracing::error;
 
 use crate::NetAddress::IpV4;
@@ -298,6 +299,7 @@ pub enum AgentMessagePayloadTypeValue {
     TcpData,
     UdpAssociate,
     UdpData,
+    DomainResolve,
     Heartbeat,
 }
 
@@ -308,6 +310,7 @@ impl From<AgentMessagePayloadTypeValue> for u8 {
             AgentMessagePayloadTypeValue::TcpData => 111,
             AgentMessagePayloadTypeValue::UdpAssociate => 120,
             AgentMessagePayloadTypeValue::UdpData => 121,
+            AgentMessagePayloadTypeValue::DomainResolve => 122,
             AgentMessagePayloadTypeValue::Heartbeat => 130,
         }
     }
@@ -322,6 +325,8 @@ pub enum ProxyMessagePayloadTypeValue {
     UdpAssociateFail,
     UdpData,
     UdpDataRelayFail,
+    DomainResolveSuccess,
+    DomainResolveFail,
     HeartbeatSuccess,
 }
 
@@ -335,6 +340,8 @@ impl From<ProxyMessagePayloadTypeValue> for u8 {
             ProxyMessagePayloadTypeValue::UdpAssociateFail => 222,
             ProxyMessagePayloadTypeValue::UdpDataRelayFail => 223,
             ProxyMessagePayloadTypeValue::UdpData => 224,
+            ProxyMessagePayloadTypeValue::DomainResolveSuccess => 225,
+            ProxyMessagePayloadTypeValue::DomainResolveFail => 226,
             ProxyMessagePayloadTypeValue::HeartbeatSuccess => 230,
         }
     }
@@ -367,11 +374,14 @@ impl TryFrom<u8> for PayloadType {
             222 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpAssociateFail)),
             223 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpDataRelayFail)),
             224 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpData)),
+            225 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::DomainResolveSuccess)),
+            226 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::DomainResolveFail)),
             230 => Ok(PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::HeartbeatSuccess)),
             110 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::TcpConnect)),
             111 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::TcpData)),
             120 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpAssociate)),
             121 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::UdpData)),
+            122 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::DomainResolve)),
             130 => Ok(PayloadType::AgentPayload(AgentMessagePayloadTypeValue::Heartbeat)),
 
             invalid_type => {
@@ -841,4 +851,15 @@ impl From<Vec<Message>> for MessageStream {
     fn from(messages: Vec<Message>) -> Self {
         MessageStream::new(messages)
     }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct DomainResolveRequest {
+    pub name: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct DomainResolveResponse {
+    pub name: String,
+    pub addresses: Vec<[u8; 4]>,
 }

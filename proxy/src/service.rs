@@ -141,6 +141,14 @@ impl AgentConnection {
                     message_framed_write = message_framed_write_pass_back;
                     continue;
                 },
+                InitFlowResult::DomainResolve {
+                    message_framed_read: message_framed_read_pass_back,
+                    message_framed_write: message_framed_write_pass_back,
+                } => {
+                    message_framed_read = message_framed_read_pass_back;
+                    message_framed_write = message_framed_write_pass_back;
+                    continue;
+                },
                 InitFlowResult::Tcp {
                     target_stream,
                     message_framed_read,
