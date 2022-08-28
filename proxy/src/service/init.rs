@@ -165,13 +165,13 @@ impl InitializeFlow {
                     }),
                 ..
             }) => {
-                let data = match data {
-                    None => {
-                        error!("Connection [{}] fail to do domain resolve success to agent because of no data, source address: {:?}, target address: {:?}, client address: {:?}", connection_id, source_address, target_address, agent_address);
-                        return Err(anyhow!("Connection [{}] fail to do domain resolve success to agent because of no data, source address: {:?}, target address: {:?}, client address: {:?}", connection_id, source_address, target_address, agent_address));
-                    },
-                    Some(v) => v,
-                };
+                let data = data.ok_or(anyhow!(
+                    "Connection [{}] fail to do domain resolve because of no data, source address: {:?}, target address: {:?}, client address: {:?}",
+                    connection_id,
+                    source_address,
+                    target_address,
+                    agent_address
+                ))?;
                 let PayloadEncryptionTypeSelectResult { payload_encryption_type, .. } =
                     PayloadEncryptionTypeSelector::select(PayloadEncryptionTypeSelectRequest {
                         encryption_token: generate_uuid().into(),
@@ -185,12 +185,12 @@ impl InitializeFlow {
                             "Connection [{connection_id}] fail to resolve domain  because of error, source address: {source_address:?}, target address: {target_address:?}, client address: {agent_address:?}, error: {e:#?}"
                         );
                         let domain_resolve_fail = MessagePayload {
-                            source_address: None,
-                            target_address: None,
+                            source_address: source_address.clone(),
+                            target_address: target_address.clone(),
                             payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::DomainResolveFail),
                             data: None,
                         };
-                        match MessageFramedWriter::write(WriteMessageFramedRequest {
+                        MessageFramedWriter::write(WriteMessageFramedRequest {
                             message_framed_write,
                             message_payloads: Some(vec![domain_resolve_fail]),
                             payload_encryption_type,
@@ -199,13 +199,8 @@ impl InitializeFlow {
                             connection_id: Some(connection_id),
                         })
                         .await
-                        {
-                            Err(WriteMessageFramedError { source, .. }) => {
-                                error!("Connection [{}] fail to resolve domain  because of error, source address: {:?}, target address: {:?}, client address: {:?}", connection_id, source_address, target_address, agent_address);
-                                return Err(anyhow!(source));
-                            },
-                            Ok(WriteMessageFramedResult { message_framed_write }) => message_framed_write,
-                        };
+                        .map_err(|err| anyhow!(err.source))?;
+
                         return Err(anyhow!( "Connection [{connection_id}] fail to resolve domain  because of error, source address: {source_address:?}, target address: {target_address:?}, client address: {agent_address:?}, error: {e:#?}"));
                     },
                     Ok(v) => {
@@ -221,14 +216,15 @@ impl InitializeFlow {
                 };
 
                 let domain_resolve_response = DomainResolveResponse {
+                    id: domain_resolve_request.id,
                     name: domain_resolve_request.name,
                     addresses: resolved_addresses,
                 };
                 let domain_resolve_response_bytes = serde_json::to_vec(&domain_resolve_response)?;
 
                 let domain_resolve_success = MessagePayload {
-                    source_address: None,
-                    target_address: None,
+                    source_address: source_address.clone(),
+                    target_address: target_address.clone(),
                     payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::DomainResolveSuccess),
                     data: Some(domain_resolve_response_bytes.into()),
                 };
