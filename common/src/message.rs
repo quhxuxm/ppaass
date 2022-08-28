@@ -20,7 +20,7 @@ use futures::{Stream, TryStream};
 use pin_project::pin_project;
 use pretty_hex::*;
 use rsa::pkcs8::der::bigint::generic_array::typenum::PowerOfTwo;
-use serde::{Deserialize, Serialize};
+use serde_derive::{Deserialize, Serialize};
 use tracing::error;
 
 use crate::NetAddress::IpV4;

@@ -1,11 +1,17 @@
 #[cfg(test)]
 mod testing {
-    use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyInit};
-    use bytes::{Buf, Bytes};
-    use cipher::block_padding::NoPadding;
-    use common::{decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_with_blowfish, generate_uuid, PpaassError, RsaCrypto};
-    use hex_literal::hex;
+    use std::net::ToSocketAddrs;
 
+    use bytes::{Buf, Bytes};
+
+    use common::{decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_with_blowfish, generate_uuid, PpaassError, RsaCrypto};
+
+    #[test]
+    fn test4() -> Result<(), PpaassError> {
+        let socket_addrs = "incoming.telemetry.mozilla.org:80".to_socket_addrs()?;
+        socket_addrs.for_each(|item| println!("Socket addr: {item:?}"));
+        Ok(())
+    }
     #[test]
     fn test1() -> Result<(), PpaassError> {
         let uid = generate_uuid();

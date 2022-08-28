@@ -22,7 +22,7 @@ use crate::{
     service::{tcp::connect::TcpConnectFlowError, udp::associate::UdpAssociateFlowError},
 };
 
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use super::{
     tcp::connect::{TcpConnectFlow, TcpConnectFlowRequest, TcpConnectFlowResult},
@@ -179,7 +179,17 @@ impl InitializeFlow {
                     })
                     .await?;
                 let domain_resolve_request: DomainResolveRequest = serde_json::from_slice(data.chunk())?;
-                let resolved_addresses = match domain_resolve_request.name.to_socket_addrs() {
+
+                let target_domain_name = domain_resolve_request.name.as_str();
+                let target_domain_name = if target_domain_name.ends_with(".") {
+                    let new_target_domain_name = &target_domain_name[0..target_domain_name.len() - 1];
+                    info!("Resolving domain name(end with .): {new_target_domain_name}");
+                    new_target_domain_name
+                } else {
+                    info!("Resolving domain name(not end with .): {target_domain_name}");
+                    target_domain_name
+                };
+                let resolved_addresses = match target_domain_name.to_socket_addrs() {
                     Err(e) => {
                         error!(
                             "Connection [{connection_id}] fail to resolve domain  because of error, source address: {source_address:?}, target address: {target_address:?}, client address: {agent_address:?}, error: {e:#?}"
