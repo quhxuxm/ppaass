@@ -857,11 +857,13 @@ impl From<Vec<Message>> for MessageStream {
 pub struct DomainResolveRequest {
     pub name: String,
     pub id: i32,
+    pub port: Option<u16>,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct DomainResolveResponse {
     pub id: i32,
     pub name: String,
+    pub port: Option<u16>,
     pub addresses: Vec<[u8; 4]>,
 }

@@ -179,15 +179,15 @@ impl InitializeFlow {
                     })
                     .await?;
                 let domain_resolve_request: DomainResolveRequest = serde_json::from_slice(data.chunk())?;
-
                 let target_domain_name = domain_resolve_request.name.as_str();
+                let target_domain_port = domain_resolve_request.port.unwrap_or(80);
                 let target_domain_name = if target_domain_name.ends_with(".") {
                     let new_target_domain_name = &target_domain_name[0..target_domain_name.len() - 1];
                     info!("Resolving domain name(end with .): {new_target_domain_name}");
-                    format!("{new_target_domain_name}:80")
+                    format!("{new_target_domain_name}:{target_domain_port}")
                 } else {
                     info!("Resolving domain name(not end with .): {target_domain_name}");
-                    format!("{target_domain_name}:80")
+                    format!("{target_domain_name}:{target_domain_port}")
                 };
                 let resolved_addresses = match target_domain_name.to_socket_addrs() {
                     Err(e) => {
@@ -229,6 +229,7 @@ impl InitializeFlow {
                     id: domain_resolve_request.id,
                     name: domain_resolve_request.name,
                     addresses: resolved_addresses,
+                    port: domain_resolve_request.port,
                 };
                 let domain_resolve_response_bytes = serde_json::to_vec(&domain_resolve_response)?;
 

@@ -57,7 +57,6 @@ fn merge_arguments_and_config(arguments: &ProxyArguments, config: &mut ProxyConf
 }
 
 fn main() -> Result<()> {
-    // console_subscriber::init();
     let arguments = ProxyArguments::parse();
     let mut log_configuration_file = std::fs::File::open(PROXY_LOG_CONFIG_FILE).expect("Fail to read proxy log configuration file.");
     let mut log_configuration_file_content = String::new();
