@@ -184,10 +184,10 @@ impl InitializeFlow {
                 let target_domain_name = if target_domain_name.ends_with(".") {
                     let new_target_domain_name = &target_domain_name[0..target_domain_name.len() - 1];
                     info!("Resolving domain name(end with .): {new_target_domain_name}");
-                    new_target_domain_name
+                    format!("{new_target_domain_name}:80")
                 } else {
                     info!("Resolving domain name(not end with .): {target_domain_name}");
-                    target_domain_name
+                    format!("{target_domain_name}:80")
                 };
                 let resolved_addresses = match target_domain_name.to_socket_addrs() {
                     Err(e) => {
