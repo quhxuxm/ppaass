@@ -16,9 +16,7 @@ use common::{
     WriteMessageFramedRequest, WriteMessageFramedResult,
 };
 
-use crate::config::ProxyConfig;
-
-const DEFAULT_BUFFER_SIZE: usize = 64 * 1024;
+use crate::config::{self, ProxyConfig};
 
 #[allow(unused)]
 #[derive(Debug)]
@@ -102,15 +100,14 @@ impl TcpRelayFlow {
                 .await
                 {
                     error!(
-                        "Connection [{}] error happen when relay data from proxy to target, source address: [{source_address:?}], target address: [{target_address:?}], error: {:#?}",
-                        connection_id, e
+                        "Connection [{connection_id}] error happen when relay data from proxy to target, source address: [{source_address:?}], target address: [{target_address:?}], error: {e:#?}",
                     );
                 }
             });
         }
         {
-            let target_buffer_size = configuration.target_buffer_size().unwrap_or(DEFAULT_BUFFER_SIZE);
-            let message_framed_buffer_size = configuration.message_framed_buffer_size().unwrap_or(DEFAULT_BUFFER_SIZE);
+            let target_buffer_size = configuration.target_buffer_size().unwrap_or(config::DEFAULT_BUFFER_SIZE);
+            let message_framed_buffer_size = configuration.message_framed_buffer_size().unwrap_or(config::DEFAULT_BUFFER_SIZE);
             let user_token = user_token.to_owned();
             let connection_id = connection_id.to_owned();
             let source_address = source_address.clone();
@@ -129,8 +126,7 @@ impl TcpRelayFlow {
                 .await
                 {
                     error!(
-                        "Connection [{}] error happen when relay data from target to proxy, source address: [{source_address:?}], target address: [{target_address:?}], error: {:#?}",
-                        connection_id, e
+                        "Connection [{connection_id}] error happen when relay data from target to proxy, source address: [{source_address:?}], target address: [{target_address:?}], error: {e:#?}"
                     );
                 }
             });
