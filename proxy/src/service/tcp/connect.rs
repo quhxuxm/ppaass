@@ -6,6 +6,7 @@ use common::{
     PayloadEncryptionTypeSelectResult, PayloadEncryptionTypeSelector, PayloadType, PpaassError, ProxyMessagePayloadTypeValue, RsaCryptoFetcher,
     TcpConnectRequest, TcpConnectResult, TcpConnector, WriteMessageFramedError, WriteMessageFramedRequest, WriteMessageFramedResult,
 };
+use futures::SinkExt;
 
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
@@ -108,13 +109,14 @@ impl TcpConnectFlow {
             Ok(v) => v,
             Err(e) => {
                 error!("Connection [{connection_id}] fail connect to target: [{target_address:?}] because of error: {e:?}");
+
                 let connect_fail_payload = MessagePayload {
                     source_address: Some(source_address.clone()),
                     target_address: Some(target_address.clone()),
                     payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::TcpConnectFail),
                     data: None,
                 };
-                match MessageFramedWriter::write(WriteMessageFramedRequest {
+                let WriteMessageFramedResult { mut message_framed_write, .. } = MessageFramedWriter::write(WriteMessageFramedRequest {
                     message_framed_write,
                     message_payloads: Some(vec![connect_fail_payload]),
                     payload_encryption_type,
@@ -123,31 +125,36 @@ impl TcpConnectFlow {
                     connection_id: Some(connection_id),
                 })
                 .await
-                {
-                    Ok(WriteMessageFramedResult { .. }) => {
-                        return Err(TcpConnectFlowError {
-                            connection_id: connection_id.to_owned(),
-                            message_id: message_id.to_owned(),
-                            user_token: user_token.to_owned(),
-                            source_address,
-                            target_address: target_address.clone(),
-                            agent_address,
-                            source: anyhow!(e),
-                        })
-                    },
-                    Err(WriteMessageFramedError { source, .. }) => {
-                        error!("Connection [{connection_id}] fail to write connect fail result to agent because of error: {source:?}");
-                        return Err(TcpConnectFlowError {
-                            connection_id: connection_id.to_owned(),
-                            message_id: message_id.to_owned(),
-                            user_token: user_token.to_owned(),
-                            source_address,
-                            target_address,
-                            agent_address,
-                            source: anyhow!(source),
-                        });
-                    },
-                }
+                .map_err(|WriteMessageFramedError { source, .. }| {
+                    error!("Connection [{connection_id}] fail to write connect fail result to agent because of error: {source:?}");
+                    TcpConnectFlowError {
+                        connection_id: connection_id.to_owned(),
+                        message_id: message_id.to_owned(),
+                        user_token: user_token.to_owned(),
+                        source_address: source_address.clone(),
+                        target_address: target_address.clone(),
+                        agent_address,
+                        source: anyhow!(source),
+                    }
+                })?;
+                message_framed_write.close().await.map_err(|e| TcpConnectFlowError {
+                    connection_id: connection_id.to_owned(),
+                    message_id: message_id.to_owned(),
+                    user_token: user_token.to_owned(),
+                    source_address: source_address.clone(),
+                    target_address: target_address.clone(),
+                    agent_address,
+                    source: anyhow!(e),
+                })?;
+                return Err(TcpConnectFlowError {
+                    connection_id: connection_id.to_owned(),
+                    message_id: message_id.to_owned(),
+                    user_token: user_token.to_owned(),
+                    source_address,
+                    target_address: target_address.clone(),
+                    agent_address,
+                    source: anyhow!(e),
+                });
             },
         };
         debug!(
