@@ -36,6 +36,15 @@ where
     pub target_address: NetAddress,
 }
 
+#[allow(unused)]
+#[derive(Debug)]
+pub(crate) struct TcpRelayFlowResult<'a> {
+    pub connection_id: &'a str,
+    pub agent_address: SocketAddr,
+    pub user_token: &'a str,
+    pub source_address: NetAddress,
+    pub target_address: NetAddress,
+}
 struct TcpRelayProxyToTargetRequest<'a, T>
 where
     T: RsaCryptoFetcher,
@@ -74,7 +83,7 @@ impl TcpRelayFlow {
             target_address,
         }: TcpRelayFlowRequest<'a, T>,
         configuration: &ProxyConfig,
-    ) -> Result<()>
+    ) -> Result<TcpRelayFlowResult<'a>>
     where
         T: RsaCryptoFetcher + Send + Sync + Debug + 'static,
     {
@@ -104,6 +113,8 @@ impl TcpRelayFlow {
             let message_framed_buffer_size = configuration.message_framed_buffer_size().unwrap_or(DEFAULT_BUFFER_SIZE);
             let user_token = user_token.to_owned();
             let connection_id = connection_id.to_owned();
+            let source_address = source_address.clone();
+            let target_address = target_address.clone();
             tokio::spawn(async move {
                 if let Err(e) = Self::relay_target_to_proxy(TcpRelayTargetToProxyRequest {
                     connection_id: &connection_id,
@@ -124,7 +135,13 @@ impl TcpRelayFlow {
                 }
             });
         }
-        Ok(())
+        Ok(TcpRelayFlowResult {
+            connection_id,
+            source_address,
+            target_address,
+            agent_address,
+            user_token,
+        })
     }
 
     async fn relay_proxy_to_target<'a, T>(

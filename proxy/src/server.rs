@@ -15,11 +15,9 @@ use tokio::{net::TcpSocket, runtime::Builder as TokioRuntimeBuilder};
 use tracing::{debug, error, info};
 
 use crate::{
-    config::ProxyConfig,
+    config::{self, ProxyConfig},
     service::{AgentConnection, ProxyRsaCryptoFetcher},
 };
-
-const DEFAULT_SERVER_PORT: u16 = 80;
 
 #[derive(Debug)]
 pub(crate) enum ProxyServerSignal {
@@ -37,37 +35,28 @@ impl ProxyServer {
     }
 
     pub(crate) fn run(self) -> Result<StdJoinHandler<()>> {
-        let signal_receiver = self.signal_receiver;
-        let signal = signal_receiver.recv();
+        let signal = self.signal_receiver.recv().map_err(|e| {
+            error!("Proxy server going to shutdown because of error: {e:#?}.");
+            anyhow!(e)
+        })?;
         match signal {
-            Err(e) => {
-                println!("Proxy server going to shutdown because of error: {e:#?}.");
-                error!("Proxy server going to shutdown because of error: {e:#?}.");
-                return Err(anyhow!("Proxy server going to shutdown because of error: {e:#?}."));
-            },
-            Ok(ProxyServerSignal::Shutdown) => {
-                println!("Proxy server going to shutdown.");
+            ProxyServerSignal::Shutdown => {
                 info!("Proxy server going to shutdown.");
                 return Err(anyhow!("Proxy server going to shutdown."));
             },
-            Ok(ProxyServerSignal::Startup { configuration }) => {
-                println!("Proxy server going to startup.");
+            ProxyServerSignal::Startup { configuration } => {
                 info!("Proxy server going to startup.");
                 let configuration = Arc::new(configuration);
                 let mut runtime_builder = TokioRuntimeBuilder::new_multi_thread();
                 runtime_builder
                     .enable_all()
-                    .thread_keep_alive(Duration::from_secs(configuration.thread_timeout().unwrap_or(2)))
                     .max_blocking_threads(configuration.max_blocking_threads().unwrap_or(32))
                     .worker_threads(configuration.thread_number().unwrap_or(1024));
                 let runtime = runtime_builder.build()?;
-                let proxy_rsa_crypto_fetcher = match ProxyRsaCryptoFetcher::new(&configuration) {
-                    Err(e) => {
-                        error!("Fail to start up proxy server because of error: {:#?}", e);
-                        return Err(anyhow!("Fail to start up proxy server because of error: {:#?}", e));
-                    },
-                    Ok(v) => v,
-                };
+                let proxy_rsa_crypto_fetcher = ProxyRsaCryptoFetcher::new(&configuration).map_err(|e| {
+                    error!("Fail to start up proxy server because of error: {:#?}", e);
+                    anyhow!(e)
+                })?;
                 let proxy_rsa_crypto_fetcher = Arc::new(proxy_rsa_crypto_fetcher);
                 runtime.spawn(async move {
                     let server_socket = match configuration.ipv6() {
@@ -105,11 +94,11 @@ impl ProxyServer {
                     let local_socket_address = match configuration.ipv6() {
                         None | Some(false) => SocketAddr::V4(SocketAddrV4::new(
                             Ipv4Addr::new(0, 0, 0, 0),
-                            configuration.port().unwrap_or(DEFAULT_SERVER_PORT),
+                            configuration.port().unwrap_or(config::DEFAULT_SERVER_PORT),
                         )),
                         Some(true) => SocketAddr::V6(SocketAddrV6::new(
                             Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0),
-                            configuration.port().unwrap_or(DEFAULT_SERVER_PORT),
+                            configuration.port().unwrap_or(config::DEFAULT_SERVER_PORT),
                             0,
                             0,
                         )),
@@ -134,7 +123,7 @@ impl ProxyServer {
                                 error!("Fail to accept agent connection because of error: {e:#?}");
                                 continue;
                             },
-                            Ok((agent_stream, agent_address)) => (agent_stream, agent_address),
+                            Ok(v) => v,
                         };
                         if let Err(e) = agent_stream.set_nodelay(true) {
                             error!("Fail to set agent connection no delay because of error: {:#?}", e);
@@ -164,9 +153,8 @@ impl ProxyServer {
                     }
                 });
                 let guard = std::thread::spawn(move || loop {
-                    match signal_receiver.recv() {
+                    match self.signal_receiver.recv() {
                         Ok(ProxyServerSignal::Shutdown) => {
-                            println!("Proxy server going to shutdown.");
                             info!("Proxy server going to shutdown.");
                             runtime.shutdown_timeout(Duration::from_secs(60));
                             return;

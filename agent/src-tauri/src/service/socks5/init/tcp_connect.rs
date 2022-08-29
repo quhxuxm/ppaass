@@ -45,7 +45,6 @@ where
 }
 
 impl Socks5TcpConnectFlow {
-
     pub async fn exec<'a, T>(
         request: Socks5TcpConnectFlowRequest<'a>, rsa_crypto_fetcher: Arc<T>, configuration: Arc<AgentConfig>, proxy_connection_pool: Arc<ProxyConnectionPool>,
     ) -> Result<Socks5TcpConnectFlowResult<T>>

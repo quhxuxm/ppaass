@@ -8,10 +8,13 @@ use common::{generate_uuid, MessageFramedGenerateResult, MessageFramedGenerator,
 
 use tracing::{debug, error};
 
-use crate::service::{
-    init::{InitFlowRequest, InitFlowResult},
-    tcp::relay::{TcpRelayFlow, TcpRelayFlowRequest},
-    udp::relay::{UdpRelayFlow, UdpRelayFlowRequest},
+use crate::{
+    config,
+    service::{
+        init::{InitFlowRequest, InitFlowResult},
+        tcp::relay::{TcpRelayFlow, TcpRelayFlowRequest, TcpRelayFlowResult},
+        udp::relay::{UdpRelayFlow, UdpRelayFlowRequest, UdpRelayFlowResult},
+    },
 };
 use crate::{config::ProxyConfig, service::init::InitializeFlow};
 
@@ -19,8 +22,6 @@ use anyhow::Result;
 mod init;
 mod tcp;
 mod udp;
-
-const DEFAULT_BUFFER_SIZE: usize = 1024 * 64;
 
 #[derive(Debug)]
 pub(crate) struct ProxyRsaCryptoFetcher {
@@ -110,43 +111,43 @@ impl AgentConnection {
     {
         let connection_id = self.id.clone();
         debug!("Begin to handle agent connection: {}", connection_id);
-        let message_framed_buffer_size = configuration.message_framed_buffer_size().unwrap_or(DEFAULT_BUFFER_SIZE);
-        let compress = configuration.compress().unwrap_or(true);
+        let message_framed_buffer_size = configuration.message_framed_buffer_size().unwrap_or(config::DEFAULT_BUFFER_SIZE);
+        let compress = configuration.compress().unwrap_or(config::DEFAULT_COMPRESS_ENABLE);
         let agent_stream = self.agent_stream;
-        let agent_address_clone = self.agent_address.clone();
         let agent_address = self.agent_address;
         let MessageFramedGenerateResult {
             mut message_framed_write,
             mut message_framed_read,
         } = MessageFramedGenerator::generate(agent_stream, message_framed_buffer_size, compress, rsa_crypto_fetcher).await;
         debug!("Connection [{}] is going to handle tcp connect.", connection_id);
-
         loop {
-            let init_flow_result = InitializeFlow::exec(
+            match InitializeFlow::exec(
                 InitFlowRequest {
                     connection_id: connection_id.as_str(),
                     message_framed_read,
                     message_framed_write,
-                    agent_address: agent_address_clone,
+                    agent_address,
                 },
                 &configuration,
             )
-            .await?;
-            match init_flow_result {
+            .await?
+            {
                 InitFlowResult::Heartbeat {
-                    message_framed_read: message_framed_read_pass_back,
-                    message_framed_write: message_framed_write_pass_back,
+                    message_framed_read: _message_framed_read,
+                    message_framed_write: _message_framed_write,
                 } => {
-                    message_framed_read = message_framed_read_pass_back;
-                    message_framed_write = message_framed_write_pass_back;
+                    debug!("Connection [{connection_id}] heartbeat complete, agent address: [{agent_address}].");
+                    message_framed_read = _message_framed_read;
+                    message_framed_write = _message_framed_write;
                     continue;
                 },
                 InitFlowResult::DomainResolve {
-                    message_framed_read: message_framed_read_pass_back,
-                    message_framed_write: message_framed_write_pass_back,
+                    message_framed_read: _message_framed_read,
+                    message_framed_write: _message_framed_write,
                 } => {
-                    message_framed_read = message_framed_read_pass_back;
-                    message_framed_write = message_framed_write_pass_back;
+                    debug!("Connection [{connection_id}] domain resolve complete, agent address: [{agent_address}].");
+                    message_framed_read = _message_framed_read;
+                    message_framed_write = _message_framed_write;
                     continue;
                 },
                 InitFlowResult::Tcp {
@@ -158,8 +159,12 @@ impl AgentConnection {
                     user_token,
                     ..
                 } => {
-                    debug!("Connection [{}] is going to handle tcp relay.", connection_id);
-                    TcpRelayFlow::exec(
+                    debug!("Connection [{connection_id}] going to do tcp relay, agent address: [{agent_address}], source address: [{source_address:?}], targt address: [{target_address:?}].");
+                    let TcpRelayFlowResult {
+                        source_address,
+                        target_address,
+                        ..
+                    } = TcpRelayFlow::exec(
                         TcpRelayFlowRequest {
                             connection_id: &connection_id,
                             message_framed_read,
@@ -173,7 +178,7 @@ impl AgentConnection {
                         &configuration,
                     )
                     .await?;
-                    debug!("Connection [{}] is finish tcp relay.", connection_id);
+                    debug!("Connection [{connection_id}] finish tcp relay, agent address: [{agent_address}], source address: [{source_address:?}], targt address: [{target_address:?}].");
                     break;
                 },
                 InitFlowResult::Udp {
@@ -185,7 +190,11 @@ impl AgentConnection {
                     ..
                 } => {
                     debug!("Connection [{}] is going to handle udp relay.", connection_id);
-                    UdpRelayFlow::exec(
+                    let UdpRelayFlowResult {
+                        connection_id,
+                        message_id,
+                        user_token,
+                    } = UdpRelayFlow::exec(
                         UdpRelayFlowRequest {
                             connection_id: connection_id.as_str(),
                             message_framed_read,
@@ -197,7 +206,7 @@ impl AgentConnection {
                         &configuration,
                     )
                     .await?;
-                    debug!("Connection [{}] is finish udp relay.", connection_id);
+                    debug!("Connection [{connection_id}] finish udp relay, associate message id: [{message_id}], user token: [{user_token}].");
                     break;
                 },
             }

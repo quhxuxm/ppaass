@@ -71,7 +71,6 @@ where
 pub(crate) struct HttpConnectFlow;
 
 impl HttpConnectFlow {
-
     async fn send_error_to_client(_client_connection_id: &str, mut client_http_framed: HttpFramed<'_>) -> Result<()> {
         let bad_request_status_code = StatusCode::new(ERROR_CODE).unwrap();
         let error_response_reason = ReasonPhrase::new(ERROR_REASON).unwrap();

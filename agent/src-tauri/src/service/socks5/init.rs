@@ -74,7 +74,6 @@ pub(crate) struct Socks5InitFlowRequest<'a> {
 pub(crate) struct Socks5InitFlow;
 
 impl Socks5InitFlow {
-
     pub async fn exec<'a, T>(
         request: Socks5InitFlowRequest<'a>, rsa_crypto_fetcher: Arc<T>, configuration: Arc<AgentConfig>, proxy_connection_pool: Arc<ProxyConnectionPool>,
     ) -> Result<Socks5InitFlowResult<T>>
@@ -209,7 +208,6 @@ impl Socks5InitFlow {
         }
     }
 }
-
 
 async fn send_socks5_init_failure(_client_connection_id: &str, socks5_client_framed: &mut Socks5InitFramed<'_>) -> Result<(), PpaassError> {
     let connect_result = Socks5InitCommandResultContent::new(Socks5InitCommandResultStatus::Failure, None);

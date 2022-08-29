@@ -11,6 +11,11 @@ pub const DEFAULT_CONNECT_TARGET_RETRY: u16 = 2;
 pub const DEFAULT_CONNECT_TARGET_TIMEOUT_SECONDS: u64 = 20;
 pub const DEFAULT_TARGET_STREAM_SO_LINGER: u64 = 20;
 pub const DEFAULT_UDP_RELAY_TIMEOUT_SECONDS: u64 = 20;
+pub const DEFAULT_PROXY_LOG_CONFIG_FILE: &str = "ppaass-proxy-log.toml";
+pub const DEFAULT_PROXY_CONFIG_FILE: &str = "ppaass-proxy.toml";
+pub const DEFAULT_SERVER_PORT: u16 = 80;
+pub const DEFAULT_BUFFER_SIZE: usize = 1024 * 64;
+pub const DEFAULT_COMPRESS_ENABLE: bool = true;
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub(crate) struct ProxyLogConfig {
     /// The log directory
