@@ -97,8 +97,11 @@ impl InitializeFlow {
             timeout: Some(read_timeout),
         })
         .await
-        {
-            Ok(ReadMessageFramedResult {
+        .map_err(|ReadMessageFramedError { source, .. }| {
+            error!("Connection [{connection_id}] handle agent connection fail because of error: {source}.");
+            anyhow!(source)
+        })? {
+            ReadMessageFramedResult {
                 message_framed_read,
                 content:
                     Some(ReadMessageFramedResultContent {
@@ -114,7 +117,7 @@ impl InitializeFlow {
                         ..
                     }),
                 ..
-            }) => {
+            } => {
                 let PayloadEncryptionTypeSelectResult { payload_encryption_type, .. } =
                     PayloadEncryptionTypeSelector::select(PayloadEncryptionTypeSelectRequest {
                         encryption_token: generate_uuid().into(),
@@ -148,7 +151,7 @@ impl InitializeFlow {
                     message_framed_read,
                 });
             },
-            Ok(ReadMessageFramedResult {
+            ReadMessageFramedResult {
                 message_framed_read,
                 content:
                     Some(ReadMessageFramedResultContent {
@@ -164,7 +167,7 @@ impl InitializeFlow {
                         ..
                     }),
                 ..
-            }) => {
+            } => {
                 let data = data.ok_or(anyhow!(
                     "Connection [{}] fail to do domain resolve because of no data, source address: {:?}, target address: {:?}, client address: {:?}",
                     connection_id,
@@ -183,10 +186,10 @@ impl InitializeFlow {
                 let target_domain_port = domain_resolve_request.port.unwrap_or(80);
                 let target_domain_name = if target_domain_name.ends_with(".") {
                     let new_target_domain_name = &target_domain_name[0..target_domain_name.len() - 1];
-                    info!("Resolving domain name(end with .): {new_target_domain_name}");
+                    debug!("Resolving domain name(end with .): {new_target_domain_name}");
                     format!("{new_target_domain_name}:{target_domain_port}")
                 } else {
-                    info!("Resolving domain name(not end with .): {target_domain_name}");
+                    debug!("Resolving domain name(not end with .): {target_domain_name}");
                     format!("{target_domain_name}:{target_domain_port}")
                 };
                 let resolved_addresses = match target_domain_name.to_socket_addrs() {
@@ -260,7 +263,7 @@ impl InitializeFlow {
                     message_framed_read,
                 });
             },
-            Ok(ReadMessageFramedResult {
+            ReadMessageFramedResult {
                 message_framed_read,
                 content:
                     Some(ReadMessageFramedResultContent {
@@ -276,12 +279,22 @@ impl InitializeFlow {
                         ..
                     }),
                 ..
-            }) => {
+            } => {
                 debug!(
                     "Connection [{}] begin tcp connect, source address: {:?}, target address: {:?}, client address: {:?}",
                     connection_id, source_address, target_address, agent_address
                 );
-                match TcpConnectFlow::exec(
+
+                let TcpConnectFlowResult {
+                    target_stream,
+                    message_framed_read,
+                    message_framed_write,
+                    source_address,
+                    target_address,
+                    user_token,
+                    message_id,
+                    ..
+                } = TcpConnectFlow::exec(
                     TcpConnectFlowRequest {
                         connection_id,
                         message_id: message_id.as_str(),
@@ -295,40 +308,25 @@ impl InitializeFlow {
                     configuration,
                 )
                 .await
-                {
-                    Err(TcpConnectFlowError { connection_id, source, .. }) => {
-                        error!("Connection [{connection_id}] handle agent connection fail to do tcp connect because of error: {source:#?}.");
-                        Err(anyhow!(
-                            "Connection [{connection_id}] handle agent connection fail to do tcp connect because of error: {source:#?}."
-                        ))
-                    },
-                    Ok(TcpConnectFlowResult {
-                        target_stream,
-                        message_framed_read,
-                        message_framed_write,
-                        source_address,
-                        target_address,
-                        user_token,
-                        message_id,
-                        ..
-                    }) => {
-                        debug!(
-                            "Connection [{}] complete tcp connect, source address: {:?}, target address: {:?}, client address: {:?}",
-                            connection_id, source_address, target_address, agent_address
-                        );
-                        Ok(InitFlowResult::Tcp {
-                            message_framed_write,
-                            message_framed_read,
-                            target_stream,
-                            message_id,
-                            source_address,
-                            target_address,
-                            user_token,
-                        })
-                    },
-                }
+                .map_err(|TcpConnectFlowError { connection_id, source, .. }| {
+                    error!("Connection [{connection_id}] handle agent connection fail to do tcp connect because of error: {source:#?}.");
+                    anyhow!(source)
+                })?;
+                debug!(
+                    "Connection [{}] complete tcp connect, source address: {:?}, target address: {:?}, client address: {:?}",
+                    connection_id, source_address, target_address, agent_address
+                );
+                Ok(InitFlowResult::Tcp {
+                    message_framed_write,
+                    message_framed_read,
+                    target_stream,
+                    message_id,
+                    source_address,
+                    target_address,
+                    user_token,
+                })
             },
-            Ok(ReadMessageFramedResult {
+            ReadMessageFramedResult {
                 message_framed_read,
                 content:
                     Some(ReadMessageFramedResultContent {
@@ -344,9 +342,17 @@ impl InitializeFlow {
                         ..
                     }),
                 ..
-            }) => {
+            } => {
                 debug!("Connection [{}] begin udp associate, client address: {:?}", connection_id, source_address);
-                match UdpAssociateFlow::exec(
+                let UdpAssociateFlowResult {
+                    connection_id,
+                    message_id,
+                    user_token,
+                    message_framed_read,
+                    message_framed_write,
+                    source_address,
+                    udp_binded_socket,
+                } = UdpAssociateFlow::exec(
                     UdpAssociateFlowRequest {
                         message_framed_read,
                         message_framed_write,
@@ -359,43 +365,25 @@ impl InitializeFlow {
                     configuration,
                 )
                 .await
-                {
-                    Err(UdpAssociateFlowError { connection_id, source, .. }) => {
-                        error!("Connection [{connection_id}] handle agent connection fail to do udp associate because of error: {source:#?}.");
-                        Err(anyhow!(
-                            "Connection [{connection_id}] handle agent connection fail to do udp associate because of error: {source:#?}."
-                        ))
-                    },
-                    Ok(UdpAssociateFlowResult {
-                        connection_id,
-                        message_id,
-                        user_token,
-                        message_framed_read,
-                        message_framed_write,
-                        source_address,
-                        udp_binded_socket,
-                    }) => {
-                        debug!("Connection [{}] complete udp associate, client address: {:?}", connection_id, source_address);
-                        Ok(InitFlowResult::Udp {
-                            message_framed_write,
-                            message_framed_read,
-                            message_id,
-                            source_address,
-                            user_token,
-                            udp_binded_socket,
-                        })
-                    },
-                }
+                .map_err(|UdpAssociateFlowError { connection_id, source, .. }| {
+                    error!("Connection [{connection_id}] handle agent connection fail to do tcp connect because of error: {source:#?}.");
+                    anyhow!(source)
+                })?;
+                debug!("Connection [{}] complete udp associate, client address: {:?}", connection_id, source_address);
+                Ok(InitFlowResult::Udp {
+                    message_framed_write,
+                    message_framed_read,
+                    message_id,
+                    source_address,
+                    user_token,
+                    udp_binded_socket,
+                })
             },
-            Ok(read_message_framed_result) => {
+            read_message_framed_result => {
                 error!("Connection [{connection_id}] handle agent connection fail because of invalid message content:\n{read_message_framed_result:#?}\n.");
                 Err(anyhow!(
                     "Connection [{connection_id}] handle agent connection fail because of invalid message content."
                 ))
-            },
-            Err(ReadMessageFramedError { source, .. }) => {
-                error!("Connection [{connection_id}] handle agent connection fail because of error: {source}.");
-                Err(anyhow!("Connection [{connection_id}] handle agent connection fail because of error: {source}."))
             },
         }
     }
