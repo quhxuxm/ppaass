@@ -236,22 +236,21 @@ impl TcpRelayFlow {
             match target_stream_read.read_buf(&mut target_buffer).await {
                 Err(e) => {
                     error!(
-                        "Connection [{}] error happen when relay data from target to proxy, target address={:?}, source address={:?}, error: {:#?}",
-                        connection_id, target_address, source_address, e
+                        "Connection [{connection_id}] error happen when relay data from target to proxy, target address: {target_address:?}, source address: {source_address:?}, error: {e:#?}"
                     );
                     message_framed_write.flush().await?;
                     message_framed_write.close().await?;
                     return Err(e.into());
                 },
                 Ok(0) => {
-                    debug!("Connection [{connection_id}] read all data from target, target address={target_address:?}, source address={source_address:?}.",);
+                    debug!("Connection [{connection_id}] read all data from target, target address: {target_address:?}, source address: {source_address:?}",);
                     message_framed_write.flush().await?;
                     message_framed_write.close().await?;
                     return Ok(());
                 },
                 Ok(size) => {
                     debug!(
-                        "Connection [{connection_id}] read {size} bytes from target to proxy, target address={target_address:?}, source address={source_address:?}.",
+                        "Connection [{connection_id}] read {size} bytes from target to proxy, target address: {target_address:?}, source address: {source_address:?}",
                     );
                     size
                 },
@@ -269,24 +268,25 @@ impl TcpRelayFlow {
                 };
                 payloads.push(proxy_message_payload)
             }
-            let payload_encryption_type = match PayloadEncryptionTypeSelector::select(PayloadEncryptionTypeSelectRequest {
-                encryption_token: generate_uuid().into(),
-                user_token,
-            })
+            let PayloadEncryptionTypeSelectResult { payload_encryption_type, .. } = match PayloadEncryptionTypeSelector::select(
+                PayloadEncryptionTypeSelectRequest {
+                    encryption_token: generate_uuid().into(),
+                    user_token,
+                },
+            )
             .await
             {
+                Ok(v) => v,
                 Err(e) => {
                     error!(
-                            "Connection [{}] fail to select payload encryption type when transfer data from target to proxy, target address={:?}, source address={:?}, error: {:#?}.",
-                            connection_id, target_address, source_address, e
+                            "Connection [{connection_id}] fail to select payload encryption type when transfer data from target to proxy, target address: {target_address:?}, source address={source_address:?}, error: {e:#?}."
                         );
                     message_framed_write.flush().await?;
                     message_framed_write.close().await?;
                     return Err(e.into());
                 },
-                Ok(PayloadEncryptionTypeSelectResult { payload_encryption_type, .. }) => payload_encryption_type,
             };
-            message_framed_write = match MessageFramedWriter::write(WriteMessageFramedRequest {
+            WriteMessageFramedResult { message_framed_write, .. } = match MessageFramedWriter::write(WriteMessageFramedRequest {
                 message_framed_write,
                 ref_id: Some(connection_id),
                 user_token,
@@ -296,14 +296,13 @@ impl TcpRelayFlow {
             })
             .await
             {
+                Ok(v) => v,
                 Err(WriteMessageFramedError { source, .. }) => {
                     error!(
-                        "Connection [{}] fail to write data from target to proxy, target address={:?}, source address={:?}, error: {:#?}.",
-                        connection_id, target_address, source_address, source
+                        "Connection [{connection_id}] fail to write data from target to proxy, target address: {target_address:?}, source address: {source_address:?}, error: {source:#?}."
                     );
                     return Err(source.into());
                 },
-                Ok(WriteMessageFramedResult { message_framed_write, .. }) => message_framed_write,
             };
         }
     }
