@@ -182,7 +182,7 @@ impl InitializeFlow {
                     debug!("Resolving domain name(not end with .): {target_domain_name}");
                     format!("{target_domain_name}:{target_domain_port}")
                 };
-                let (resolved_addresses, source_address, target_address, message_framed_write, payload_encryption_type, user_token, message_id) = async move {
+                let (message_framed_write, message_framed_read) = async move {
                     return match target_domain_name.to_socket_addrs() {
                         Err(e) => {
                             error!(
@@ -214,46 +214,41 @@ impl InitializeFlow {
                                     addresses.push(ip_bytes);
                                 }
                             });
-                            Ok((
+                            let domain_resolve_response = DomainResolveResponse {
+                                id: domain_resolve_request.id,
+                                name: domain_resolve_request.name,
                                 addresses,
-                                source_address,
-                                target_address,
+                                port: domain_resolve_request.port,
+                            };
+                            let domain_resolve_response_bytes = serde_json::to_vec(&domain_resolve_response)?;
+                            let domain_resolve_success = MessagePayload {
+                                source_address: source_address.clone(),
+                                target_address: target_address.clone(),
+                                payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::DomainResolveSuccess),
+                                data: Some(domain_resolve_response_bytes.into()),
+                            };
+                            let WriteMessageFramedResult { message_framed_write } = MessageFramedWriter::write(WriteMessageFramedRequest {
                                 message_framed_write,
-                                payload_encryption_type,
-                                user_token,
-                                message_id,
+                                message_payloads: Some(vec![domain_resolve_success]),
+                                payload_encryption_type: payload_encryption_type.clone(),
+                                user_token: user_token.as_str(),
+                                ref_id: Some(message_id.as_str()),
+                                connection_id: Some(connection_id),
+                            })
+                                .await.map_err(|WriteMessageFramedError {
+                                source,
+                                ..
+                            }| {
+                                error!("Connection [{}] fail to write domain resolve success to agent because of error, source address: {:?}, target address: {:?}, client address: {:?}", connection_id, source_address, target_address, agent_address);
+                                anyhow!(source)
+                            })?;
+                            Ok((
+                                message_framed_write,
+                                message_framed_read
                             ))
                         },
                     };
                 }.await?;
-                let domain_resolve_response = DomainResolveResponse {
-                    id: domain_resolve_request.id,
-                    name: domain_resolve_request.name,
-                    addresses: resolved_addresses,
-                    port: domain_resolve_request.port,
-                };
-                let domain_resolve_response_bytes = serde_json::to_vec(&domain_resolve_response)?;
-                let domain_resolve_success = MessagePayload {
-                    source_address: source_address.clone(),
-                    target_address: target_address.clone(),
-                    payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::DomainResolveSuccess),
-                    data: Some(domain_resolve_response_bytes.into()),
-                };
-                let WriteMessageFramedResult { message_framed_write } = MessageFramedWriter::write(WriteMessageFramedRequest {
-                    message_framed_write,
-                    message_payloads: Some(vec![domain_resolve_success]),
-                    payload_encryption_type,
-                    user_token: user_token.as_str(),
-                    ref_id: Some(message_id.as_str()),
-                    connection_id: Some(connection_id),
-                })
-                    .await.map_err(|WriteMessageFramedError {
-                    source,
-                    ..
-                }| {
-                    error!("Connection [{}] fail to write domain resolve success to agent because of error, source address: {:?}, target address: {:?}, client address: {:?}", connection_id, source_address, target_address, agent_address);
-                    anyhow!(source)
-                })?;
                 return Ok(InitFlowResult::DomainResolve {
                     message_framed_write,
                     message_framed_read,
