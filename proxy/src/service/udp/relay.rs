@@ -28,7 +28,7 @@ where
     pub user_token: &'a str,
     pub message_framed_read: MessageFramedRead<T, TcpStream>,
     pub message_framed_write: MessageFramedWrite<T, TcpStream>,
-    pub udp_binded_socket: Arc<UdpSocket>,
+    pub udp_binding_socket: Arc<UdpSocket>,
 }
 
 #[derive(Debug)]
@@ -41,16 +41,16 @@ pub(crate) struct UdpRelayFlowResult {
 pub(crate) struct UdpRelayFlow;
 
 impl UdpRelayFlow {
-    pub async fn exec<'a, T>(
+    pub async fn exec<T>(
         UdpRelayFlowRequest {
             connection_id,
             message_id,
             user_token,
             mut message_framed_read,
             mut message_framed_write,
-            udp_binded_socket,
+            udp_binding_socket,
             ..
-        }: UdpRelayFlowRequest<'a, T>,
+        }: UdpRelayFlowRequest<'_, T>,
         _configuration: &ProxyConfig,
     ) -> Result<UdpRelayFlowResult>
     where
@@ -84,7 +84,7 @@ impl UdpRelayFlow {
                             return;
                         },
                         Ok(ReadMessageFramedResult {
-                            message_framed_read: message_framed_read_return_back,
+                            message_framed_read: _message_framed_read,
                             content:
                                 Some(ReadMessageFramedResultContent {
                                     message_payload:
@@ -98,14 +98,14 @@ impl UdpRelayFlow {
                                 }),
                         }) => {
                             let udp_target_addresses = match target_address.clone().to_socket_addrs() {
+                                Ok(v) => v,
                                 Err(e) => {
                                     error!("Udp relay fail to convert target address, connection id: [{connection_id}], error : {e:#?}");
                                     return;
                                 },
-                                Ok(v) => v,
                             };
 
-                            if let Err(e) = udp_binded_socket.connect(udp_target_addresses.collect::<Vec<_>>().as_slice()).await {
+                            if let Err(e) = udp_binding_socket.connect(udp_target_addresses.collect::<Vec<_>>().as_slice()).await {
                                 error!("Udp relay fail connect to target, target: [{target_address:?}], connection id: [{connection_id}], error: {e:#?}");
                                 return;
                             };
@@ -113,47 +113,40 @@ impl UdpRelayFlow {
                                 "Udp relay begin to send udp data from agent to target: [{target_address:?}], connection id: [{connection_id}], data:\n{}\n",
                                 pretty_hex::pretty_hex(&data)
                             );
-                            if let Err(e) = udp_binded_socket.send(&data).await {
+                            if let Err(e) = udp_binding_socket.send(&data).await {
                                 error!(
                                     "Udp relay fail to send udp packet to target, connection id:[{connection_id}], target: [{target_address:?}], error: {e:#?}"
                                 );
                                 return;
                             };
-
-                            let udp_binded_socket_for_receive = Arc::clone(&udp_binded_socket);
+                            let udp_binding_socket_for_receive = Arc::clone(&udp_binding_socket);
                             let udp_response_sender = udp_response_sender.clone();
                             let connection_id = connection_id.clone();
                             tokio::spawn(async move {
                                 let mut receive_buffer = [0u8; SIZE_64KB];
                                 let received_data_size = match tokio::time::timeout(
                                     std::time::Duration::from_secs(udp_relay_timeout),
-                                    udp_binded_socket_for_receive.recv(&mut receive_buffer),
+                                    udp_binding_socket_for_receive.recv(&mut receive_buffer),
                                 )
                                 .await
                                 {
                                     Err(_elapsed) => {
-                                        error!(
-                                        "Timeout( {udp_relay_timeout} seconds) to receive udp packet from target, connection id: [{connection_id}], target: [{target_address:?}]"
-                                    );
+                                        error!("Timeout( {udp_relay_timeout} seconds) to receive udp packet from target, connection id: [{connection_id}], target: [{target_address:?}]");
                                         drop(udp_response_sender);
                                         return;
                                     },
                                     Ok(Err(e)) => {
-                                        error!(
-                                    "Udp relay fail to receive udp packet from target, connection id: [{connection_id}], target: [{target_address:?}], error:{e:#?}"
-                                );
+                                        error!("Udp relay fail to receive udp packet from target, connection id: [{connection_id}], target: [{target_address:?}], error:{e:#?}");
                                         drop(udp_response_sender);
                                         return;
                                     },
                                     Ok(Ok(v)) => v,
                                 };
-
                                 let received_data = &receive_buffer[0..received_data_size];
                                 info!(
                                     "Udp relay receive data from target, connection id:[{connection_id}], target:[{target_address:?}], data:\n{}\n",
                                     pretty_hex(&received_data)
                                 );
-
                                 let message_payload = MessagePayload {
                                     data: Some(Bytes::copy_from_slice(received_data)),
                                     payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpData),
@@ -166,13 +159,10 @@ impl UdpRelayFlow {
                                 };
                                 drop(udp_response_sender);
                             });
-
-                            message_framed_read = message_framed_read_return_back;
+                            message_framed_read = _message_framed_read;
                         },
                         Ok(unknown_content) => {
-                            error!(
-                            "Udp relay fail, invalid payload when read from agent, connection id: [{connection_id}], invalid payload:\n{unknown_content:#?}\n"
-                        );
+                            error!("Udp relay fail, invalid payload when read from agent, connection id: [{connection_id}], invalid payload:\n{unknown_content:#?}\n");
                             return;
                         },
                     };
@@ -227,7 +217,6 @@ impl UdpRelayFlow {
                 udp_response_receiver.close();
             });
         }
-
         drop(udp_response_sender);
         Ok(UdpRelayFlowResult {
             connection_id,

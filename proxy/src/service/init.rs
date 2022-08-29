@@ -1,7 +1,15 @@
+use std::{
+    fmt::Debug,
+    net::{SocketAddr, ToSocketAddrs},
+    sync::Arc,
+};
+
 use anyhow::anyhow;
 use anyhow::Result;
-
 use bytes::Buf;
+use tokio::net::{TcpStream, UdpSocket};
+use tracing::{debug, error};
+
 use common::{
     generate_uuid, AgentMessagePayloadTypeValue, DomainResolveRequest, DomainResolveResponse, MessageFramedRead, MessageFramedReader, MessageFramedWrite,
     MessageFramedWriter, MessagePayload, NetAddress, PayloadEncryptionTypeSelectRequest, PayloadEncryptionTypeSelectResult, PayloadEncryptionTypeSelector,
@@ -9,27 +17,15 @@ use common::{
     RsaCryptoFetcher, WriteMessageFramedError, WriteMessageFramedRequest, WriteMessageFramedResult,
 };
 
-use std::{
-    fmt::Debug,
-    net::{SocketAddr, ToSocketAddrs},
-    sync::Arc,
-};
-
-use tokio::net::{TcpStream, UdpSocket};
-
 use crate::{
-    config::{ProxyConfig, self},
+    config::{self, ProxyConfig},
     service::{tcp::connect::TcpConnectFlowError, udp::associate::UdpAssociateFlowError},
 };
-
-use tracing::{debug, error};
 
 use super::{
     tcp::connect::{TcpConnectFlow, TcpConnectFlowRequest, TcpConnectFlowResult},
     udp::associate::{UdpAssociateFlow, UdpAssociateFlowRequest, UdpAssociateFlowResult},
 };
-
-
 
 #[derive(Debug)]
 pub(crate) struct InitFlowRequest<'a, T, TcpStream>
@@ -70,7 +66,7 @@ where
         message_id: String,
         source_address: Option<NetAddress>,
         user_token: String,
-        udp_binded_socket: Arc<UdpSocket>,
+        udp_binding_socket: Arc<UdpSocket>,
     },
 }
 
@@ -78,19 +74,21 @@ where
 pub(crate) struct InitializeFlow;
 
 impl InitializeFlow {
-    pub async fn exec<'a, T>(
+    pub async fn exec<T>(
         InitFlowRequest {
             connection_id,
             message_framed_read,
             message_framed_write,
             agent_address,
-        }: InitFlowRequest<'a, T, TcpStream>,
+        }: InitFlowRequest<'_, T, TcpStream>,
         configuration: &ProxyConfig,
     ) -> Result<InitFlowResult<T>>
     where
         T: RsaCryptoFetcher + Send + Sync + Debug + 'static,
     {
-        let read_timeout = configuration.agent_connection_read_timeout().unwrap_or(config::DEFAULT_AGENT_CONNECTION_READ_TIMEOUT);
+        let read_timeout = configuration
+            .agent_connection_read_timeout()
+            .unwrap_or(config::DEFAULT_AGENT_CONNECTION_READ_TIMEOUT);
         match MessageFramedReader::read(ReadMessageFramedRequest {
             connection_id: connection_id.clone(),
             message_framed_read,
@@ -135,7 +133,7 @@ impl InitializeFlow {
                     message_payloads: Some(vec![heartbeat_success]),
                     payload_encryption_type,
                     user_token: user_token.as_str(),
-                    ref_id: Some(message_id.as_str()), 
+                    ref_id: Some(message_id.as_str()),
                     connection_id: Some(connection_id),
                 })
                 .await.map_err(|WriteMessageFramedError { source, .. }|{
@@ -165,11 +163,7 @@ impl InitializeFlow {
                 ..
             } => {
                 let data = data.ok_or(anyhow!(
-                    "Connection [{}] fail to do domain resolve because of no data, source address: {:?}, target address: {:?}, client address: {:?}",
-                    connection_id,
-                    source_address,
-                    target_address,
-                    agent_address
+                    "Connection [{connection_id}] fail to do domain resolve because of no data, source address: {source_address:?}, target address: {target_address:?}, client address: {agent_address:?}",
                 ))?;
                 let PayloadEncryptionTypeSelectResult { payload_encryption_type, .. } =
                     PayloadEncryptionTypeSelector::select(PayloadEncryptionTypeSelectRequest {
@@ -181,9 +175,9 @@ impl InitializeFlow {
                 let target_domain_name = domain_resolve_request.name.as_str();
                 let target_domain_port = domain_resolve_request.port.unwrap_or(80);
                 let target_domain_name = if target_domain_name.ends_with(".") {
-                    let new_target_domain_name = &target_domain_name[0..target_domain_name.len() - 1];
-                    debug!("Resolving domain name(end with .): {new_target_domain_name}");
-                    format!("{new_target_domain_name}:{target_domain_port}")
+                    let result = &target_domain_name[0..target_domain_name.len() - 1];
+                    debug!("Resolving domain name(end with .): {result}");
+                    format!("{result}:{target_domain_port}")
                 } else {
                     debug!("Resolving domain name(not end with .): {target_domain_name}");
                     format!("{target_domain_name}:{target_domain_port}")
@@ -209,7 +203,6 @@ impl InitializeFlow {
                         })
                         .await
                         .map_err(|err| anyhow!(err.source))?;
-
                         return Err(anyhow!( "Connection [{connection_id}] fail to resolve domain  because of error, source address: {source_address:?}, target address: {target_address:?}, client address: {agent_address:?}, error: {e:#?}"));
                     },
                     Ok(v) => {
@@ -223,7 +216,6 @@ impl InitializeFlow {
                         addresses
                     },
                 };
-
                 let domain_resolve_response = DomainResolveResponse {
                     id: domain_resolve_request.id,
                     name: domain_resolve_request.name,
@@ -231,14 +223,13 @@ impl InitializeFlow {
                     port: domain_resolve_request.port,
                 };
                 let domain_resolve_response_bytes = serde_json::to_vec(&domain_resolve_response)?;
-
                 let domain_resolve_success = MessagePayload {
                     source_address: source_address.clone(),
                     target_address: target_address.clone(),
                     payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::DomainResolveSuccess),
                     data: Some(domain_resolve_response_bytes.into()),
                 };
-                let message_framed_write = match MessageFramedWriter::write(WriteMessageFramedRequest {
+                let WriteMessageFramedResult { message_framed_write } =  MessageFramedWriter::write(WriteMessageFramedRequest {
                     message_framed_write,
                     message_payloads: Some(vec![domain_resolve_success]),
                     payload_encryption_type,
@@ -246,14 +237,13 @@ impl InitializeFlow {
                     ref_id: Some(message_id.as_str()),
                     connection_id: Some(connection_id),
                 })
-                .await
-                {
-                    Err(WriteMessageFramedError { source, .. }) => {
-                        error!("Connection [{}] fail to write domain resolve success to agent because of error, source address: {:?}, target address: {:?}, client address: {:?}", connection_id, source_address, target_address, agent_address);
-                        return Err(anyhow!(source));
-                    },
-                    Ok(WriteMessageFramedResult { message_framed_write }) => message_framed_write,
-                };
+                .await.map_err(|WriteMessageFramedError{
+                    source,
+                    ..
+                }|{
+                    error!("Connection [{}] fail to write domain resolve success to agent because of error, source address: {:?}, target address: {:?}, client address: {:?}", connection_id, source_address, target_address, agent_address);
+                    anyhow!(source)
+                })?;
                 return Ok(InitFlowResult::DomainResolve {
                     message_framed_write,
                     message_framed_read,
@@ -280,7 +270,6 @@ impl InitializeFlow {
                     "Connection [{}] begin tcp connect, source address: {:?}, target address: {:?}, client address: {:?}",
                     connection_id, source_address, target_address, agent_address
                 );
-
                 let TcpConnectFlowResult {
                     target_stream,
                     message_framed_read,
@@ -309,8 +298,7 @@ impl InitializeFlow {
                     anyhow!(source)
                 })?;
                 debug!(
-                    "Connection [{}] complete tcp connect, source address: {:?}, target address: {:?}, client address: {:?}",
-                    connection_id, source_address, target_address, agent_address
+                    "Connection [{connection_id}] complete tcp connect, source address: {source_address:?}, target address: {target_address:?}, client address: {agent_address:?}"
                 );
                 Ok(InitFlowResult::Tcp {
                     message_framed_write,
@@ -339,7 +327,7 @@ impl InitializeFlow {
                     }),
                 ..
             } => {
-                debug!("Connection [{}] begin udp associate, client address: {:?}", connection_id, source_address);
+                debug!("Connection [{connection_id}] begin udp associate, source address: {source_address:?}, agent address: {agent_address:?}");
                 let UdpAssociateFlowResult {
                     connection_id,
                     message_id,
@@ -347,7 +335,7 @@ impl InitializeFlow {
                     message_framed_read,
                     message_framed_write,
                     source_address,
-                    udp_binded_socket,
+                    udp_binding_socket,
                 } = UdpAssociateFlow::exec(
                     UdpAssociateFlowRequest {
                         message_framed_read,
@@ -365,14 +353,14 @@ impl InitializeFlow {
                     error!("Connection [{connection_id}] handle agent connection fail to do tcp connect because of error: {source:#?}.");
                     anyhow!(source)
                 })?;
-                debug!("Connection [{}] complete udp associate, client address: {:?}", connection_id, source_address);
+                debug!("Connection [{connection_id}] complete udp associate, source address: {source_address:?}, agent address: {agent_address:?}");
                 Ok(InitFlowResult::Udp {
                     message_framed_write,
                     message_framed_read,
                     message_id,
                     source_address,
                     user_token,
-                    udp_binded_socket,
+                    udp_binding_socket,
                 })
             },
             other => {
