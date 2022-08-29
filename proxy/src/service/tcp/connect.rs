@@ -3,8 +3,8 @@ use anyhow::Result;
 
 use common::{
     generate_uuid, MessageFramedRead, MessageFramedWrite, MessageFramedWriter, MessagePayload, NetAddress, PayloadEncryptionTypeSelectRequest,
-    PayloadEncryptionTypeSelectResult, PayloadEncryptionTypeSelector, PayloadType, ProxyMessagePayloadTypeValue, RsaCryptoFetcher, TcpConnectRequest,
-    TcpConnectResult, TcpConnector, WriteMessageFramedError, WriteMessageFramedRequest, WriteMessageFramedResult,
+    PayloadEncryptionTypeSelectResult, PayloadEncryptionTypeSelector, PayloadType, PpaassError, ProxyMessagePayloadTypeValue, RsaCryptoFetcher,
+    TcpConnectRequest, TcpConnectResult, TcpConnector, WriteMessageFramedError, WriteMessageFramedRequest, WriteMessageFramedResult,
 };
 
 use std::net::SocketAddr;
@@ -41,15 +41,10 @@ where
 }
 
 #[allow(unused)]
-pub(crate) struct TcpConnectFlowError<T>
-where
-    T: RsaCryptoFetcher,
-{
+pub(crate) struct TcpConnectFlowError {
     pub connection_id: String,
     pub message_id: String,
     pub user_token: String,
-    pub message_framed_read: MessageFramedRead<T, TcpStream>,
-    pub message_framed_write: MessageFramedWrite<T, TcpStream>,
     pub source_address: NetAddress,
     pub target_address: NetAddress,
     pub agent_address: SocketAddr,
@@ -72,57 +67,45 @@ impl TcpConnectFlow {
             ..
         }: TcpConnectFlowRequest<'_, T>,
         configuration: &ProxyConfig,
-    ) -> Result<TcpConnectFlowResult<T>, TcpConnectFlowError<T>>
+    ) -> Result<TcpConnectFlowResult<T>, TcpConnectFlowError>
     where
         T: RsaCryptoFetcher,
     {
         let target_stream_so_linger = configuration.target_stream_so_linger().unwrap_or(DEFAULT_TARGET_STREAM_SO_LINGER);
-        let payload_encryption_type = match PayloadEncryptionTypeSelector::select(PayloadEncryptionTypeSelectRequest {
+        let PayloadEncryptionTypeSelectResult { payload_encryption_type, .. } = PayloadEncryptionTypeSelector::select(PayloadEncryptionTypeSelectRequest {
             encryption_token: generate_uuid().into(),
             user_token,
         })
         .await
-        {
-            Ok(PayloadEncryptionTypeSelectResult { payload_encryption_type, .. }) => payload_encryption_type,
-            Err(e) => {
-                return Err(TcpConnectFlowError {
-                    connection_id: connection_id.to_owned(),
-                    message_id: message_id.to_owned(),
-                    user_token: user_token.to_owned(),
-                    source_address,
-                    target_address,
-                    message_framed_write,
-                    message_framed_read,
-                    agent_address,
-                    source: anyhow!(e),
-                });
-            },
-        };
-        let connect_addresses = match target_address.clone().try_into() {
-            Ok(v) => v,
-            Err(e) => {
-                return Err(TcpConnectFlowError {
-                    connection_id: connection_id.to_owned(),
-                    message_id: message_id.to_owned(),
-                    user_token: user_token.to_owned(),
-                    source_address,
-                    target_address,
-                    message_framed_write,
-                    message_framed_read,
-                    agent_address,
-                    source: anyhow!("{e:#?}"),
-                });
-            },
-        };
-        let connect_to_target_result = TcpConnector::connect(TcpConnectRequest {
+        .map_err(|e| TcpConnectFlowError {
+            connection_id: connection_id.to_owned(),
+            message_id: message_id.to_owned(),
+            user_token: user_token.to_owned(),
+            source_address: source_address.clone(),
+            target_address: target_address.clone(),
+            agent_address,
+            source: anyhow!(e),
+        })?;
+
+        let connect_addresses = target_address.clone().try_into().map_err(|e: PpaassError| TcpConnectFlowError {
+            connection_id: connection_id.to_owned(),
+            message_id: message_id.to_owned(),
+            user_token: user_token.to_owned(),
+            source_address: source_address.clone(),
+            target_address: target_address.clone(),
+            agent_address,
+            source: anyhow!(e),
+        })?;
+        let TcpConnectResult {
+            connected_stream: target_stream,
+        } = match TcpConnector::connect(TcpConnectRequest {
             connection_id: connection_id.to_owned(),
             connect_addresses,
             connected_stream_so_linger: target_stream_so_linger,
         })
-        .await;
-        let TcpConnectResult {
-            connected_stream: target_stream,
-        } = match connect_to_target_result {
+        .await
+        {
+            Ok(v) => v,
             Err(e) => {
                 error!("Connection [{connection_id}] fail connect to target: [{target_address:?}] because of error: {e:?}");
                 let connect_fail_payload = MessagePayload {
@@ -141,22 +124,18 @@ impl TcpConnectFlow {
                 })
                 .await
                 {
-                    Ok(WriteMessageFramedResult { message_framed_write, .. }) => {
+                    Ok(WriteMessageFramedResult { .. }) => {
                         return Err(TcpConnectFlowError {
                             connection_id: connection_id.to_owned(),
                             message_id: message_id.to_owned(),
                             user_token: user_token.to_owned(),
                             source_address,
                             target_address: target_address.clone(),
-                            message_framed_write,
-                            message_framed_read,
                             agent_address,
-                            source: anyhow!("Connection [{connection_id}] fail connect to target: [{target_address:?}] because of error: {e:?}"),
+                            source: anyhow!(e),
                         })
                     },
-                    Err(WriteMessageFramedError {
-                        source, message_framed_write, ..
-                    }) => {
+                    Err(WriteMessageFramedError { source, .. }) => {
                         error!("Connection [{connection_id}] fail to write connect fail result to agent because of error: {source:?}");
                         return Err(TcpConnectFlowError {
                             connection_id: connection_id.to_owned(),
@@ -164,15 +143,12 @@ impl TcpConnectFlow {
                             user_token: user_token.to_owned(),
                             source_address,
                             target_address,
-                            message_framed_write,
-                            message_framed_read,
                             agent_address,
                             source: anyhow!(source),
                         });
                     },
                 }
             },
-            Ok(v) => v,
         };
         debug!(
             "Connection [{}] agent address: {}, success connect to target {:#?}",
@@ -185,7 +161,7 @@ impl TcpConnectFlow {
             payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::TcpConnectSuccess),
             data: None,
         };
-        let message_framed_write = match MessageFramedWriter::write(WriteMessageFramedRequest {
+        let WriteMessageFramedResult { message_framed_write } = MessageFramedWriter::write(WriteMessageFramedRequest {
             message_framed_write,
             message_payloads: Some(vec![connect_success_payload]),
             payload_encryption_type,
@@ -194,24 +170,18 @@ impl TcpConnectFlow {
             connection_id: Some(connection_id),
         })
         .await
-        {
-            Err(WriteMessageFramedError {
-                source, message_framed_write, ..
-            }) => {
-                return Err(TcpConnectFlowError {
-                    connection_id: connection_id.to_owned(),
-                    message_id: message_id.to_owned(),
-                    user_token: user_token.to_owned(),
-                    source_address,
-                    target_address,
-                    message_framed_write,
-                    message_framed_read,
-                    agent_address,
-                    source: anyhow!(source),
-                });
-            },
-            Ok(WriteMessageFramedResult { message_framed_write }) => message_framed_write,
-        };
+        .map_err(|WriteMessageFramedError { source, .. }| {
+            error!("Connection [{connection_id}] fail to write connect success result to agent because of error: {source:#?}");
+            TcpConnectFlowError {
+                connection_id: connection_id.to_owned(),
+                message_id: message_id.to_owned(),
+                user_token: user_token.to_owned(),
+                source_address: source_address.clone(),
+                target_address: target_address.clone(),
+                agent_address,
+                source: anyhow!(source),
+            }
+        })?;
         Ok(TcpConnectFlowResult {
             target_stream,
             message_framed_read,

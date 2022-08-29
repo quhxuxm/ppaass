@@ -18,18 +18,18 @@ use std::{
 use tokio::net::{TcpStream, UdpSocket};
 
 use crate::{
-    config::ProxyConfig,
+    config::{ProxyConfig, self},
     service::{tcp::connect::TcpConnectFlowError, udp::associate::UdpAssociateFlowError},
 };
 
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 use super::{
     tcp::connect::{TcpConnectFlow, TcpConnectFlowRequest, TcpConnectFlowResult},
     udp::associate::{UdpAssociateFlow, UdpAssociateFlowRequest, UdpAssociateFlowResult},
 };
 
-const DEFAULT_AGENT_CONNECTION_READ_TIMEOUT: u64 = 1200;
+
 
 #[derive(Debug)]
 pub(crate) struct InitFlowRequest<'a, T, TcpStream>
@@ -90,7 +90,7 @@ impl InitializeFlow {
     where
         T: RsaCryptoFetcher + Send + Sync + Debug + 'static,
     {
-        let read_timeout = configuration.agent_connection_read_timeout().unwrap_or(DEFAULT_AGENT_CONNECTION_READ_TIMEOUT);
+        let read_timeout = configuration.agent_connection_read_timeout().unwrap_or(config::DEFAULT_AGENT_CONNECTION_READ_TIMEOUT);
         match MessageFramedReader::read(ReadMessageFramedRequest {
             connection_id: connection_id.clone(),
             message_framed_read,
@@ -375,8 +375,8 @@ impl InitializeFlow {
                     udp_binded_socket,
                 })
             },
-            read_message_framed_result => {
-                error!("Connection [{connection_id}] handle agent connection fail because of invalid message content:\n{read_message_framed_result:#?}\n.");
+            other => {
+                error!("Connection [{connection_id}] handle agent connection fail because of invalid message content:\n{other:#?}\n.");
                 Err(anyhow!(
                     "Connection [{connection_id}] handle agent connection fail because of invalid message content."
                 ))

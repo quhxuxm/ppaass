@@ -16,6 +16,7 @@ pub const DEFAULT_PROXY_CONFIG_FILE: &str = "ppaass-proxy.toml";
 pub const DEFAULT_SERVER_PORT: u16 = 80;
 pub const DEFAULT_BUFFER_SIZE: usize = 1024 * 64;
 pub const DEFAULT_COMPRESS_ENABLE: bool = true;
+pub const DEFAULT_AGENT_CONNECTION_READ_TIMEOUT: u64 = 1200;
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub(crate) struct ProxyLogConfig {
     /// The log directory
