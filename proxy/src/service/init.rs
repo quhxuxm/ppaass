@@ -130,22 +130,18 @@ impl InitializeFlow {
                     payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::HeartbeatSuccess),
                     data: None,
                 };
-                let message_framed_write = match MessageFramedWriter::write(WriteMessageFramedRequest {
+                let WriteMessageFramedResult { message_framed_write } =  MessageFramedWriter::write(WriteMessageFramedRequest {
                     message_framed_write,
                     message_payloads: Some(vec![heartbeat_success]),
                     payload_encryption_type,
                     user_token: user_token.as_str(),
-                    ref_id: Some(message_id.as_str()),
+                    ref_id: Some(message_id.as_str()), 
                     connection_id: Some(connection_id),
                 })
-                .await
-                {
-                    Err(WriteMessageFramedError { source, .. }) => {
-                        error!("Connection [{}] fail to write heartbeat success to agent because of error, source address: {:?}, target address: {:?}, client address: {:?}", connection_id, source_address, target_address, agent_address);
-                        return Err(anyhow!(source));
-                    },
-                    Ok(WriteMessageFramedResult { message_framed_write }) => message_framed_write,
-                };
+                .await.map_err(|WriteMessageFramedError { source, .. }|{
+                      error!("Connection [{}] fail to write heartbeat success to agent because of error, source address: {:?}, target address: {:?}, client address: {:?}", connection_id, source_address, target_address, agent_address);
+                        return anyhow!(source);
+                })?;
                 return Ok(InitFlowResult::Heartbeat {
                     message_framed_write,
                     message_framed_read,
