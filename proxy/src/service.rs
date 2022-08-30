@@ -159,7 +159,7 @@ impl AgentConnection {
                     user_token,
                     ..
                 } => {
-                    debug!("Connection [{connection_id}] going to do tcp relay, agent address: [{agent_address}], source address: [{source_address:?}], targt address: [{target_address:?}].");
+                    debug!("Connection [{connection_id}] going to do tcp relay, agent address: [{agent_address}], source address: [{source_address:?}], target address: [{target_address:?}].");
                     let TcpRelayFlowResult {
                         source_address,
                         target_address,
@@ -178,7 +178,7 @@ impl AgentConnection {
                         &configuration,
                     )
                     .await?;
-                    debug!("Connection [{connection_id}] finish tcp relay, agent address: [{agent_address}], source address: [{source_address:?}], targt address: [{target_address:?}].");
+                    debug!("Connection [{connection_id}] finish tcp relay, agent address: [{agent_address}], source address: [{source_address:?}], target address: [{target_address:?}].");
                     break;
                 },
                 InitFlowResult::Udp {
@@ -186,7 +186,7 @@ impl AgentConnection {
                     message_framed_write,
                     message_id,
                     user_token,
-                    udp_binding_socket: udp_binded_socket,
+                    udp_binding_socket,
                     ..
                 } => {
                     debug!("Connection [{}] is going to handle udp relay.", connection_id);
@@ -201,7 +201,7 @@ impl AgentConnection {
                             message_framed_write,
                             message_id: message_id.as_str(),
                             user_token: user_token.as_str(),
-                            udp_binding_socket: udp_binded_socket,
+                            udp_binding_socket,
                         },
                         &configuration,
                     )
@@ -211,7 +211,6 @@ impl AgentConnection {
                 },
             }
         }
-
         Ok(())
     }
 }
