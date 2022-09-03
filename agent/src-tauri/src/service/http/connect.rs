@@ -140,7 +140,10 @@ impl HttpConnectFlow {
             },
             Some(v) => v.to_string(),
         };
-        let target_address = NetAddress::Domain(target_host, target_port);
+        let target_address = NetAddress::Domain {
+            host: target_host.into_bytes(),
+            port: target_port,
+        };
         let proxy_connection = match proxy_connection_pool.fetch_connection().await {
             Err(e) => {
                 Self::send_error_to_client(&client_connection_id, http_client_framed).await?;

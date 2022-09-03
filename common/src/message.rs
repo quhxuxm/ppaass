@@ -35,18 +35,19 @@ const DOMAIN_TYPE: u8 = 2;
 
 /// The net address
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
 pub enum NetAddress {
     /// Ip v4 net address
-    IpV4([u8; 4], u16),
+    IpV4 { host: [u8; 4], port: u16 },
     /// Ip v6 net address
-    IpV6([u8; 16], u16),
+    IpV6 { host: [u8; 16], port: u16 },
     /// Domain net address
-    Domain(String, u16),
+    Domain { host: Vec<u8>, port: u16 },
 }
 
 impl Default for NetAddress {
     fn default() -> Self {
-        IpV4([0, 0, 0, 0], 0)
+        IpV4 { host: [0, 0, 0, 0], port: 0 }
     }
 }
 
@@ -76,13 +77,13 @@ impl ToSocketAddrs for NetAddress {
 
     fn to_socket_addrs(&self) -> std::io::Result<Self::Iter> {
         match self {
-            Self::IpV4(ip, port) => {
-                let socket_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(ip[0], ip[1], ip[2], ip[3]), *port));
+            Self::IpV4 { host, port } => {
+                let socket_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(host[0], host[1], host[2], host[3]), *port));
                 let elements = vec![socket_addr];
                 Ok(SocketAddrIter::new(elements))
             },
-            Self::IpV6(ip, port) => {
-                let mut cursor = Cursor::new(ip);
+            Self::IpV6 { host, port } => {
+                let mut cursor = Cursor::new(host);
                 let socket_addr = SocketAddr::V6(SocketAddrV6::new(
                     Ipv6Addr::new(
                         cursor.get_u16(),
@@ -101,8 +102,8 @@ impl ToSocketAddrs for NetAddress {
                 let elements = vec![socket_addr];
                 Ok(SocketAddrIter::new(elements))
             },
-            Self::Domain(host, port) => {
-                let addresses = format!("{}:{}", host, port).to_socket_addrs()?.collect::<Vec<_>>();
+            Self::Domain { host, port } => {
+                let addresses = format!("{}:{}", String::from_utf8_lossy(host), port).to_socket_addrs()?.collect::<Vec<_>>();
                 Ok(SocketAddrIter::new(addresses))
             },
         }
@@ -112,11 +113,11 @@ impl ToSocketAddrs for NetAddress {
 impl ToString for NetAddress {
     fn to_string(&self) -> String {
         match self {
-            Self::IpV4(ip_content, port) => {
-                format!("{}.{}.{}.{}:{}", ip_content[0], ip_content[1], ip_content[2], ip_content[3], port)
+            Self::IpV4 { host, port } => {
+                format!("{}.{}.{}.{}:{}", host[0], host[1], host[2], host[3], port)
             },
-            Self::IpV6(ip_content, port) => {
-                let mut cursor = Cursor::new(ip_content);
+            Self::IpV6 { host, port } => {
+                let mut cursor = Cursor::new(host);
                 format!(
                     "{:x}:{:x}:{:x}:{:x}:{:x}:{:x}:{:x}:{:x}:{}",
                     cursor.get_u16(),
@@ -130,8 +131,8 @@ impl ToString for NetAddress {
                     port
                 )
             },
-            Self::Domain(host, port) => {
-                format!("{}:{}", host, port)
+            Self::Domain { host, port } => {
+                format!("{}:{}", String::from_utf8_lossy(host), port)
             },
         }
     }
@@ -141,12 +142,12 @@ impl TryFrom<NetAddress> for Vec<SocketAddr> {
     type Error = PpaassError;
     fn try_from(net_address: NetAddress) -> Result<Self, PpaassError> {
         match net_address {
-            NetAddress::IpV4(ip, port) => {
-                let socket_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(ip[0], ip[1], ip[2], ip[3]), port));
+            NetAddress::IpV4 { host, port } => {
+                let socket_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(host[0], host[1], host[2], host[3]), port));
                 Ok(vec![socket_addr])
             },
-            NetAddress::IpV6(ip, port) => {
-                let mut ip_cursor = Cursor::new(ip);
+            NetAddress::IpV6 { host, port } => {
+                let mut ip_cursor = Cursor::new(host);
                 let socket_addr = SocketAddr::V6(SocketAddrV6::new(
                     Ipv6Addr::new(
                         ip_cursor.get_u16(),
@@ -164,8 +165,8 @@ impl TryFrom<NetAddress> for Vec<SocketAddr> {
                 ));
                 Ok(vec![socket_addr])
             },
-            NetAddress::Domain(host, port) => {
-                let addresses = format!("{}:{}", host, port).to_socket_addrs()?.collect::<Vec<_>>();
+            NetAddress::Domain { host, port } => {
+                let addresses = format!("{}:{}", String::from_utf8_lossy(&host), port).to_socket_addrs()?.collect::<Vec<_>>();
                 Ok(addresses)
             },
         }
@@ -176,14 +177,21 @@ impl From<SocketAddr> for NetAddress {
     fn from(value: SocketAddr) -> Self {
         let ip_address = value.ip();
         match ip_address {
-            IpAddr::V4(addr) => Self::IpV4(addr.octets(), value.port()),
-            IpAddr::V6(addr) => Self::IpV6(addr.octets(), value.port()),
+            IpAddr::V4(addr) => Self::IpV4 {
+                host: addr.octets(),
+                port: value.port(),
+            },
+            IpAddr::V6(addr) => Self::IpV6 {
+                host: addr.octets(),
+                port: value.port(),
+            },
         }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum PayloadEncryptionType {
+#[serde(tag = "type", content = "token")]
+pub enum PayloadEncryption {
     Plain,
     Aes(Vec<u8>),
 }
@@ -219,6 +227,7 @@ pub enum PayloadType {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MessagePayload {
     /// The source address
     pub source_address: Option<NetAddress>,
@@ -266,6 +275,7 @@ impl TryFrom<Vec<u8>> for MessagePayload {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 /// The message
 pub struct Message {
     /// The message id
@@ -277,7 +287,7 @@ pub struct Message {
     /// The user token
     pub user_token: String,
     /// The payload encryption type
-    pub payload_encryption_type: PayloadEncryptionType,
+    pub payload_encryption: PayloadEncryption,
     /// The payload
     pub payload: Option<Vec<u8>>,
 }
@@ -359,6 +369,7 @@ impl From<Vec<Message>> for MessageStream {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DomainResolveRequest {
     pub name: String,
     pub id: i32,
@@ -366,6 +377,7 @@ pub struct DomainResolveRequest {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DomainResolveResponse {
     pub id: i32,
     pub name: String,

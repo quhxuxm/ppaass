@@ -11,7 +11,7 @@ use tokio_util::codec::{Decoder, Encoder};
 use tracing::{debug, error, trace};
 
 use crate::crypto::{decrypt_with_aes, encrypt_with_aes, RsaCryptoFetcher};
-use crate::{Message, PayloadEncryptionType, PpaassError};
+use crate::{Message, PayloadEncryption, PpaassError};
 
 const PPAASS_FLAG: &[u8] = "__PPAASS__".as_bytes();
 
@@ -111,8 +111,8 @@ where
             PpaassError::CodecError
         })?;
         debug!("Decode input message (before decrypt): {:?}", message);
-        match message.payload_encryption_type {
-            PayloadEncryptionType::Aes(ref encryption_token) => match message.payload {
+        match message.payload_encryption {
+            PayloadEncryption::Aes(ref encryption_token) => match message.payload {
                 None => {
                     debug!("Nothing to decrypt for aes.")
                 },
@@ -122,7 +122,7 @@ where
                     message.payload = Some(decrypt_payload);
                 },
             },
-            PayloadEncryptionType::Plain => {},
+            PayloadEncryption::Plain => {},
         };
         debug!("Decode input message (after decrypt): {:?}", message);
         self.status = DecodeStatus::Head;
@@ -163,16 +163,16 @@ where
             ref_id,
             connection_id,
             user_token,
-            payload_encryption_type,
+            payload_encryption: payload_encryption_type,
             payload,
         } = original_message;
         let rsa_crypto = self.rsa_crypto_fetcher.fetch(user_token.as_str())?.ok_or(PpaassError::CodecError)?;
         let (encrypted_payload, encrypted_payload_encryption_type) = match payload_encryption_type {
-            PayloadEncryptionType::Plain => (payload, PayloadEncryptionType::Plain),
-            PayloadEncryptionType::Aes(ref original_token) => {
+            PayloadEncryption::Plain => (payload, PayloadEncryption::Plain),
+            PayloadEncryption::Aes(ref original_token) => {
                 let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token)?;
                 let encrypted_payload_content = encrypt_with_aes(original_token, &payload.unwrap());
-                (Some(encrypted_payload_content), PayloadEncryptionType::Aes(encrypted_payload_encryption_token))
+                (Some(encrypted_payload_content), PayloadEncryption::Aes(encrypted_payload_encryption_token))
             },
         };
         let message_to_encode = Message {
@@ -180,7 +180,7 @@ where
             ref_id,
             connection_id,
             user_token,
-            payload_encryption_type: encrypted_payload_encryption_type,
+            payload_encryption: encrypted_payload_encryption_type,
             payload: encrypted_payload,
         };
         let result_bytes: Vec<u8> = message_to_encode.try_into()?;

@@ -119,7 +119,7 @@ impl Socks5FlowProcessor {
                 proxy_connection_id,
             } => {
                 let udp_address = associated_udp_socket.local_addr()?;
-                let target_address = common::NetAddress::IpV4([0, 0, 0, 0], 0);
+                let target_address = common::NetAddress::IpV4 { host: [0, 0, 0, 0], port: 0 };
                 let Socks5UdpRelayFlowResult { .. } = Socks5UdpRelayFlow::exec(
                     Socks5UdpRelayFlowRequest {
                         associated_udp_socket,

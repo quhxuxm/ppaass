@@ -16,7 +16,7 @@ use tokio_util::codec::Framed;
 
 use tracing::{debug, error, info, trace};
 
-use crate::{crypto::RsaCryptoFetcher, generate_uuid, Message, MessageCodec, MessagePayload, MessageStream, PayloadEncryptionType, PpaassError};
+use crate::{crypto::RsaCryptoFetcher, generate_uuid, Message, MessageCodec, MessagePayload, MessageStream, PayloadEncryption, PpaassError};
 
 pub type MessageFramedRead<T, S> = SplitStream<Framed<S, MessageCodec<T>>>;
 pub type MessageFramedWrite<T, S> = SplitSink<Framed<S, MessageCodec<T>>, Message>;
@@ -57,7 +57,7 @@ where
     pub ref_id: Option<&'a str>,
     pub connection_id: Option<&'a str>,
     pub user_token: &'a str,
-    pub payload_encryption_type: PayloadEncryptionType,
+    pub payload_encryption_type: PayloadEncryption,
 }
 
 impl<'a, T, S> Debug for WriteMessageFramedRequest<'a, T, S>
@@ -116,7 +116,7 @@ impl MessageFramedWriter {
                 ref_id: ref_id.map(|v| v.to_string()),
                 connection_id: connection_id.map(|v| v.to_string()),
                 user_token: user_token.to_string(),
-                payload_encryption_type: payload_encryption_type.clone(),
+                payload_encryption: payload_encryption_type.clone(),
                 payload: Some(vec![]),
             }],
             Some(payloads) => payloads
@@ -130,7 +130,7 @@ impl MessageFramedWriter {
                                 ref_id: ref_id.map(|v| v.to_string()),
                                 connection_id: connection_id.map(|v| v.to_string()),
                                 user_token: user_token.to_string(),
-                                payload_encryption_type: payload_encryption_type.clone(),
+                                payload_encryption: payload_encryption_type.clone(),
                                 payload: Some(vec![]),
                             };
                         },
@@ -141,7 +141,7 @@ impl MessageFramedWriter {
                         ref_id: ref_id.map(|v| v.to_string()),
                         connection_id: connection_id.map(|v| v.to_string()),
                         user_token: user_token.to_string(),
-                        payload_encryption_type: payload_encryption_type.clone(),
+                        payload_encryption: payload_encryption_type.clone(),
                         payload: Some(payload),
                     }
                 })
@@ -286,7 +286,7 @@ pub struct PayloadEncryptionTypeSelectRequest<'a> {
 pub struct PayloadEncryptionTypeSelectResult {
     pub user_token: String,
     pub encryption_token: Bytes,
-    pub payload_encryption_type: PayloadEncryptionType,
+    pub payload_encryption_type: PayloadEncryption,
 }
 
 pub struct PayloadEncryptionTypeSelector;
@@ -295,7 +295,7 @@ impl PayloadEncryptionTypeSelector {
     pub async fn select<'a>(request: PayloadEncryptionTypeSelectRequest<'a>) -> Result<PayloadEncryptionTypeSelectResult, PpaassError> {
         let PayloadEncryptionTypeSelectRequest { user_token, encryption_token } = request;
         Ok(PayloadEncryptionTypeSelectResult {
-            payload_encryption_type: PayloadEncryptionType::Aes(encryption_token.to_vec()),
+            payload_encryption_type: PayloadEncryption::Aes(encryption_token.to_vec()),
             user_token: user_token.to_owned(),
             encryption_token,
         })

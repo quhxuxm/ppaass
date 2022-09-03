@@ -316,9 +316,9 @@ impl From<Socks5Addr> for Bytes {
 impl From<Socks5Addr> for NetAddress {
     fn from(value: Socks5Addr) -> Self {
         match value {
-            Socks5Addr::IpV4(ip_bytes, port) => NetAddress::IpV4(ip_bytes, port),
-            Socks5Addr::IpV6(ip_bytes, port) => NetAddress::IpV6(ip_bytes, port),
-            Socks5Addr::Domain(host, port) => NetAddress::Domain(host, port),
+            Socks5Addr::IpV4(host, port) => NetAddress::IpV4 { host, port },
+            Socks5Addr::IpV6(host, port) => NetAddress::IpV6 { host, port },
+            Socks5Addr::Domain(host, port) => NetAddress::Domain { host: host.into_bytes(), port },
         }
     }
 }
@@ -326,9 +326,9 @@ impl From<Socks5Addr> for NetAddress {
 impl From<NetAddress> for Socks5Addr {
     fn from(net_addr: NetAddress) -> Self {
         match net_addr {
-            NetAddress::IpV4(ip, port) => Socks5Addr::IpV4(ip, port),
-            NetAddress::IpV6(ip, port) => Socks5Addr::IpV6(ip, port),
-            NetAddress::Domain(host, port) => Socks5Addr::Domain(host, port),
+            NetAddress::IpV4 { host, port } => Socks5Addr::IpV4(host, port),
+            NetAddress::IpV6 { host, port } => Socks5Addr::IpV6(host, port),
+            NetAddress::Domain { host, port } => Socks5Addr::Domain(String::from_utf8_lossy(&host).to_string(), port),
         }
     }
 }

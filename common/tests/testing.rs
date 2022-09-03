@@ -4,8 +4,52 @@ mod testing {
 
     use bytes::{Buf, Bytes};
 
-    use common::{decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_with_blowfish, generate_uuid, PpaassError, RsaCrypto};
+    use common::{
+        decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_with_blowfish, generate_uuid, AgentMessagePayloadTypeValue, Message, MessagePayload,
+        NetAddress, PpaassError, ProxyMessagePayloadTypeValue, RsaCrypto,
+    };
 
+    #[test]
+    fn test_format_message_payload_to_json() -> Result<(), PpaassError> {
+        let message_payload = MessagePayload {
+            source_address: Some(NetAddress::IpV4 { host: [1, 1, 1, 1], port: 10 }),
+            target_address: Some(NetAddress::IpV4 { host: [2, 2, 2, 2], port: 20 }),
+            payload_type: common::PayloadType::AgentPayload(AgentMessagePayloadTypeValue::TcpConnect),
+            data: Some(vec![0, 1, 2, 3, 4, 5]),
+        };
+        println!("{}", serde_json::to_string(&message_payload).map_err(|e| PpaassError::CodecError)?);
+        let message_payload = MessagePayload {
+            source_address: Some(NetAddress::IpV4 { host: [1, 1, 1, 1], port: 10 }),
+            target_address: Some(NetAddress::IpV4 { host: [2, 2, 2, 2], port: 20 }),
+            payload_type: common::PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::TcpConnectSuccess),
+            data: Some(vec![0, 1, 2, 3, 4, 5]),
+        };
+        println!("{}", serde_json::to_string(&message_payload).map_err(|e| PpaassError::CodecError)?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_message_to_json() -> Result<(), PpaassError> {
+        let message = Message {
+            id: "id".to_string(),
+            connection_id: Some("connectionId".to_string()),
+            ref_id: Some("refId".to_string()),
+            user_token: "userToken".to_string(),
+            payload_encryption: common::PayloadEncryption::Aes(vec![0, 1, 2, 3, 4]),
+            payload: Some(vec![0, 1, 2, 3, 4, 5]),
+        };
+        println!("{}", serde_json::to_string(&message).map_err(|e| PpaassError::CodecError)?);
+        let message = Message {
+            id: "id".to_string(),
+            connection_id: Some("connectionId".to_string()),
+            ref_id: Some("refId".to_string()),
+            user_token: "userToken".to_string(),
+            payload_encryption: common::PayloadEncryption::Plain,
+            payload: Some(vec![0, 1, 2, 3, 4, 5]),
+        };
+        println!("{}", serde_json::to_string(&message).map_err(|e| PpaassError::CodecError)?);
+        Ok(())
+    }
     #[test]
     fn test4() -> Result<(), PpaassError> {
         let socket_addrs = "incoming.telemetry.mozilla.org:80".to_socket_addrs()?;
