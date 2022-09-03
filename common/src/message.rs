@@ -42,7 +42,11 @@ pub enum NetAddress {
     /// Ip v6 net address
     IpV6 { host: [u8; 16], port: u16 },
     /// Domain net address
-    Domain { host: Vec<u8>, port: u16 },
+    Domain {
+        #[serde(with = "serde_vu8_base64")]
+        host: Vec<u8>,
+        port: u16,
+    },
 }
 
 impl Default for NetAddress {
@@ -236,6 +240,7 @@ pub struct MessagePayload {
     /// The payload type
     pub payload_type: PayloadType,
     /// The data
+    #[serde(with = "serde_optionvu8_base64")]
     pub data: Option<Vec<u8>>,
 }
 
@@ -289,6 +294,7 @@ pub struct Message {
     /// The payload encryption type
     pub payload_encryption: PayloadEncryption,
     /// The payload
+    #[serde(with = "serde_optionvu8_base64")]
     pub payload: Option<Vec<u8>>,
 }
 
@@ -383,4 +389,39 @@ pub struct DomainResolveResponse {
     pub name: String,
     pub port: Option<u16>,
     pub addresses: Vec<[u8; 4]>,
+}
+
+mod serde_optionvu8_base64 {
+    use serde::{Deserialize, Serialize};
+    use serde::{Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(v: &Option<Vec<u8>>, s: S) -> Result<S::Ok, S::Error> {
+        let base64 = match v {
+            Some(v) => Some(base64::encode(v)),
+            None => None,
+        };
+        <Option<String>>::serialize(&base64, s)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<u8>>, D::Error> {
+        let base64 = <Option<String>>::deserialize(d)?;
+        match base64 {
+            Some(v) => base64::decode(v.as_bytes()).map(|v| Some(v)).map_err(|e| serde::de::Error::custom(e)),
+            None => Ok(None),
+        }
+    }
+}
+mod serde_vu8_base64 {
+    use serde::{Deserialize, Serialize};
+    use serde::{Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(v: &Vec<u8>, s: S) -> Result<S::Ok, S::Error> {
+        let base64 = base64::encode(v);
+        String::serialize(&base64, s)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
+        let base64 = String::deserialize(d)?;
+        base64::decode(base64.as_bytes()).map_err(|e| serde::de::Error::custom(e))
+    }
 }
