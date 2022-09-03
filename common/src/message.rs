@@ -38,9 +38,17 @@ const DOMAIN_TYPE: u8 = 2;
 #[serde(tag = "type", content = "value")]
 pub enum NetAddress {
     /// Ip v4 net address
-    IpV4 { host: [u8; 4], port: u16 },
+    IpV4 {
+        #[serde(with = "serde_u8_l4_base64")]
+        host: [u8; 4],
+        port: u16,
+    },
     /// Ip v6 net address
-    IpV6 { host: [u8; 16], port: u16 },
+    IpV6 {
+        #[serde(with = "serde_u8_l16_base64")]
+        host: [u8; 16],
+        port: u16,
+    },
     /// Domain net address
     Domain {
         #[serde(with = "serde_vu8_base64")]
@@ -225,6 +233,7 @@ pub enum ProxyMessagePayloadTypeValue {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum PayloadType {
     AgentPayload(AgentMessagePayloadTypeValue),
     ProxyPayload(ProxyMessagePayloadTypeValue),
@@ -246,11 +255,12 @@ pub struct MessagePayload {
 
 impl Debug for MessagePayload {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let data_size = self.data.as_ref().unwrap_or(&vec![]).len();
         f.debug_struct("MessagePayload")
             .field("source_address", &self.source_address)
             .field("target_address", &self.target_address)
             .field("payload_type", &self.payload_type)
-            .field("data", &format!("\n\n{}\n", pretty_hex(self.data.as_ref().unwrap_or(&vec![]))))
+            .field("data", &format!("[...omit(size={})...]", data_size))
             .finish()
     }
 }
@@ -272,7 +282,10 @@ impl TryFrom<Vec<u8>> for MessagePayload {
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
         let result = serde_json::from_slice(value.as_ref()).map_err(|e| {
-            error!("Fail to convert bytes to message payload object because of error: {e:#?}");
+            error!(
+                "Fail to convert bytes to message payload object because of error: {e:?}, input bytes: \n{}\n",
+                pretty_hex(&value)
+            );
             PpaassError::CodecError
         })?;
         Ok(result)
@@ -300,13 +313,14 @@ pub struct Message {
 
 impl Debug for Message {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let payload_size = self.payload.as_ref().unwrap_or(&vec![]).len();
         f.debug_struct("Message")
             .field("id", &self.id)
             .field("ref_id", &self.ref_id)
             .field("connection_id", &self.connection_id)
             .field("user_token", &self.user_token)
             .field("payload_encryption_type", &"[...omit...]")
-            .field("payload", &"[... omit ...]")
+            .field("payload", &format!("[... omit(size={})...]", payload_size))
             .finish()
     }
 }
@@ -388,6 +402,7 @@ pub struct DomainResolveResponse {
     pub id: i32,
     pub name: String,
     pub port: Option<u16>,
+    #[serde(with = "serde_vec_u8_l4_base64")]
     pub addresses: Vec<[u8; 4]>,
 }
 
@@ -412,16 +427,109 @@ mod serde_optionvu8_base64 {
     }
 }
 mod serde_vu8_base64 {
+    use pretty_hex::pretty_hex;
     use serde::{Deserialize, Serialize};
     use serde::{Deserializer, Serializer};
+    use tracing::trace;
 
     pub fn serialize<S: Serializer>(v: &Vec<u8>, s: S) -> Result<S::Ok, S::Error> {
+        trace!("Serialize json bytes array field:\n{}\n", pretty_hex(&v));
         let base64 = base64::encode(v);
         String::serialize(&base64, s)
     }
 
     pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
         let base64 = String::deserialize(d)?;
-        base64::decode(base64.as_bytes()).map_err(|e| serde::de::Error::custom(e))
+        let result = base64::decode(base64.as_bytes()).map_err(|e| serde::de::Error::custom(e))?;
+        trace!("Deserialize json bytes array field:\n{}\n", pretty_hex(&result));
+        Ok(result)
+    }
+}
+
+mod serde_u8_l4_base64 {
+    use pretty_hex::pretty_hex;
+    use serde::{Deserialize, Serialize};
+    use serde::{Deserializer, Serializer};
+    use tracing::trace;
+
+    pub fn serialize<S: Serializer>(v: &[u8; 4], s: S) -> Result<S::Ok, S::Error> {
+        trace!("Serialize json bytes array field:\n{}\n", pretty_hex(&v));
+        let base64 = base64::encode(v);
+        String::serialize(&base64, s)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<[u8; 4], D::Error> {
+        let base64 = String::deserialize(d)?;
+        let decode_result = base64::decode(base64.as_bytes()).map_err(|e| serde::de::Error::custom(e))?;
+        if decode_result.len() != 4 {
+            return Err(serde::de::Error::custom("The length of the result is not equale to 4."));
+        }
+        trace!("Deserialize json bytes array field:\n{}\n", pretty_hex(&decode_result));
+        let mut result = [0u8; 4];
+        result.copy_from_slice(&decode_result);
+        Ok(result)
+    }
+}
+
+mod serde_u8_l16_base64 {
+    use pretty_hex::pretty_hex;
+    use serde::{Deserialize, Serialize};
+    use serde::{Deserializer, Serializer};
+    use tracing::trace;
+
+    pub fn serialize<S: Serializer>(v: &[u8; 16], s: S) -> Result<S::Ok, S::Error> {
+        trace!("Serialize json bytes array field:\n{}\n", pretty_hex(&v));
+        let base64 = base64::encode(v);
+        String::serialize(&base64, s)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<[u8; 16], D::Error> {
+        let base64 = String::deserialize(d)?;
+        let decode_result = base64::decode(base64.as_bytes()).map_err(|e| serde::de::Error::custom(e))?;
+        if decode_result.len() != 16 {
+            return Err(serde::de::Error::custom("The length of the result is not equale to 4."));
+        }
+        trace!("Deserialize json bytes array field:\n{}\n", pretty_hex(&decode_result));
+        let mut result = [0u8; 16];
+        result.copy_from_slice(&decode_result);
+        Ok(result)
+    }
+}
+
+mod serde_vec_u8_l4_base64 {
+    use pretty_hex::pretty_hex;
+    use serde::{Deserialize, Serialize};
+    use serde::{Deserializer, Serializer};
+    use tracing::trace;
+
+    pub fn serialize<S: Serializer>(v: &Vec<[u8; 4]>, s: S) -> Result<S::Ok, S::Error> {
+        let mut base64_container = vec![];
+        v.iter().for_each(|v| {
+            trace!("Serialize json bytes array field:\n{}\n", pretty_hex(v));
+            let base64 = base64::encode(v);
+            base64_container.push(base64);
+        });
+        Vec::serialize(&base64_container, s)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<[u8; 4]>, D::Error> {
+        let base64_vec = Vec::<String>::deserialize(d)?;
+        let mut result = vec![];
+        base64_vec.iter().for_each(|base64| {
+            let decode_result = match base64::decode(base64.as_bytes()) {
+                Ok(v) => v,
+                Err(e) => {
+                    return;
+                },
+            };
+            if decode_result.len() != 4 {
+                return;
+            }
+            trace!("Deserialize json bytes array field:\n{}\n", pretty_hex(&decode_result));
+            let mut ipv4 = [0u8; 4];
+            ipv4.copy_from_slice(&decode_result);
+            result.push(ipv4);
+        });
+        Ok(result)
     }
 }

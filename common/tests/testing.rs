@@ -5,24 +5,57 @@ mod testing {
     use bytes::{Buf, Bytes};
 
     use common::{
-        decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_with_blowfish, generate_uuid, AgentMessagePayloadTypeValue, Message, MessagePayload,
-        NetAddress, PpaassError, ProxyMessagePayloadTypeValue, RsaCrypto,
+        decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_with_blowfish, generate_uuid, AgentMessagePayloadTypeValue, DomainResolveResponse,
+        Message, MessagePayload, NetAddress, PpaassError, ProxyMessagePayloadTypeValue, RsaCrypto,
     };
+
+    #[test]
+    fn test_parse_message_payload() -> Result<(), PpaassError> {
+        let result = serde_json::from_slice::<MessagePayload>("{\"payloadType\":\"TcpConnect\",\"sourceAddress\":{\"type\":\"IpV4\",\"value\":{\"host\":\"wKgfyA==\",\"port\":9097}},\"targetAddress\":{\"type\":\"IpV4\",\"value\":{\"host\":\"wKgfyA==\",\"port\":65522}},\"data\":\"aGVsbG8=\"}".as_bytes()).map_err(|e|{
+            println!("ERROR: {:#?}",e);
+            PpaassError::CodecError
+        })?;
+        println!("{:#?}", result);
+        Ok(())
+    }
+    #[test]
+    fn test_format_domain_resolve_response_to_json() -> Result<(), PpaassError> {
+        let domain_resolve_response = DomainResolveResponse {
+            id: 65534,
+            name: "www.baidu.com".to_string(),
+            port: Some(80),
+            addresses: vec![[192, 168, 31, 200], [192, 168, 31, 201], [192, 168, 31, 202]],
+        };
+        println!("{}", serde_json::to_string(&domain_resolve_response).map_err(|e| PpaassError::CodecError)?);
+        Ok(())
+    }
 
     #[test]
     fn test_format_message_payload_to_json() -> Result<(), PpaassError> {
         let message_payload = MessagePayload {
-            source_address: Some(NetAddress::IpV4 { host: [1, 1, 1, 1], port: 10 }),
-            target_address: Some(NetAddress::IpV4 { host: [2, 2, 2, 2], port: 20 }),
+            source_address: Some(NetAddress::IpV4 {
+                host: [192, 168, 31, 200],
+                port: 65522,
+            }),
+            target_address: Some(NetAddress::IpV4 {
+                host: [192, 168, 31, 200],
+                port: 9097,
+            }),
             payload_type: common::PayloadType::AgentPayload(AgentMessagePayloadTypeValue::TcpConnect),
-            data: Some(vec![0, 1, 2, 3, 4, 5]),
+            data: Some("hello".as_bytes().to_vec()),
         };
         println!("{}", serde_json::to_string(&message_payload).map_err(|e| PpaassError::CodecError)?);
         let message_payload = MessagePayload {
-            source_address: Some(NetAddress::IpV4 { host: [1, 1, 1, 1], port: 10 }),
-            target_address: Some(NetAddress::IpV4 { host: [2, 2, 2, 2], port: 20 }),
+            source_address: Some(NetAddress::IpV4 {
+                host: [192, 168, 31, 200],
+                port: 65522,
+            }),
+            target_address: Some(NetAddress::IpV4 {
+                host: [192, 168, 31, 200],
+                port: 65522,
+            }),
             payload_type: common::PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::TcpConnectSuccess),
-            data: Some(vec![0, 1, 2, 3, 4, 5]),
+            data: Some("hello".as_bytes().to_vec()),
         };
         println!("{}", serde_json::to_string(&message_payload).map_err(|e| PpaassError::CodecError)?);
         Ok(())

@@ -170,7 +170,7 @@ impl InitializeFlow {
                         user_token: user_token.as_str(),
                     })
                     .await?;
-                let domain_resolve_request: DomainResolveRequest = serde_json::from_slice(&data)?;
+                let domain_resolve_request: DomainResolveRequest = serde_json::from_slice(data.as_ref())?;
                 let target_domain_name = domain_resolve_request.name.as_str();
                 let target_domain_port = domain_resolve_request.port.unwrap_or(80);
                 let target_domain_name = if target_domain_name.ends_with(".") {
