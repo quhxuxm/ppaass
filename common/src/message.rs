@@ -197,7 +197,7 @@ impl From<SocketAddr> for NetAddress {
 #[serde(tag = "type", content = "token")]
 pub enum PayloadEncryption {
     Plain,
-    Aes(Vec<u8>),
+    Aes(#[serde(with = "serde_vu8_base64")] Vec<u8>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
