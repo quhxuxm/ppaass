@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use bytes::{Buf, BufMut, Bytes, BytesMut};
+use bytes::{Buf, BufMut, BytesMut};
 use lz4::block::{compress, decompress};
 use pretty_hex::*;
 use tokio_util::codec::{Decoder, Encoder};
@@ -104,7 +104,7 @@ where
             let decompress_result = decompress(body_bytes.chunk(), None)?;
             decompress_result.try_into()?
         } else {
-            body_bytes.try_into()?
+            body_bytes.to_vec().try_into()?
         };
         let rsa_crypto = self.rsa_crypto_fetcher.fetch(message.user_token.as_str())?.ok_or_else(|| {
             error!("Fail to get user rsa crypto because of not exist, user token: {}", message.user_token);
@@ -118,8 +118,8 @@ where
                 },
                 Some(content) => {
                     let original_encryption_token = rsa_crypto.decrypt(encryption_token)?;
-                    let decrypt_payload = decrypt_with_aes(original_encryption_token.chunk(), content.chunk())?;
-                    message.payload = Some(Bytes::from(decrypt_payload));
+                    let decrypt_payload = decrypt_with_aes(original_encryption_token.as_ref(), content.as_ref())?;
+                    message.payload = Some(decrypt_payload);
                 },
             },
             PayloadEncryptionType::Plain => {},
@@ -147,15 +147,15 @@ where
             dst.put_u8(0);
         }
         if original_message.payload.is_none() {
-            let result_bytes: Bytes = original_message.into();
+            let result_bytes: Vec<u8> = original_message.try_into()?;
             let result_bytes = if self.compress {
-                Bytes::from(compress(result_bytes.chunk(), None, true)?)
+                compress(result_bytes.as_ref(), None, true)?
             } else {
                 result_bytes
             };
             let result_bytes_length = result_bytes.len();
             dst.put_u64(result_bytes_length as u64);
-            dst.put(result_bytes);
+            dst.put(result_bytes.as_ref());
             return Ok(());
         }
         let Message {
@@ -172,22 +172,26 @@ where
             PayloadEncryptionType::Aes(ref original_token) => {
                 let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token)?;
                 let encrypted_payload_content = encrypt_with_aes(original_token, &payload.unwrap());
-                (
-                    Some(Bytes::from(encrypted_payload_content)),
-                    PayloadEncryptionType::Aes(encrypted_payload_encryption_token),
-                )
+                (Some(encrypted_payload_content), PayloadEncryptionType::Aes(encrypted_payload_encryption_token))
             },
         };
-        let message_to_encode = Message::new(id, ref_id, connection_id, user_token, encrypted_payload_encryption_type, encrypted_payload);
-        let result_bytes: Bytes = message_to_encode.into();
+        let message_to_encode = Message {
+            id,
+            ref_id,
+            connection_id,
+            user_token,
+            payload_encryption_type: encrypted_payload_encryption_type,
+            payload: encrypted_payload,
+        };
+        let result_bytes: Vec<u8> = message_to_encode.try_into()?;
         let result_bytes = if self.compress {
-            Bytes::from(compress(result_bytes.chunk(), None, true)?)
+            compress(&result_bytes, None, true)?
         } else {
             result_bytes
         };
         let result_bytes_length = result_bytes.len();
         dst.put_u64(result_bytes_length as u64);
-        dst.put(result_bytes);
+        dst.put(result_bytes.as_ref());
         Ok(())
     }
 }

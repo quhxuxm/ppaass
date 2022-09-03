@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use anyhow::Result;
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use futures::{SinkExt, StreamExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
@@ -312,12 +312,11 @@ impl TcpRelayFlow {
             let payload_data_chunks = payload_data.chunks(configuration.message_framed_buffer_size().unwrap_or(DEFAULT_BUFFER_SIZE));
             let mut payloads = vec![];
             for (_, chunk) in payload_data_chunks.enumerate() {
-                let chunk_data = Bytes::copy_from_slice(chunk);
                 let payload = MessagePayload {
                     source_address: Some(source_address.clone()),
                     target_address: Some(target_address.clone()),
                     payload_type: PayloadType::AgentPayload(AgentMessagePayloadTypeValue::TcpData),
-                    data: Some(chunk_data),
+                    data: Some(chunk.to_vec()),
                 };
                 payloads.push(payload)
             }
@@ -352,7 +351,7 @@ impl TcpRelayFlow {
         T: RsaCryptoFetcher + Debug,
     {
         loop {
-            let mut proxy_raw_data = match MessageFramedReader::read(ReadMessageFramedRequest {
+            let proxy_raw_data = match MessageFramedReader::read(ReadMessageFramedRequest {
                 connection_id,
                 message_framed_read,
                 timeout: None,
@@ -386,7 +385,7 @@ impl TcpRelayFlow {
                 Ok(ReadMessageFramedResult { .. }) => return Err(anyhow!("Connection [{connection_id}] read invalid data from proxy.")),
             };
 
-            client_stream_write.write_all_buf(&mut proxy_raw_data).await?;
+            client_stream_write.write_all(proxy_raw_data.as_ref()).await?;
             client_stream_write.flush().await?;
         }
     }

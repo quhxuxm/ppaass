@@ -1,7 +1,7 @@
 use std::{fmt::Debug, net::ToSocketAddrs, sync::Arc};
 
 use anyhow::Result;
-use bytes::Bytes;
+
 use common::{
     generate_uuid, AgentMessagePayloadTypeValue, MessageFramedRead, MessageFramedReader, MessageFramedWrite, MessageFramedWriter, MessagePayload,
     PayloadEncryptionTypeSelectRequest, PayloadEncryptionTypeSelectResult, PayloadEncryptionTypeSelector, PayloadType, ProxyMessagePayloadTypeValue,
@@ -148,7 +148,7 @@ impl UdpRelayFlow {
                                     pretty_hex(&received_data)
                                 );
                                 let message_payload = MessagePayload {
-                                    data: Some(Bytes::copy_from_slice(received_data)),
+                                    data: Some(received_data.to_vec()),
                                     payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpData),
                                     source_address: source_address.clone(),
                                     target_address: Some(target_address.clone()),

@@ -21,6 +21,7 @@ rsa = "0.6"
 # rust-crypto = "0.2"
 serde = "1"
 serde_derive = "1"
+serde_json = "1"
 thiserror = "1"
 tokio = {version = "1", features = ["time", "net"]}
 tokio-util = {version = "0.7", features = ["codec"]}

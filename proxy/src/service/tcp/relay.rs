@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::net::SocketAddr;
 
 use anyhow::{anyhow, Result};
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use futures::SinkExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
@@ -152,7 +152,7 @@ impl TcpRelayFlow {
         T: RsaCryptoFetcher + Send + Sync + Debug + 'static,
     {
         loop {
-            let mut agent_data;
+            let agent_data;
             (message_framed_read, agent_data) = match MessageFramedReader::read(ReadMessageFramedRequest {
                 connection_id,
                 message_framed_read,
@@ -209,7 +209,7 @@ impl TcpRelayFlow {
                     ));
                 },
             };
-            target_write.write_all_buf(&mut agent_data).await?;
+            target_write.write_all(agent_data.as_ref()).await?;
             target_write.flush().await?;
         }
     }
@@ -259,12 +259,11 @@ impl TcpRelayFlow {
             let payload_data_chunks = payload_data.chunks(message_framed_buffer_size);
             let mut payloads = vec![];
             for (_, chunk) in payload_data_chunks.enumerate() {
-                let chunk_data = Bytes::copy_from_slice(chunk);
                 let proxy_message_payload = MessagePayload {
                     source_address: Some(source_address.clone()),
                     target_address: Some(target_address.clone()),
                     payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::TcpData),
-                    data: Some(chunk_data),
+                    data: Some(chunk.to_vec()),
                 };
                 payloads.push(proxy_message_payload)
             }

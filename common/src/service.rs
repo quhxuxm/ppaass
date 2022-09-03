@@ -111,25 +111,39 @@ impl MessageFramedWriter {
             payload_encryption_type,
         } = request;
         let messages = match message_payloads {
-            None => vec![Message::new(
-                generate_uuid(),
-                ref_id,
-                connection_id.map(|v| v.to_owned()),
-                user_token,
-                payload_encryption_type,
-                None::<Bytes>,
-            )],
+            None => vec![Message {
+                id: generate_uuid(),
+                ref_id: ref_id.map(|v| v.to_string()),
+                connection_id: connection_id.map(|v| v.to_string()),
+                user_token: user_token.to_string(),
+                payload_encryption_type: payload_encryption_type.clone(),
+                payload: Some(vec![]),
+            }],
             Some(payloads) => payloads
                 .into_iter()
                 .map(|item| {
-                    Message::new(
-                        generate_uuid(),
-                        ref_id.clone(),
-                        connection_id.map(|v| v.to_owned()),
-                        user_token.clone(),
-                        payload_encryption_type.clone(),
-                        Some(item),
-                    )
+                    let payload = match item.try_into() {
+                        Err(e) => {
+                            error!("Fail to convert message payload to bytes because of error: {e:#?}");
+                            return Message {
+                                id: generate_uuid(),
+                                ref_id: ref_id.map(|v| v.to_string()),
+                                connection_id: connection_id.map(|v| v.to_string()),
+                                user_token: user_token.to_string(),
+                                payload_encryption_type: payload_encryption_type.clone(),
+                                payload: Some(vec![]),
+                            };
+                        },
+                        Ok(v) => v,
+                    };
+                    Message {
+                        id: generate_uuid(),
+                        ref_id: ref_id.map(|v| v.to_string()),
+                        connection_id: connection_id.map(|v| v.to_string()),
+                        user_token: user_token.to_string(),
+                        payload_encryption_type: payload_encryption_type.clone(),
+                        payload: Some(payload),
+                    }
                 })
                 .collect::<Vec<_>>(),
         };
@@ -281,7 +295,7 @@ impl PayloadEncryptionTypeSelector {
     pub async fn select<'a>(request: PayloadEncryptionTypeSelectRequest<'a>) -> Result<PayloadEncryptionTypeSelectResult, PpaassError> {
         let PayloadEncryptionTypeSelectRequest { user_token, encryption_token } = request;
         Ok(PayloadEncryptionTypeSelectResult {
-            payload_encryption_type: PayloadEncryptionType::Aes(encryption_token.clone()),
+            payload_encryption_type: PayloadEncryptionType::Aes(encryption_token.to_vec()),
             user_token: user_token.to_owned(),
             encryption_token,
         })

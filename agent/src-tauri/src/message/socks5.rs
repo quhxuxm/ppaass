@@ -401,7 +401,7 @@ impl Socks5InitCommandResultContent {
 pub(crate) struct Socks5UdpDataPacket {
     pub frag: u8,
     pub address: Socks5Addr,
-    pub data: Bytes,
+    pub data: Vec<u8>,
 }
 
 impl TryFrom<Bytes> for Socks5UdpDataPacket {
@@ -428,7 +428,11 @@ impl TryFrom<Bytes> for Socks5UdpDataPacket {
             Ok(v) => v,
         };
         let data = src.copy_to_bytes(src.remaining());
-        Ok(Socks5UdpDataPacket { frag, address, data })
+        Ok(Socks5UdpDataPacket {
+            frag,
+            address,
+            data: data.to_vec(),
+        })
     }
 }
 
@@ -438,7 +442,7 @@ impl From<Socks5UdpDataPacket> for Bytes {
         result.put_u16(0);
         result.put_u8(packet.frag);
         result.put::<Bytes>(packet.address.into());
-        result.put(packet.data);
+        result.put(packet.data.as_ref());
         result.freeze()
     }
 }

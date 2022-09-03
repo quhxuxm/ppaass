@@ -3,7 +3,7 @@ use std::path::Path;
 
 use aes::Aes256;
 use blowfish::Blowfish;
-use bytes::Bytes;
+
 use cipher::{block_padding::Pkcs7, BlockEncryptMut};
 use cipher::{BlockDecryptMut, KeyInit};
 
@@ -69,24 +69,20 @@ impl RsaCrypto {
         Ok(Self { public_key, private_key })
     }
 
-    pub fn encrypt(&self, target: &Bytes) -> Result<Bytes, PpaassError> {
+    pub fn encrypt(&self, target: &[u8]) -> Result<Vec<u8>, PpaassError> {
         self.public_key
-            .encrypt(&mut OsRng, PaddingScheme::PKCS1v15Encrypt, target)
+            .encrypt(&mut OsRng, PaddingScheme::PKCS1v15Encrypt, target.as_ref())
             .map_err(|e| {
                 error!("Fail to encrypt data with rsa because of error: {:#?}", e);
                 PpaassError::CodecError
             })
-            .map(|v| v.into())
     }
 
-    pub fn decrypt(&self, target: &Bytes) -> Result<Bytes, PpaassError> {
-        self.private_key
-            .decrypt(PaddingScheme::PKCS1v15Encrypt, target)
-            .map_err(|e| {
-                error!("Fail to decrypt data with rsa because of error: {:#?}", e);
-                PpaassError::CodecError
-            })
-            .map(|v| v.into())
+    pub fn decrypt(&self, target: &[u8]) -> Result<Vec<u8>, PpaassError> {
+        self.private_key.decrypt(PaddingScheme::PKCS1v15Encrypt, target.as_ref()).map_err(|e| {
+            error!("Fail to decrypt data with rsa because of error: {:#?}", e);
+            PpaassError::CodecError
+        })
     }
 }
 
