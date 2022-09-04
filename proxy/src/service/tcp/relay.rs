@@ -262,7 +262,7 @@ impl TcpRelayFlow {
                 let proxy_message_payload = MessagePayload {
                     source_address: Some(source_address.clone()),
                     target_address: Some(target_address.clone()),
-                    payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::TcpData),
+                    payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::TcpDataSuccess),
                     data: Some(chunk.to_vec()),
                 };
                 payloads.push(proxy_message_payload)

@@ -368,7 +368,7 @@ impl TcpRelayFlow {
                             message_payload:
                                 Some(MessagePayload {
                                     data: Some(data),
-                                    payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::TcpData),
+                                    payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::TcpDataSuccess),
                                     ..
                                 }),
                             ..

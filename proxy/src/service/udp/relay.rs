@@ -149,7 +149,7 @@ impl UdpRelayFlow {
                                 );
                                 let message_payload = MessagePayload {
                                     data: Some(received_data.to_vec()),
-                                    payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpData),
+                                    payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpDataSuccess),
                                     source_address: source_address.clone(),
                                     target_address: Some(target_address.clone()),
                                 };

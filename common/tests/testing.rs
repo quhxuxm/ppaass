@@ -11,7 +11,7 @@ mod testing {
 
     #[test]
     fn test_parse_message_payload() -> Result<(), PpaassError> {
-        let result = serde_json::from_slice::<MessagePayload>("{\"payloadType\":\"TcpConnect\",\"sourceAddress\":{\"type\":\"IpV4\",\"value\":{\"host\":\"wKgfyA==\",\"port\":9097}},\"targetAddress\":{\"type\":\"IpV4\",\"value\":{\"host\":\"wKgfyA==\",\"port\":65522}},\"data\":\"aGVsbG8=\"}".as_bytes()).map_err(|e|{
+        let result = serde_json::from_slice::<MessagePayload>("{\"payloadType\":\"TcpDataSuccess\",\"sourceAddress\":{\"type\":\"IpV4\",\"value\":{\"host\":\"wKgfyA==\",\"port\":9097}},\"targetAddress\":{\"type\":\"Domain\",\"value\":{\"host\":\"d3d3LnlvdXR1YmUuY29t\",\"port\":65522}},\"data\":\"aGVsbG8=\"}".as_bytes()).map_err(|e|{
             println!("ERROR: {:#?}",e);
             PpaassError::CodecError
         })?;
@@ -37,11 +37,11 @@ mod testing {
                 host: [192, 168, 31, 200],
                 port: 65522,
             }),
-            target_address: Some(NetAddress::IpV4 {
-                host: [192, 168, 31, 200],
+            target_address: Some(NetAddress::Domain {
+                host: "www.youtube.com".as_bytes().to_vec(),
                 port: 9097,
             }),
-            payload_type: common::PayloadType::AgentPayload(AgentMessagePayloadTypeValue::TcpConnect),
+            payload_type: common::PayloadType::AgentPayload(AgentMessagePayloadTypeValue::TcpData),
             data: Some("hello".as_bytes().to_vec()),
         };
         println!("{}", serde_json::to_string(&message_payload).map_err(|e| PpaassError::CodecError)?);

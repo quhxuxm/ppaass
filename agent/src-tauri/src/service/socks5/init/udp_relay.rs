@@ -163,7 +163,7 @@ impl Socks5UdpRelayFlow {
                                     Some(MessagePayload {
                                         source_address: Some(source_address),
                                         target_address: Some(target_address),
-                                        payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpData),
+                                        payload_type: PayloadType::ProxyPayload(ProxyMessagePayloadTypeValue::UdpDataSuccess),
                                         data: Some(data),
                                     }),
                                 ..

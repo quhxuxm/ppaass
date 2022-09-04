@@ -178,7 +178,8 @@ impl TryFrom<NetAddress> for Vec<SocketAddr> {
                 Ok(vec![socket_addr])
             },
             NetAddress::Domain { host, port } => {
-                let addresses = format!("{}:{}", String::from_utf8_lossy(&host), port).to_socket_addrs()?.collect::<Vec<_>>();
+                let address_string = format!("{}:{}", String::from_utf8_lossy(&host), port);
+                let addresses = address_string.to_socket_addrs()?.collect::<Vec<_>>();
                 Ok(addresses)
             },
         }
@@ -222,10 +223,10 @@ pub enum AgentMessagePayloadTypeValue {
 pub enum ProxyMessagePayloadTypeValue {
     TcpConnectSuccess,
     TcpConnectFail,
-    TcpData,
+    TcpDataSuccess,
     UdpAssociateSuccess,
     UdpAssociateFail,
-    UdpData,
+    UdpDataSuccess,
     UdpDataRelayFail,
     DomainResolveSuccess,
     DomainResolveFail,
