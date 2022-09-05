@@ -172,14 +172,13 @@ impl InitializeFlow {
                     .await?;
                 let domain_resolve_request: DomainResolveRequest = serde_json::from_slice(data.as_ref())?;
                 let target_domain_name = domain_resolve_request.name.as_str();
-                let target_domain_port = domain_resolve_request.port.unwrap_or(80);
                 let target_domain_name = if target_domain_name.ends_with(".") {
                     let result = &target_domain_name[0..target_domain_name.len() - 1];
                     debug!("Resolving domain name(end with .): {result}");
-                    format!("{result}:{target_domain_port}")
+                    format!("{result}")
                 } else {
                     debug!("Resolving domain name(not end with .): {target_domain_name}");
-                    format!("{target_domain_name}:{target_domain_port}")
+                    format!("{target_domain_name}")
                 };
                 let (message_framed_write, message_framed_read) = async move {
                     return match target_domain_name.to_socket_addrs() {
@@ -217,7 +216,6 @@ impl InitializeFlow {
                                 id: domain_resolve_request.id,
                                 name: domain_resolve_request.name,
                                 addresses,
-                                port: domain_resolve_request.port,
                             };
                             let domain_resolve_response_bytes = serde_json::to_vec(&domain_resolve_response)?;
                             let domain_resolve_success = MessagePayload {
