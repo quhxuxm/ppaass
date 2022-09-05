@@ -175,10 +175,10 @@ impl InitializeFlow {
                 let target_domain_name = if target_domain_name.ends_with(".") {
                     let result = &target_domain_name[0..target_domain_name.len() - 1];
                     debug!("Resolving domain name(end with .): {result}");
-                    format!("{result}")
+                    format!("{result}:80")
                 } else {
                     debug!("Resolving domain name(not end with .): {target_domain_name}");
-                    format!("{target_domain_name}")
+                    format!("{target_domain_name}:80")
                 };
                 let (message_framed_write, message_framed_read) = async move {
                     return match target_domain_name.to_socket_addrs() {
