@@ -9,6 +9,10 @@ version = "0.1.0"
 bytes = "*"
 futures = "*"
 futures-util = {version = "*", features = ["alloc"]}
+serde = "*"
+serde_derive = "*"
+serde_json = "*"
+thiserror = "*"
 tokio = {version = "*", features = ["time", "net"]}
 tokio-util = {version = "*", features = ["codec"]}
 tracing = "*"
