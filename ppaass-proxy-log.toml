@@ -1,3 +1,0 @@
-log_dir = "./log"
-log_file = "ppaass-proxy.log"
-max_log_level = "error"

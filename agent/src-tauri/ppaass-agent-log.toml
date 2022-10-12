@@ -1,3 +1,0 @@
-log_dir = "./log"
-log_file = "ppaass-agent.log"
-max_log_level = "INFO"
