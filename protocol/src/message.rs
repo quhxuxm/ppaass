@@ -12,14 +12,14 @@ pub use encryption::*;
 pub use payload::*;
 pub use types::*;
 
-use crate::serializer::convert_vecu8_to_base64;
+use crate::serializer::vec_u8_to_base64;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PpaassMessage {
     id: String,
     user_token: String,
     payload_encryption: PpaassMessagePayloadEncryption,
-    #[serde(with = "convert_vecu8_to_base64")]
+    #[serde(with = "vec_u8_to_base64")]
     payload_bytes: Vec<u8>,
 }
 

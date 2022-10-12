@@ -1,3 +1,5 @@
+use crate::serializer::array_u8_l16_to_base64;
+use crate::serializer::array_u8_l4_to_base64;
 use bytes::Buf;
 use ppaass_common::PpaassError;
 use serde_derive::{Deserialize, Serialize};
@@ -6,12 +8,22 @@ use std::{
     io::Cursor,
     net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6, ToSocketAddrs},
 };
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum PpaassProtocolAddress {
-    IpV4 { ip: [u8; 4], port: u16 },
-    IpV6 { ip: [u8; 16], port: u16 },
-    Domain { host: String, port: u16 },
+    IpV4 {
+        #[serde(with = "array_u8_l4_to_base64")]
+        ip: [u8; 4],
+        port: u16,
+    },
+    IpV6 {
+        #[serde(with = "array_u8_l16_to_base64")]
+        ip: [u8; 16],
+        port: u16,
+    },
+    Domain {
+        host: String,
+        port: u16,
+    },
 }
 
 pub struct SocketAddrIter {
