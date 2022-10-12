@@ -15,6 +15,7 @@ pub use types::*;
 use crate::serializer::vec_u8_to_base64;
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct PpaassMessage {
     id: String,
     user_token: String,
@@ -31,6 +32,22 @@ impl PpaassMessage {
             payload_encryption,
             payload_bytes,
         }
+    }
+
+    pub fn get_id(&self) -> &str {
+        &self.id
+    }
+
+    pub fn get_user_token(&self) -> &str {
+        &self.user_token
+    }
+
+    pub fn get_payload_encryption(&self) -> &PpaassMessagePayloadEncryption {
+        &self.payload_encryption
+    }
+
+    pub fn get_payload_bytes(&self) -> &[u8] {
+        &self.payload_bytes
     }
 }
 

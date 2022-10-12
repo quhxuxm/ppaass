@@ -17,6 +17,7 @@ pub enum PayloadAdditionalInfoValue {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PpaassMessagePayload {
     payload_type: PpaassMessagePayloadType,
     source_address: Option<PpaassProtocolAddress>,

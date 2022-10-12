@@ -8,7 +8,7 @@ use ppaass_protocol::{
 #[test]
 fn test_serialize_message() -> Result<(), Box<dyn Error>> {
     let message = ppaass_protocol::PpaassMessage::new("user1".to_string(), PpaassMessagePayloadEncryption::Aes(vec![1, 2, 3]), vec![1, 2, 3]);
-    println!("{}", serde_json::to_string(&message)?);
+    println!("{}", serde_json::to_string_pretty(&message)?);
     Ok(())
 }
 
@@ -27,12 +27,12 @@ fn test_serialize_message_payload() -> Result<(), Box<dyn Error>> {
     );
     message_payload.add_additional_info(
         PayloadAdditionalInfoKey::ReferenceMessageId,
-        PayloadAdditionalInfoValue::ReferenceMessageIdValue("reference_message_id1".to_string()),
+        PayloadAdditionalInfoValue::ReferenceMessageIdValue("reference_message_id_01".to_string()),
     );
     message_payload.add_additional_info(
         PayloadAdditionalInfoKey::ReferenceMessageId,
-        PayloadAdditionalInfoValue::ReferenceMessageIdValue("reference_message_id2".to_string()),
+        PayloadAdditionalInfoValue::ReferenceMessageIdValue("reference_message_id_02".to_string()),
     );
-    println!("{}", serde_json::to_string(&message_payload)?);
+    println!("{}", serde_json::to_string_pretty(&message_payload)?);
     Ok(())
 }
