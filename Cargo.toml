@@ -1,2 +1,14 @@
 [workspace]
-members = ["proxy", "agent/src-tauri", "common", "util"]
+members = ["proxy", "agent-android", "agent-desktop", "protocol", "common"]
+[workspace.package]
+authors = ["Hao Qu"]
+description = "A security network channel"
+documentation = "https://github.com/quhxuxm/ppaass"
+version = "0.1.0"
+[workspace.dependencies]
+bytes = "*"
+futures = "*"
+futures-util = {version = "*", features = ["alloc"]}
+tokio = {version = "*", features = ["time", "net"]}
+tokio-util = {version = "*", features = ["codec"]}
+tracing = "*"
