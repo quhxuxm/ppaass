@@ -1,4 +1,8 @@
 /// The general error happen in ppaass project.
+
+type StdIoError = std::io::Error;
+type StdIoErrorKind = std::io::ErrorKind;
+
 #[derive(thiserror::Error, Debug)]
 pub enum PpaassError {
     #[error("Codec error happen.")]
@@ -6,12 +10,15 @@ pub enum PpaassError {
     #[error("Error happen, original io error: {:?}", source)]
     IoError {
         #[from]
-        source: std::io::Error,
+        source: StdIoError,
     },
 }
 
-impl From<PpaassError> for std::io::Error {
-    fn from(_: PpaassError) -> Self {
-        todo!()
+impl From<PpaassError> for StdIoError {
+    fn from(value: PpaassError) -> Self {
+        match value {
+            PpaassError::CodecError => StdIoError::new(StdIoErrorKind::InvalidData, value),
+            PpaassError::IoError { source } => source,
+        }
     }
 }

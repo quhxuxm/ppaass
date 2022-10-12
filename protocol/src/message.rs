@@ -1,4 +1,4 @@
-use ppaass_common::PpaassError;
+use ppaass_common::{generate_uuid, PpaassError};
 use serde_derive::{Deserialize, Serialize};
 use tracing::error;
 
@@ -12,12 +12,26 @@ pub use encryption::*;
 pub use payload::*;
 pub use types::*;
 
+use crate::serializer::convert_vecu8_to_base64;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PpaassMessage {
     id: String,
     user_token: String,
     payload_encryption: PpaassMessagePayloadEncryption,
+    #[serde(with = "convert_vecu8_to_base64")]
     payload_bytes: Vec<u8>,
+}
+
+impl PpaassMessage {
+    pub fn new(user_token: String, payload_encryption: PpaassMessagePayloadEncryption, payload_bytes: Vec<u8>) -> Self {
+        Self {
+            id: generate_uuid(),
+            user_token,
+            payload_encryption,
+            payload_bytes,
+        }
+    }
 }
 
 impl TryFrom<Vec<u8>> for PpaassMessage {

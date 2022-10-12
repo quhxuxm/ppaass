@@ -4,7 +4,7 @@ use ppaass_common::PpaassError;
 use serde_derive::{Deserialize, Serialize};
 use tracing::error;
 
-use crate::{PpaassMessagePayloadType, PpaassProtocolAddress};
+use crate::{serializer::convert_vecu8_to_base64, PpaassMessagePayloadType, PpaassProtocolAddress};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum PayloadAdditionalInfoKey {
@@ -22,6 +22,7 @@ pub struct PpaassMessagePayload {
     source_address: Option<PpaassProtocolAddress>,
     target_address: Option<PpaassProtocolAddress>,
     additional_info: HashMap<PayloadAdditionalInfoKey, PayloadAdditionalInfoValue>,
+    #[serde(with = "convert_vecu8_to_base64")]
     data: Vec<u8>,
 }
 
