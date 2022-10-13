@@ -18,7 +18,7 @@ pub(crate) enum ProxyServerManagementCommand {
     Start,
 }
 pub(crate) struct ProxyServerManager {
-    manager_runtime: Option<Runtime>,
+    command_monitor_runtime: Option<Runtime>,
     command_sender: Sender<ProxyServerManagementCommand>,
     command_receiver: Receiver<ProxyServerManagementCommand>,
     server: Option<ProxyServer>,
@@ -27,10 +27,10 @@ pub(crate) struct ProxyServerManager {
 impl ProxyServerManager {
     pub(crate) fn new() -> Result<Self> {
         let mut manager_runtime_builder = Builder::new_current_thread();
-        let manager_runtime = manager_runtime_builder.build()?;
+        let command_monitor_runtime = manager_runtime_builder.build()?;
         let (command_sender, command_receiver) = std_mpsc_channel::<ProxyServerManagementCommand>();
         Ok(Self {
-            manager_runtime: Some(manager_runtime),
+            command_monitor_runtime: Some(command_monitor_runtime),
             command_sender,
             command_receiver,
             server: None,
@@ -65,8 +65,8 @@ impl ProxyServerManager {
     }
 
     fn start_command_monitor(mut self, config: Arc<ProxyServerConfig>) {
-        let manager_runtime = self.manager_runtime.take().unwrap();
-        manager_runtime.spawn_blocking::<_, Result<(), anyhow::Error>>(move || loop {
+        let command_monitor_runtime = self.command_monitor_runtime.take().unwrap();
+        command_monitor_runtime.spawn_blocking::<_, Result<(), anyhow::Error>>(move || loop {
             let command = self.command_receiver.recv()?;
             match command {
                 ProxyServerManagementCommand::Restart | ProxyServerManagementCommand::Start => {
