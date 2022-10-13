@@ -4,7 +4,6 @@ use std::{fs, io::Read};
 use rand::rngs::OsRng;
 use rsa::pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding};
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
-use tracing::error;
 
 use crate::PpaassError;
 
@@ -47,19 +46,11 @@ impl RsaCrypto {
     }
 
     pub fn encrypt(&self, target: &[u8]) -> Result<Vec<u8>, PpaassError> {
-        self.public_key
-            .encrypt(&mut OsRng, PaddingScheme::PKCS1v15Encrypt, target.as_ref())
-            .map_err(|e| {
-                error!("Fail to encrypt data with rsa because of error: {:#?}", e);
-                PpaassError::CodecError
-            })
+        Ok(self.public_key.encrypt(&mut OsRng, PaddingScheme::PKCS1v15Encrypt, target.as_ref())?)
     }
 
     pub fn decrypt(&self, target: &[u8]) -> Result<Vec<u8>, PpaassError> {
-        self.private_key.decrypt(PaddingScheme::PKCS1v15Encrypt, target.as_ref()).map_err(|e| {
-            error!("Fail to decrypt data with rsa because of error: {:#?}", e);
-            PpaassError::CodecError
-        })
+        Ok(self.private_key.decrypt(PaddingScheme::PKCS1v15Encrypt, target.as_ref())?)
     }
 }
 

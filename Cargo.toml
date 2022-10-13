@@ -7,20 +7,24 @@ documentation = "https://github.com/quhxuxm/ppaass"
 version = "0.1.0"
 [workspace.dependencies]
 aes = "*"
+anyhow = "*"
 base64 = "*"
 blowfish = "*"
 bytes = "*"
 cipher = "*"
+clap = "*"
 ecb = {version = "*", features = ["std"]}
 futures = "*"
 futures-util = {version = "*", features = ["alloc"]}
+hotwatch = "*"
 rand = "*"
 rsa = "*"
 serde = "*"
 serde_derive = "*"
 serde_json = "*"
 thiserror = "*"
-tokio = {version = "*", features = ["time", "net"]}
-tokio-util = {version = "*", features = ["codec"]}
+tokio = "*"
+tokio-util = "*"
+toml = "*"
 tracing = "*"
 uuid = {version = "*", features = ["v4"]}

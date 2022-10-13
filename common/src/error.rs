@@ -22,6 +22,11 @@ pub enum PpaassError {
         #[from]
         source: rsa::pkcs8::Error,
     },
+    #[error("RSA error happen, original io error: {:?}", source)]
+    RsaError {
+        #[from]
+        source: rsa::errors::Error,
+    },
     #[error("Cipher padding error happen, original io error: {:?}", source)]
     CipherPaddingError {
         #[from]
@@ -37,6 +42,7 @@ impl From<PpaassError> for StdIoError {
             PpaassError::RsaPublicKeyError { source } => StdIoError::new(StdIoErrorKind::InvalidData, source),
             PpaassError::RsaPrivateKeyError { source } => StdIoError::new(StdIoErrorKind::InvalidData, source),
             PpaassError::CipherPaddingError { source } => StdIoError::new(StdIoErrorKind::InvalidData, source),
+            PpaassError::RsaError { source } => StdIoError::new(StdIoErrorKind::InvalidData, source),
         }
     }
 }
