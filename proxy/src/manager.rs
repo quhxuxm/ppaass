@@ -64,7 +64,7 @@ impl ProxyServerManager {
     pub(crate) fn exec(mut self) -> Result<()> {
         let arguments = ProxyServerArguments::parse();
         let config = self.prepare_config(&arguments)?;
-        self.manager_runtime.spawn_blocking(move || {
+        self.manager_runtime.spawn_blocking::<_, Result<(), anyhow::Error>>(move || {
             if let None = self.server {
                 info!("Begin to initialize the Proxy Server");
                 let proxy_server = ProxyServer::new()?;
@@ -91,7 +91,6 @@ impl ProxyServerManager {
                     },
                 }
             }
-            Ok::<(), anyhow::Error>(())
         });
         Ok(())
     }
