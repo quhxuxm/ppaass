@@ -17,9 +17,5 @@ pub fn encrypt_with_aes(encryption_token: &[u8], target: &[u8]) -> Vec<u8> {
 
 pub fn decrypt_with_aes(encryption_token: &[u8], target: &[u8]) -> Result<Vec<u8>, PpaassError> {
     let decryptor = AesDecryptor::new(encryption_token.into());
-    let result = match decryptor.decrypt_padded_vec_mut::<PaddingMode>(target) {
-        Ok(result) => result,
-        Err(_) => return Err(PpaassError::CodecError),
-    };
-    Ok(result)
+    Ok(decryptor.decrypt_padded_vec_mut::<PaddingMode>(target)?)
 }
