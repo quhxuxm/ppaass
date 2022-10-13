@@ -24,6 +24,13 @@ pub struct PpaassMessage {
     payload_bytes: Vec<u8>,
 }
 
+pub struct PpaassMessageParts {
+    pub id: String,
+    pub user_token: String,
+    pub payload_encryption: PpaassMessagePayloadEncryption,
+    pub payload_bytes: Vec<u8>,
+}
+
 impl PpaassMessage {
     pub fn new(user_token: String, payload_encryption: PpaassMessagePayloadEncryption, payload_bytes: Vec<u8>) -> Self {
         Self {
@@ -46,8 +53,24 @@ impl PpaassMessage {
         &self.payload_encryption
     }
 
-    pub fn get_payload_bytes(&self) -> &[u8] {
-        &self.payload_bytes
+    pub fn split(self) -> PpaassMessageParts {
+        PpaassMessageParts {
+            id: self.id,
+            user_token: self.user_token,
+            payload_encryption: self.payload_encryption,
+            payload_bytes: self.payload_bytes,
+        }
+    }
+}
+
+impl From<PpaassMessageParts> for PpaassMessage {
+    fn from(value: PpaassMessageParts) -> Self {
+        Self {
+            id: value.id,
+            user_token: value.user_token,
+            payload_encryption: value.payload_encryption,
+            payload_bytes: value.payload_bytes,
+        }
     }
 }
 

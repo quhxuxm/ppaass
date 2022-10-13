@@ -27,6 +27,14 @@ pub struct PpaassMessagePayload {
     data: Vec<u8>,
 }
 
+pub struct PpaassMessagePayloadParts {
+    pub payload_type: PpaassMessagePayloadType,
+    pub source_address: Option<PpaassProtocolAddress>,
+    pub target_address: Option<PpaassProtocolAddress>,
+    pub additional_info: HashMap<PayloadAdditionalInfoKey, PayloadAdditionalInfoValue>,
+    pub data: Vec<u8>,
+}
+
 impl PpaassMessagePayload {
     pub fn new(
         source_address: Option<PpaassProtocolAddress>, target_address: Option<PpaassProtocolAddress>, payload_type: PpaassMessagePayloadType, data: Vec<u8>,
@@ -60,8 +68,26 @@ impl PpaassMessagePayload {
         &self.payload_type
     }
 
-    pub fn get_data(&self) -> &Vec<u8> {
-        &self.data
+    pub fn split(self) -> PpaassMessagePayloadParts {
+        PpaassMessagePayloadParts {
+            data: self.data,
+            payload_type: self.payload_type,
+            source_address: self.source_address,
+            target_address: self.target_address,
+            additional_info: self.additional_info,
+        }
+    }
+}
+
+impl From<PpaassMessagePayloadParts> for PpaassMessagePayload {
+    fn from(value: PpaassMessagePayloadParts) -> Self {
+        Self {
+            payload_type: value.payload_type,
+            source_address: value.source_address,
+            target_address: value.target_address,
+            additional_info: value.additional_info,
+            data: value.data,
+        }
     }
 }
 

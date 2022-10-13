@@ -12,6 +12,16 @@ pub enum PpaassError {
         #[from]
         source: StdIoError,
     },
+    #[error("RSA public key error happen, original io error: {:?}", source)]
+    RsaPublicKeyError {
+        #[from]
+        source: rsa::pkcs8::spki::Error,
+    },
+    #[error("RSA private key error happen, original io error: {:?}", source)]
+    RsaPrivateKeyError {
+        #[from]
+        source: rsa::pkcs8::Error,
+    },
 }
 
 impl From<PpaassError> for StdIoError {
@@ -19,6 +29,8 @@ impl From<PpaassError> for StdIoError {
         match value {
             PpaassError::CodecError => StdIoError::new(StdIoErrorKind::InvalidData, value),
             PpaassError::IoError { source } => source,
+            PpaassError::RsaPublicKeyError { source } => StdIoError::new(StdIoErrorKind::InvalidData, source),
+            PpaassError::RsaPrivateKeyError { source } => StdIoError::new(StdIoErrorKind::InvalidData, source),
         }
     }
 }

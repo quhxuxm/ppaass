@@ -1,6 +1,9 @@
+mod crypto;
 mod error;
 
+pub use crypto::*;
 pub use error::*;
+
 use uuid::Uuid;
 
 pub fn generate_uuid() -> String {

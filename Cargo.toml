@@ -6,10 +6,16 @@ description = "A security network channel"
 documentation = "https://github.com/quhxuxm/ppaass"
 version = "0.1.0"
 [workspace.dependencies]
+aes = "*"
 base64 = "*"
+blowfish = "*"
 bytes = "*"
+cipher = "*"
+ecb = {version = "*", features = ["std"]}
 futures = "*"
 futures-util = {version = "*", features = ["alloc"]}
+rand = "*"
+rsa = "*"
 serde = "*"
 serde_derive = "*"
 serde_json = "*"

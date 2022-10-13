@@ -2,7 +2,7 @@ use std::error::Error;
 
 use ppaass_protocol::{
     PayloadAdditionalInfoKey, PayloadAdditionalInfoValue, PpaassMessageAgentPayloadTypeValue, PpaassMessagePayload, PpaassMessagePayloadEncryption,
-    PpaassMessagePayloadType, PpaassProtocolAddress,
+    PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassProtocolAddress,
 };
 
 #[test]
@@ -34,5 +34,7 @@ fn test_serialize_message_payload() -> Result<(), Box<dyn Error>> {
         PayloadAdditionalInfoValue::ReferenceMessageIdValue("reference_message_id_02".to_string()),
     );
     println!("{}", serde_json::to_string_pretty(&message_payload)?);
+    let PpaassMessagePayloadParts { data, .. } = message_payload.split();
+    println!("{:?}", data);
     Ok(())
 }
