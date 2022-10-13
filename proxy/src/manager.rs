@@ -1,9 +1,12 @@
-use std::sync::mpsc::{channel as std_mpsc_channel, Receiver, Sender};
+use std::sync::{
+    mpsc::{channel as std_mpsc_channel, Receiver, Sender},
+    Arc,
+};
 
 use anyhow::Result;
 use clap::Parser;
 use hotwatch::Hotwatch;
-use ppaass_common::PpaassError;
+
 use tokio::runtime::{Builder, Runtime};
 use tracing::{error, info};
 
@@ -15,7 +18,7 @@ pub(crate) enum ProxyServerManagementCommand {
     Start,
 }
 pub(crate) struct ProxyServerManager {
-    manager_runtime: Runtime,
+    manager_runtime: Option<Runtime>,
     command_sender: Sender<ProxyServerManagementCommand>,
     command_receiver: Receiver<ProxyServerManagementCommand>,
     server: Option<ProxyServer>,
@@ -27,7 +30,7 @@ impl ProxyServerManager {
         let manager_runtime = manager_runtime_builder.build()?;
         let (command_sender, command_receiver) = std_mpsc_channel::<ProxyServerManagementCommand>();
         Ok(Self {
-            manager_runtime,
+            manager_runtime: Some(manager_runtime),
             command_sender,
             command_receiver,
             server: None,
@@ -61,37 +64,40 @@ impl ProxyServerManager {
         Ok(result)
     }
 
-    pub(crate) fn exec(mut self) -> Result<()> {
-        let arguments = ProxyServerArguments::parse();
-        let config = self.prepare_config(&arguments)?;
-        self.manager_runtime.spawn_blocking::<_, Result<(), anyhow::Error>>(move || {
-            if let None = self.server {
-                info!("Begin to initialize the Proxy Server");
-                let proxy_server = ProxyServer::new()?;
-                proxy_server.start()?;
-                self.server = Some(proxy_server);
-            };
-            loop {
-                let command = self.command_receiver.recv()?;
-                match command {
-                    ProxyServerManagementCommand::Restart | ProxyServerManagementCommand::Start => {
-                        if let Some(proxy_server) = self.server.take() {
-                            proxy_server.shutdown()?;
-                        }
-                        let proxy_server = ProxyServer::new()?;
-                        proxy_server.start()?;
-                        self.server = Some(proxy_server);
-                        continue;
-                    },
-                    ProxyServerManagementCommand::Shutdown => {
-                        if let Some(proxy_server) = self.server.take() {
-                            proxy_server.shutdown()?;
-                        }
-                        continue;
-                    },
-                }
+    fn start_command_monitor(mut self, config: Arc<ProxyServerConfig>) {
+        let manager_runtime = self.manager_runtime.take().unwrap();
+        manager_runtime.spawn_blocking::<_, Result<(), anyhow::Error>>(move || loop {
+            let command = self.command_receiver.recv()?;
+            match command {
+                ProxyServerManagementCommand::Restart | ProxyServerManagementCommand::Start => {
+                    if let Some(proxy_server) = self.server.take() {
+                        proxy_server.shutdown();
+                    }
+                    self.start_proxy_server(config.clone())?;
+                    continue;
+                },
+                ProxyServerManagementCommand::Shutdown => {
+                    if let Some(proxy_server) = self.server.take() {
+                        proxy_server.shutdown();
+                    }
+                    continue;
+                },
             }
         });
+    }
+
+    fn start_proxy_server(&mut self, config: Arc<ProxyServerConfig>) -> Result<()> {
+        let proxy_server = ProxyServer::new(config)?;
+        proxy_server.start()?;
+        self.server = Some(proxy_server);
+        Ok(())
+    }
+
+    pub(crate) fn start(mut self) -> Result<()> {
+        let arguments = ProxyServerArguments::parse();
+        let config = Arc::new(self.prepare_config(&arguments)?);
+        self.start_proxy_server(config.clone())?;
+        self.start_command_monitor(config);
         Ok(())
     }
 }
