@@ -6,12 +6,12 @@ use std::{
 
 use bytes::{Buf, BufMut, BytesMut};
 use lz4::block::{compress, decompress};
-use ppaass_protocol::{PpaassMessage, PpaassMessagePayloadEncryption};
+use ppaass_protocol::{PpaassMessage, PpaassMessageParts, PpaassMessagePayloadEncryption};
 use pretty_hex::*;
 use tokio_util::codec::{Decoder, Encoder};
 use tracing::{debug, error, trace};
 
-use ppaass_common::{decrypt_with_aes, encrypt_with_aes, PpaassError, RsaCryptoFetcher};
+use ppaass_common::{decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_with_blowfish, PpaassError, RsaCryptoFetcher};
 
 const PPAASS_FLAG: &[u8] = "__PPAASS__".as_bytes();
 
@@ -68,7 +68,7 @@ where
                 let ppaass_flag = src.split_to(PPAASS_FLAG.len());
                 if !PPAASS_FLAG.eq(&ppaass_flag) {
                     error!(
-                        "Fail to decode input message because of it dose not begin with ppaass flag, hex data:\n\n{}\n\n",
+                        "Fail to decode input ppaass message because of it dose not begin with ppaass flag, hex data:\n\n{}\n\n",
                         pretty_hex(src)
                     );
                     return Err(PpaassError::CodecError);
@@ -90,44 +90,49 @@ where
             );
             return Ok(None);
         }
-        trace!(
-            "Input message has enough bytes to decode body, buffer remaining: {}, body length: {}, remaining bytes:\n\n{}\n\n",
-            src.remaining(),
-            body_length,
-            pretty_hex(src)
-        );
         self.status = DecodeStatus::Data(body_is_compressed, body_length);
         let body_bytes = src.split_to(body_length as usize);
         trace!("Input message body bytes:\n\n{}\n\n", pretty_hex(&body_bytes));
-        let mut message: PpaassMessage = if body_is_compressed {
+        let encrypted_message: PpaassMessage = if body_is_compressed {
             debug!("Input message body is compressed.");
             let decompress_result = decompress(body_bytes.chunk(), None)?;
             decompress_result.try_into()?
         } else {
             body_bytes.to_vec().try_into()?
         };
-        let rsa_crypto = self.rsa_crypto_fetcher.fetch(message.user_token.as_str())?.ok_or_else(|| {
-            error!("Fail to get user rsa crypto because of not exist, user token: {}", message.user_token);
+
+        let PpaassMessageParts {
+            id,
+            user_token,
+            payload_encryption,
+            payload_bytes,
+        } = encrypted_message.split();
+
+        let rsa_crypto = self.rsa_crypto_fetcher.fetch(&user_token)?.ok_or_else(|| {
+            error!("Fail to get user rsa crypto because of not exist, user token: {}", &user_token);
             PpaassError::CodecError
         })?;
-        debug!("Decode input message (before decrypt): {:?}", message);
-        match message.payload_encryption {
-            PpaassMessagePayloadEncryption::Aes(ref encryption_token) => match message.payload {
-                None => {
-                    debug!("Nothing to decrypt for aes.")
-                },
-                Some(content) => {
-                    let original_encryption_token = rsa_crypto.decrypt(encryption_token)?;
-                    let decrypt_payload = decrypt_with_aes(original_encryption_token.as_ref(), content.as_ref())?;
-                    message.payload = Some(decrypt_payload);
-                },
+
+        let decrypt_payload_bytes = match payload_encryption {
+            PpaassMessagePayloadEncryption::Plain => payload_bytes,
+            PpaassMessagePayloadEncryption::Aes(ref encryption_token) => {
+                let original_encryption_token = rsa_crypto.decrypt(&encryption_token)?;
+                decrypt_with_aes(&original_encryption_token, &payload_bytes)?
             },
-            PpaassMessagePayloadEncryption::Plain => {},
+            PpaassMessagePayloadEncryption::Bloofish(ref encryption_token) => {
+                let original_encryption_token = rsa_crypto.decrypt(&encryption_token)?;
+                decrypt_with_blowfish(&original_encryption_token, &payload_bytes)?
+            },
         };
-        debug!("Decode input message (after decrypt): {:?}", message);
         self.status = DecodeStatus::Head;
         src.reserve(header_length);
-        Ok(Some(message))
+        let new_message_parts = PpaassMessageParts {
+            id,
+            user_token,
+            payload_encryption,
+            payload_bytes: decrypt_payload_bytes,
+        };
+        Ok(Some(new_message_parts.into()))
     }
 }
 
@@ -146,46 +151,37 @@ where
         } else {
             dst.put_u8(0);
         }
-        if original_message.payload.is_none() {
-            let result_bytes: Vec<u8> = original_message.try_into()?;
-            let result_bytes = if self.compress {
-                compress(result_bytes.as_ref(), None, true)?
-            } else {
-                result_bytes
-            };
-            let result_bytes_length = result_bytes.len();
-            dst.put_u64(result_bytes_length as u64);
-            dst.put(result_bytes.as_ref());
-            return Ok(());
-        }
-        let PpaassMessage {
+        let PpaassMessageParts {
             id,
-            ref_id,
-            connection_id,
             user_token,
-            payload_encryption: payload_encryption_type,
-            payload,
-        } = original_message;
-        let rsa_crypto = self.rsa_crypto_fetcher.fetch(user_token.as_str())?.ok_or(PpaassError::CodecError)?;
-        let (encrypted_payload, encrypted_payload_encryption_type) = match payload_encryption_type {
-            PpaassMessagePayloadEncryption::Plain => (payload, PpaassMessagePayloadEncryption::Plain),
+            payload_encryption,
+            payload_bytes,
+        } = original_message.split();
+
+        let rsa_crypto = self.rsa_crypto_fetcher.fetch(&user_token)?.ok_or(PpaassError::CodecError)?;
+        let (encrypted_payload_bytes, encrypted_payload_encryption_type) = match payload_encryption {
+            PpaassMessagePayloadEncryption::Plain => (payload_bytes, PpaassMessagePayloadEncryption::Plain),
             PpaassMessagePayloadEncryption::Aes(ref original_token) => {
                 let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token)?;
-                let encrypted_payload_content = encrypt_with_aes(original_token, &payload.unwrap());
+                let encrypted_payload_bytes = encrypt_with_aes(original_token, &payload_bytes);
+                (encrypted_payload_bytes, PpaassMessagePayloadEncryption::Aes(encrypted_payload_encryption_token))
+            },
+            PpaassMessagePayloadEncryption::Bloofish(ref original_token) => {
+                let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token)?;
+                let encrypted_payload_bytes = encrypt_with_blowfish(original_token, &payload_bytes);
                 (
-                    Some(encrypted_payload_content),
-                    PpaassMessagePayloadEncryption::Aes(encrypted_payload_encryption_token),
+                    encrypted_payload_bytes,
+                    PpaassMessagePayloadEncryption::Bloofish(encrypted_payload_encryption_token),
                 )
             },
         };
-        let message_to_encode = PpaassMessage {
+        let message_parts_to_encode = PpaassMessageParts {
             id,
-            ref_id,
-            connection_id,
             user_token,
             payload_encryption: encrypted_payload_encryption_type,
-            payload: encrypted_payload,
+            payload_bytes: encrypted_payload_bytes,
         };
+        let message_to_encode: PpaassMessage = message_parts_to_encode.into();
         let result_bytes: Vec<u8> = message_to_encode.try_into()?;
         let result_bytes = if self.compress {
             compress(&result_bytes, None, true)?

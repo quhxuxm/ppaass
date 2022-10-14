@@ -9,7 +9,7 @@ use tokio::{
 };
 use tracing::{debug, error, info};
 
-use crate::config::ProxyServerConfig;
+use crate::{config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher};
 pub(crate) struct ProxyServer {
     configuration: Arc<ProxyServerConfig>,
     runtime: Runtime,
@@ -31,6 +31,7 @@ impl ProxyServer {
         } else {
             format!("0.0.0.0:{}", self.configuration.get_port())
         };
+        let proxy_server_rsa_crypto_fetcher = Arc::new(ProxyServerRsaCryptoFetcher::new(self.configuration.clone())?);
         self.runtime.spawn(async move {
             info!("Proxy server start to serve request on address: {server_bind_addr}.");
             let tcp_listener = match TcpListener::bind(&server_bind_addr).await {
@@ -40,6 +41,7 @@ impl ProxyServer {
                 },
                 Ok(v) => v,
             };
+
             loop {
                 let (agent_tcp_stream, agent_socket_address) = match tcp_listener.accept().await {
                     Err(e) => {
@@ -48,9 +50,10 @@ impl ProxyServer {
                     },
                     Ok(v) => v,
                 };
+                let proxy_server_rsa_crypto_fetcher = proxy_server_rsa_crypto_fetcher.clone();
                 tokio::spawn(async move {
                     debug!("Begin to handle agent tcp connection, tcp stream: {agent_tcp_stream:?},socket address: {agent_socket_address:?}");
-                    let agent_tcp_connection = PpaassTcpConnection::new(agent_tcp_stream, false, 64 * 1024, rsa_crypto_fetcher);
+                    let agent_tcp_connection = PpaassTcpConnection::new(agent_tcp_stream, false, 64 * 1024, proxy_server_rsa_crypto_fetcher.clone());
                 });
             }
         });

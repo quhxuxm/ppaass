@@ -4,6 +4,7 @@ mod arguments;
 mod config;
 mod constant;
 mod manager;
+mod crypto;
 mod server;
 
 fn main() -> Result<()> {
