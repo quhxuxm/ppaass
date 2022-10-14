@@ -17,7 +17,9 @@ ecb = {version = "*", features = ["std"]}
 futures = "*"
 futures-util = {version = "*", features = ["alloc"]}
 hotwatch = "*"
+lz4 = "*"
 pin-project = "*"
+pretty-hex = "*"
 rand = "*"
 rsa = "*"
 serde = "*"

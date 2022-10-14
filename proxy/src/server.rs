@@ -2,6 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::Result;
 
+use ppaass_io::PpaassTcpConnection;
 use tokio::{
     net::TcpListener,
     runtime::{Builder, Runtime},
@@ -49,6 +50,7 @@ impl ProxyServer {
                 };
                 tokio::spawn(async move {
                     debug!("Begin to handle agent tcp connection, tcp stream: {agent_tcp_stream:?},socket address: {agent_socket_address:?}");
+                    let agent_tcp_connection = PpaassTcpConnection::new(agent_tcp_stream, false, 64 * 1024, rsa_crypto_fetcher);
                 });
             }
         });
