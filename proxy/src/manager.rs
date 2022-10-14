@@ -14,8 +14,6 @@ use crate::{arguments::ProxyServerArguments, config::ProxyServerConfig, constant
 
 pub(crate) enum ProxyServerManagementCommand {
     Restart,
-    Shutdown,
-    Start,
 }
 pub(crate) struct ProxyServerManager {
     command_monitor_runtime: Option<Runtime>,
@@ -69,17 +67,11 @@ impl ProxyServerManager {
         command_monitor_runtime.spawn_blocking::<_, Result<(), anyhow::Error>>(move || loop {
             let command = self.command_receiver.recv()?;
             match command {
-                ProxyServerManagementCommand::Restart | ProxyServerManagementCommand::Start => {
+                ProxyServerManagementCommand::Restart => {
                     if let Some(proxy_server) = self.server.take() {
                         proxy_server.shutdown();
                     }
                     self.start_proxy_server(config.clone())?;
-                    continue;
-                },
-                ProxyServerManagementCommand::Shutdown => {
-                    if let Some(proxy_server) = self.server.take() {
-                        proxy_server.shutdown();
-                    }
                     continue;
                 },
             }

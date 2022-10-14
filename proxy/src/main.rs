@@ -1,9 +1,13 @@
+use anyhow::Result;
+use manager::ProxyServerManager;
 mod arguments;
 mod config;
 mod constant;
 mod manager;
 mod server;
 
-fn main() {
-    println!("Hello, world!");
+fn main() -> Result<()> {
+    let proxy_server_manager = ProxyServerManager::new()?;
+    proxy_server_manager.start()?;
+    Ok(())
 }

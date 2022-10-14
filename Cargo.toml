@@ -1,5 +1,5 @@
 [workspace]
-members = ["proxy", "agent-android", "agent-desktop", "protocol", "common"]
+members = ["proxy", "agent-android", "agent-desktop", "protocol", "common", "io"]
 [workspace.package]
 authors = ["Hao Qu"]
 description = "A security network channel"
@@ -17,6 +17,7 @@ ecb = {version = "*", features = ["std"]}
 futures = "*"
 futures-util = {version = "*", features = ["alloc"]}
 hotwatch = "*"
+pin-project = "*"
 rand = "*"
 rsa = "*"
 serde = "*"
