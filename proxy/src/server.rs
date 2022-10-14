@@ -41,7 +41,6 @@ impl ProxyServer {
                 },
                 Ok(v) => v,
             };
-
             loop {
                 let (agent_tcp_stream, agent_socket_address) = match tcp_listener.accept().await {
                     Err(e) => {
