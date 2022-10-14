@@ -9,6 +9,8 @@ version = "0.1.0"
 anyhow = {workspace = true}
 bytes = {workspace = true}
 clap = {workspace = true, features = ["derive"]}
+futures = {workspace = true}
+futures-util = {workspace = true, features = ["std"]}
 hotwatch = {workspace = true}
 ppaass-common = {path = "../common"}
 ppaass-io = {path = "../io"}

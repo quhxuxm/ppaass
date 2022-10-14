@@ -15,7 +15,7 @@ cipher = "*"
 clap = "*"
 ecb = {version = "*", features = ["std"]}
 futures = "*"
-futures-util = {version = "*", features = ["alloc"]}
+futures-util = "*"
 hotwatch = "*"
 lz4 = "*"
 pin-project = "*"

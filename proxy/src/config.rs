@@ -14,6 +14,7 @@ pub(crate) struct ProxyServerConfig {
     thread_number: Option<usize>,
     /// Whether enable compressing
     compress: Option<bool>,
+    agent_connection_buffer_size: Option<usize>,
 }
 
 impl ProxyServerConfig {
@@ -55,5 +56,9 @@ impl ProxyServerConfig {
 
     pub(crate) fn get_compress(&self) -> bool {
         self.compress.unwrap_or(false)
+    }
+
+    pub(crate) fn get_agent_connection_buffer_size(&self) -> usize {
+        self.agent_connection_buffer_size.unwrap_or(1024 * 64)
     }
 }

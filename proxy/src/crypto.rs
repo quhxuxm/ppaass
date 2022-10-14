@@ -5,6 +5,7 @@ use tracing::error;
 
 use crate::config::ProxyServerConfig;
 
+#[derive(Debug)]
 pub(crate) struct ProxyServerRsaCryptoFetcher {
     cache: HashMap<String, RsaCrypto>,
 }

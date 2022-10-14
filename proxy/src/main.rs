@@ -3,8 +3,9 @@ use manager::ProxyServerManager;
 mod arguments;
 mod config;
 mod constant;
-mod manager;
 mod crypto;
+mod tunnel;
+mod manager;
 mod server;
 
 fn main() -> Result<()> {

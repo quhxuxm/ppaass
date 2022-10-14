@@ -15,6 +15,7 @@ use tokio_util::codec::Framed;
 use crate::codec::PpaassMessageCodec;
 
 #[pin_project]
+#[derive(Debug)]
 pub struct PpaassTcpConnection<T, R>
 where
     T: AsyncRead + AsyncWrite,
