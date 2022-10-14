@@ -13,7 +13,7 @@ impl ProxyServerRsaCryptoFetcher {
     pub(crate) fn new(configuration: Arc<ProxyServerConfig>) -> Result<Self, PpaassError> {
         let mut result = Self { cache: HashMap::new() };
         let rsa_dir_path = configuration.get_rsa_dir();
-        let rsa_dir = std::fs::read_dir(rsa_dir_path)?;
+        let rsa_dir = std::fs::read_dir(&rsa_dir_path)?;
         rsa_dir.for_each(|entry| {
             let entry = match entry {
                 Err(e) => {
@@ -31,7 +31,8 @@ impl ProxyServerRsaCryptoFetcher {
                 },
                 Some(v) => v,
             };
-            let public_key_path = std::path::Path::new(format!("{}{}/AgentPublicKey.pem", rsa_dir_path, user_token).as_str());
+            let public_key_path = format!("{}{}/AgentPublicKey.pem", rsa_dir_path, user_token);
+            let public_key_path = std::path::Path::new(&public_key_path);
             let public_key_file = match std::fs::File::open(public_key_path) {
                 Err(e) => {
                     error!("Fail to read public key file [{public_key_path:?}] because of error: {e:?}");
@@ -39,7 +40,8 @@ impl ProxyServerRsaCryptoFetcher {
                 },
                 Ok(v) => v,
             };
-            let private_key_path = std::path::Path::new(std::path::Path::new(format!("{}{}/ProxyPrivateKey.pem", rsa_dir_path, user_token).as_str()));
+            let private_key_path = format!("{}{}/ProxyPrivateKey.pem", rsa_dir_path, user_token);
+            let private_key_path = std::path::Path::new(std::path::Path::new(&private_key_path));
             let private_key_file = match std::fs::File::open(private_key_path) {
                 Err(e) => {
                     error!("Fail to read private key file [{private_key_path:?}] because of error: {e:?}");

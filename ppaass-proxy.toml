@@ -1,5 +1,5 @@
 compress = false
 ipv6 = false
 port = 9097
-rsa_root_dir = "./rsa/"
+rsa_root_dir = "./resources/rsa/"
 thread_number = 2048
