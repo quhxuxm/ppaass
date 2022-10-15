@@ -1,5 +1,6 @@
 use std::error::Error;
 
+use ppaass_common::generate_uuid;
 use ppaass_protocol::{
     PayloadAdditionalInfoKey, PayloadAdditionalInfoValue, PpaassMessageAgentPayloadTypeValue, PpaassMessagePayload, PpaassMessagePayloadEncryption,
     PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassProtocolAddress,
@@ -20,6 +21,7 @@ fn test_serialize_message_payload() -> Result<(), Box<dyn Error>> {
         port: 800,
     };
     let mut message_payload = PpaassMessagePayload::new(
+        Some(generate_uuid()),
         Some(source_address),
         Some(target_address),
         PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpInitialize),

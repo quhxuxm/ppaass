@@ -9,7 +9,7 @@ pub enum PpaassMessageAgentPayloadTypeValue {
     UdpRelay,
     UdpDestory,
     DomainNameResolve,
-    Heartbeat,
+    IdleConnectionKeepAlive,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]

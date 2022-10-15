@@ -4,9 +4,9 @@ mod arguments;
 mod config;
 mod constant;
 mod crypto;
-mod tunnel;
 mod manager;
 mod server;
+mod tunnel;
 
 fn main() -> Result<()> {
     let proxy_server_manager = ProxyServerManager::new()?;

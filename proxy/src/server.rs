@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Result;
 
@@ -6,7 +6,6 @@ use ppaass_io::PpaassTcpConnection;
 use tokio::{
     net::TcpListener,
     runtime::{Builder, Runtime},
-    sync::Mutex,
 };
 use tracing::{debug, error, info};
 
@@ -64,7 +63,7 @@ impl ProxyServer {
                             Ok(v) => v,
                         };
                     let proxy_tcp_tunnel = ProxyTcpTunnel::new(agent_tcp_connection);
-                    let proxy_tcp_tunnel_id = proxy_tcp_tunnel.get_id().to_string();
+                    let proxy_tcp_tunnel_id = proxy_tcp_tunnel.get_tunnel_id().to_string();
                     if let Err(e) = proxy_tcp_tunnel.exec().await {
                         error!("Fail to execute proxy tcp tunnel [{proxy_tcp_tunnel_id}] because of error: {e:?}");
                     }
