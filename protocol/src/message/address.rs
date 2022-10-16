@@ -55,6 +55,7 @@ impl ToSocketAddrs for PpaassProtocolAddress {
         Ok(SocketAddrIter::new(socket_addr_vec))
     }
 }
+
 impl TryFrom<&PpaassProtocolAddress> for Vec<SocketAddr> {
     type Error = PpaassError;
 

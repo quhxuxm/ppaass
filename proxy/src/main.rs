@@ -8,8 +8,9 @@ mod manager;
 mod server;
 mod tunnel;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let proxy_server_manager = ProxyServerManager::new()?;
-    proxy_server_manager.start()?;
+    proxy_server_manager.start().await?;
     Ok(())
 }

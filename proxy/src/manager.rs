@@ -1,47 +1,43 @@
-use std::sync::{
-    mpsc::{channel as std_mpsc_channel, Receiver, Sender},
-    Arc,
-};
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Result;
 use clap::Parser;
-use hotwatch::Hotwatch;
-
-use tokio::runtime::{Builder, Runtime};
-use tracing::{error, info};
 
 use crate::{arguments::ProxyServerArguments, config::ProxyServerConfig, constant::DEFAULT_CONFIG_FILE_PATH, server::ProxyServer};
+use tokio::{runtime::Builder, sync::mpsc::channel as tokio_mpsc_channel};
+use tokio::{
+    runtime::Runtime,
+    sync::mpsc::{Receiver, Sender},
+};
+use tracing::{debug, error};
 
+#[derive(Debug)]
 pub(crate) enum ProxyServerManagementCommand {
     Restart,
 }
 pub(crate) struct ProxyServerManager {
-    command_monitor_runtime: Option<Runtime>,
     command_sender: Sender<ProxyServerManagementCommand>,
     command_receiver: Receiver<ProxyServerManagementCommand>,
-    server: Option<ProxyServer>,
+    server_runtime: Option<Runtime>,
 }
 
 impl ProxyServerManager {
     pub(crate) fn new() -> Result<Self> {
-        let mut manager_runtime_builder = Builder::new_current_thread();
-        let command_monitor_runtime = manager_runtime_builder.build()?;
-        let (command_sender, command_receiver) = std_mpsc_channel::<ProxyServerManagementCommand>();
+        let (command_sender, command_receiver) = tokio_mpsc_channel::<ProxyServerManagementCommand>(1);
         Ok(Self {
-            command_monitor_runtime: Some(command_monitor_runtime),
             command_sender,
             command_receiver,
-            server: None,
+            server_runtime: None,
         })
     }
 
-    fn prepare_config(&self, arguments: &ProxyServerArguments) -> Result<ProxyServerConfig> {
-        let mut cfg_file_path = DEFAULT_CONFIG_FILE_PATH;
+    async fn prepare_config(&self, arguments: &ProxyServerArguments) -> Result<ProxyServerConfig> {
+        let mut config_file_path = DEFAULT_CONFIG_FILE_PATH;
         if let Some(ref path) = arguments.configuration_file {
-            cfg_file_path = path.as_str();
+            config_file_path = path.as_str();
         }
-        let cfg_file_content = std::fs::read_to_string(cfg_file_path)?;
-        let mut result = toml::from_str::<ProxyServerConfig>(&cfg_file_content)?;
+        let config_file_content = tokio::fs::read_to_string(config_file_path).await?;
+        let mut result = toml::from_str::<ProxyServerConfig>(&config_file_content)?;
         if let Some(port) = arguments.port {
             result.set_port(port);
         }
@@ -51,45 +47,76 @@ impl ProxyServerManager {
         if let Some(ref dir) = arguments.rsa_dir {
             result.set_rsa_dir(dir.as_str());
         }
-        let mut cfg_file_watcher = Hotwatch::new()?;
-        let command_sender = self.command_sender.clone();
-        cfg_file_watcher.watch(cfg_file_path, move |event| {
-            info!("Proxy server configuration file has been changed by event: {event:?}");
-            if let Err(e) = command_sender.send(ProxyServerManagementCommand::Restart) {
-                error!("Fail to send Proxy server management command (Restart) because of error: {e:?}");
-            };
-        })?;
+        self.start_config_monitor(config_file_path.to_owned(), config_file_content).await?;
         Ok(result)
     }
 
-    fn start_command_monitor(mut self, config: Arc<ProxyServerConfig>) {
-        let command_monitor_runtime = self.command_monitor_runtime.take().unwrap();
-        command_monitor_runtime.spawn_blocking::<_, Result<(), anyhow::Error>>(move || loop {
-            let command = self.command_receiver.recv()?;
+    async fn start_config_monitor(&self, config_file_path: String, original_config_file_content: String) -> Result<()> {
+        let command_sender = self.command_sender.clone();
+        tokio::spawn(async move {
+            let mut original_config_file_content = original_config_file_content;
+            let mut interval = tokio::time::interval(Duration::from_secs(3));
+            loop {
+                interval.tick().await;
+                let current_cfg_file_content = match tokio::fs::read_to_string(&config_file_path).await {
+                    Err(e) => {
+                        debug!("Fail to read proxy server configuration file because of error: {e:?}");
+                        continue;
+                    },
+                    Ok(v) => v,
+                };
+                if !current_cfg_file_content.eq(&original_config_file_content) {
+                    command_sender.send(ProxyServerManagementCommand::Restart).await;
+                    if let Err(e) = command_sender.send(ProxyServerManagementCommand::Restart).await {
+                        error!("Fail to send Proxy server management command (Restart) because of error: {e:?}");
+                    };
+                }
+                original_config_file_content = current_cfg_file_content;
+            }
+        });
+        Ok(())
+    }
+    async fn start_command_monitor(&mut self, config: Arc<ProxyServerConfig>) -> Result<()> {
+        loop {
+            let command = self.command_receiver.recv().await;
             match command {
-                ProxyServerManagementCommand::Restart => {
-                    if let Some(proxy_server) = self.server.take() {
-                        proxy_server.shutdown();
+                None => {
+                    error!("Proxy server command channel closed.");
+                    return Ok(());
+                },
+                Some(ProxyServerManagementCommand::Restart) => {
+                    if let Some(server_runtime) = self.server_runtime.take() {
+                        server_runtime.shutdown_timeout(Duration::from_secs(10));
                     }
-                    self.start_proxy_server(config.clone())?;
+                    self.start_proxy_server(config.clone()).await?;
                     continue;
                 },
             }
-        });
+        }
     }
 
-    fn start_proxy_server(&mut self, config: Arc<ProxyServerConfig>) -> Result<()> {
-        let proxy_server = ProxyServer::new(config)?;
-        proxy_server.start()?;
-        self.server = Some(proxy_server);
+    async fn start_proxy_server(&self, config: Arc<ProxyServerConfig>) -> Result<()> {
+        let mut runtime_builder = Builder::new_multi_thread();
+        runtime_builder.enable_all();
+        runtime_builder.thread_name("ppaass-proxy-server-runtime");
+        runtime_builder.worker_threads(config.get_thread_number());
+        let runtime = runtime_builder.build()?;
+        runtime.spawn(async {
+            let mut proxy_server = ProxyServer::new(config);
+            if let Err(e) = proxy_server.start().await {
+                error!("Fail to start proxy server becuase of error: {e:?}");
+                return;
+            };
+        });
+        self.server_runtime = Some(runtime);
         Ok(())
     }
 
-    pub(crate) fn start(mut self) -> Result<()> {
+    pub(crate) async fn start(mut self) -> Result<()> {
         let arguments = ProxyServerArguments::parse();
-        let config = Arc::new(self.prepare_config(&arguments)?);
-        self.start_proxy_server(config.clone())?;
-        self.start_command_monitor(config);
+        let config = Arc::new(self.prepare_config(&arguments).await?);
+        self.start_command_monitor(config.clone()).await;
+        self.start_proxy_server(config).await?;
         Ok(())
     }
 }

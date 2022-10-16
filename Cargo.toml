@@ -16,7 +16,6 @@ clap = "*"
 ecb = {version = "*", features = ["std"]}
 futures = "*"
 futures-util = "*"
-hotwatch = "*"
 lz4 = "*"
 pin-project = "*"
 pretty-hex = "*"

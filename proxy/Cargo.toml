@@ -11,13 +11,12 @@ bytes = {workspace = true}
 clap = {workspace = true, features = ["derive"]}
 futures = {workspace = true}
 futures-util = {workspace = true, features = ["std"]}
-hotwatch = {workspace = true}
 ppaass-common = {path = "../common"}
 ppaass-io = {path = "../io"}
 ppaass-protocol = {path = "../protocol"}
 serde = {workspace = true}
 serde_derive = {workspace = true}
-tokio = {workspace = true, features = ["macros", "time", "net", "io-util", "rt-multi-thread"]}
+tokio = {workspace = true, features = ["macros", "time", "net", "io-util", "rt-multi-thread", "fs"]}
 tokio-util = {workspace = true, features = ["codec"]}
 toml = {workspace = true}
 tracing = {workspace = true}
