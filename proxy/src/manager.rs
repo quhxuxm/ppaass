@@ -66,7 +66,6 @@ impl ProxyServerManager {
                     Ok(v) => v,
                 };
                 if !current_cfg_file_content.eq(&original_config_file_content) {
-                    command_sender.send(ProxyServerManagementCommand::Restart).await;
                     if let Err(e) = command_sender.send(ProxyServerManagementCommand::Restart).await {
                         error!("Fail to send Proxy server management command (Restart) because of error: {e:?}");
                     };
@@ -95,27 +94,26 @@ impl ProxyServerManager {
         }
     }
 
-    async fn start_proxy_server(&self, config: Arc<ProxyServerConfig>) -> Result<()> {
-        let mut runtime_builder = Builder::new_multi_thread();
-        runtime_builder.enable_all();
-        runtime_builder.thread_name("ppaass-proxy-server-runtime");
-        runtime_builder.worker_threads(config.get_thread_number());
-        let runtime = runtime_builder.build()?;
-        runtime.spawn(async {
+    async fn start_proxy_server(&mut self, config: Arc<ProxyServerConfig>) -> Result<()> {
+        let mut server_runtime_builder = Builder::new_multi_thread();
+        server_runtime_builder.enable_all();
+        server_runtime_builder.thread_name("proxy-server-runtime");
+        server_runtime_builder.worker_threads(config.get_thread_number());
+        let server_runtime = server_runtime_builder.build()?;
+        server_runtime.spawn(async {
             let mut proxy_server = ProxyServer::new(config);
             if let Err(e) = proxy_server.start().await {
-                error!("Fail to start proxy server becuase of error: {e:?}");
-                return;
-            };
+                error!("Fail to start proxy server because of error: {e:?}");
+            }
         });
-        self.server_runtime = Some(runtime);
+        self.server_runtime = Some(server_runtime);
         Ok(())
     }
 
     pub(crate) async fn start(mut self) -> Result<()> {
         let arguments = ProxyServerArguments::parse();
         let config = Arc::new(self.prepare_config(&arguments).await?);
-        self.start_command_monitor(config.clone()).await;
+        self.start_command_monitor(config.clone()).await?;
         self.start_proxy_server(config).await?;
         Ok(())
     }

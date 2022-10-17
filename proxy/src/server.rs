@@ -1,24 +1,27 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Result;
 
-use ppaass_io::PpaassTcpConnection;
-use tokio::net::TcpListener;
-use tracing::{debug, error, info};
+use tokio::{io::AsyncWriteExt, net::TcpListener, sync::Semaphore};
+use tracing::{error, info};
 
-use crate::{config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher, tunnel::ProxyTcpTunnel, tunnel::ProxyTcpTunnelRepository};
+use crate::{
+    agent::{AgentTcpConnection, AgentTcpLoop},
+    config::ProxyServerConfig,
+    crypto::ProxyServerRsaCryptoFetcher,
+};
 
 pub(crate) struct ProxyServer {
     configuration: Arc<ProxyServerConfig>,
-    proxy_tcp_tunnel_repository: ProxyTcpTunnelRepository,
+    agent_connection_number: Arc<Semaphore>,
 }
 
 impl ProxyServer {
     pub(crate) fn new(configuration: Arc<ProxyServerConfig>) -> Self {
-        let proxy_tcp_tunnel_repository = ProxyTcpTunnelRepository::new();
+        let agent_max_connection_number = configuration.get_agent_max_connection_number();
         Self {
             configuration,
-            proxy_tcp_tunnel_repository,
+            agent_connection_number: Arc::new(Semaphore::new(agent_max_connection_number)),
         }
     }
 
@@ -30,7 +33,6 @@ impl ProxyServer {
         };
         let proxy_server_rsa_crypto_fetcher = Arc::new(ProxyServerRsaCryptoFetcher::new(self.configuration.clone())?);
         let agent_connection_buffer_size = self.configuration.get_agent_connection_buffer_size();
-
         info!("Proxy server start to serve request on address: {server_bind_addr}.");
         let tcp_listener = match TcpListener::bind(&server_bind_addr).await {
             Err(e) => {
@@ -40,33 +42,54 @@ impl ProxyServer {
             Ok(v) => v,
         };
         loop {
-            let (agent_tcp_stream, agent_socket_address) = match tcp_listener.accept().await {
+            let (mut agent_tcp_stream, agent_socket_address) = match tcp_listener.accept().await {
                 Err(e) => {
                     error!("Fail to accept agent tcp connection because of error: {e:?}");
                     continue;
                 },
                 Ok(v) => v,
             };
+            let agent_connection_number = self.agent_connection_number.clone();
+            let agent_tcp_connection_accept_permit = match tokio::time::timeout(
+                Duration::from_secs(self.configuration.get_agent_tcp_connection_accept_timout_seconds()),
+                agent_connection_number.clone().acquire_owned(),
+            )
+            .await
+            {
+                Ok(Ok(v)) => v,
+                Ok(Err(e)) => {
+                    error!("Fail to accept agent tcp connection [{agent_socket_address:?}] because of error happen when acquire agent tcp connection accept permit: {e:?}");
+                    if let Err(e) = agent_tcp_stream.shutdown().await {
+                        error!("Fail to shutdown agent tcp stream because of error: {e:?}");
+                    }
+                    continue;
+                },
+                Err(e) => {
+                    error!("Fail to accept agent tcp connection [{agent_socket_address:?}] because of timeout when acquire agent tcp connection accept permit: {e:?}");
+                    if let Err(e) = agent_tcp_stream.shutdown().await {
+                        error!("Fail to shutdown agent tcp stream because of error: {e:?}");
+                    }
+                    continue;
+                },
+            };
             let proxy_server_rsa_crypto_fetcher = proxy_server_rsa_crypto_fetcher.clone();
-            let agent_tcp_connection =
-                match PpaassTcpConnection::new(agent_tcp_stream, false, agent_connection_buffer_size, proxy_server_rsa_crypto_fetcher.clone()) {
-                    Err(e) => {
-                        error!("Fail to handle agent tcp connection because of error: {e:?}");
-                        continue;
-                    },
-                    Ok(v) => v,
+            let configuration = self.configuration.clone();
+            tokio::spawn(async move {
+                let agent_tcp_connection =
+                    match AgentTcpConnection::new(agent_tcp_stream, false, agent_connection_buffer_size, proxy_server_rsa_crypto_fetcher.clone()) {
+                        Err(e) => {
+                            error!("Fail to handle agent tcp connection because of error: {e:?}");
+                            drop(agent_tcp_connection_accept_permit);
+                            return;
+                        },
+                        Ok(v) => v,
+                    };
+                let agent_tcp_loop = AgentTcpLoop::new(agent_tcp_connection, configuration);
+                if let Err(e) = agent_tcp_loop.exec().await {
+                    error!("Error happen when execute agent tcp loop because of error: {e:?}");
                 };
-
-            let mut proxy_tcp_tunnel = ProxyTcpTunnel::new(agent_tcp_connection);
-            let proxy_tcp_tunnel_id = proxy_tcp_tunnel.get_tunnel_id().to_string();
-
-            tokio::spawn(async {
-                if let Err(e) = &proxy_tcp_tunnel.exec().await {
-                    error!("Fail to execute proxy tcp tunnel because of error: {e:?}");
-                }
+                drop(agent_tcp_connection_accept_permit);
             });
-            self.proxy_tcp_tunnel_repository.insert(proxy_tcp_tunnel_id, proxy_tcp_tunnel);
         }
-        Ok(())
     }
 }
