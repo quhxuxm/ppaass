@@ -5,7 +5,12 @@ use anyhow::Result;
 use tokio::{io::AsyncWriteExt, net::TcpListener, sync::Semaphore};
 use tracing::{error, info};
 
-use crate::{common::AgentTcpConnection, config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher, transport::agent::AgentTransport};
+use crate::{
+    common::AgentTcpConnection,
+    config::ProxyServerConfig,
+    crypto::ProxyServerRsaCryptoFetcher,
+    transport::{agent::AgentTransport, target::TargetTransport},
+};
 
 pub(crate) struct ProxyServer {
     configuration: Arc<ProxyServerConfig>,
@@ -79,6 +84,8 @@ impl ProxyServer {
                         continue;
                     },
                 };
+
+            let (target_transport, agent_tcp_message_outbound_receiver) = TargetTransport::new(agent_tcp_message_inbound_receiver);
             let agent_transport = AgentTransport::new(agent_tcp_connection, configuration);
             let agent_transport_id = agent_transport.get_id().to_owned();
             if let Err(e) = agent_transport.exec().await {

@@ -16,6 +16,8 @@ use tracing::{error, info};
 
 use crate::{common::AgentTcpConnection, config::ProxyServerConfig};
 
+use super::TargetTransportOutboundValue;
+
 #[derive(Debug)]
 pub(crate) struct AgentTransport {
     id: String,
@@ -24,6 +26,7 @@ pub(crate) struct AgentTransport {
 
 impl AgentTransport {
     pub(crate) fn new(agent_tcp_connection: AgentTcpConnection, _configuration: Arc<ProxyServerConfig>) -> Self {
+        let (outbound_sender, outbound_receiver) = channel::<TargetTransportOutboundValue>(1024);
         Self {
             id: generate_uuid(),
             agent_tcp_connection,
