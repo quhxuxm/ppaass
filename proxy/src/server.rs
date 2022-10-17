@@ -5,11 +5,7 @@ use anyhow::Result;
 use tokio::{io::AsyncWriteExt, net::TcpListener, sync::Semaphore};
 use tracing::{error, info};
 
-use crate::{
-    agent::{AgentTcpConnection, AgentTcpLoop},
-    config::ProxyServerConfig,
-    crypto::ProxyServerRsaCryptoFetcher,
-};
+use crate::{common::AgentTcpConnection, config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher, transport::agent::AgentTransport};
 
 pub(crate) struct ProxyServer {
     configuration: Arc<ProxyServerConfig>,
@@ -43,11 +39,11 @@ impl ProxyServer {
         };
         loop {
             let (mut agent_tcp_stream, agent_socket_address) = match tcp_listener.accept().await {
+                Ok(v) => v,
                 Err(e) => {
                     error!("Fail to accept agent tcp connection because of error: {e:?}");
                     continue;
                 },
-                Ok(v) => v,
             };
             let agent_connection_number = self.agent_connection_number.clone();
             let agent_tcp_connection_accept_permit = match tokio::time::timeout(
@@ -74,22 +70,21 @@ impl ProxyServer {
             };
             let proxy_server_rsa_crypto_fetcher = proxy_server_rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();
-            tokio::spawn(async move {
-                let agent_tcp_connection =
-                    match AgentTcpConnection::new(agent_tcp_stream, false, agent_connection_buffer_size, proxy_server_rsa_crypto_fetcher.clone()) {
-                        Err(e) => {
-                            error!("Fail to handle agent tcp connection because of error: {e:?}");
-                            drop(agent_tcp_connection_accept_permit);
-                            return;
-                        },
-                        Ok(v) => v,
-                    };
-                let agent_tcp_loop = AgentTcpLoop::new(agent_tcp_connection, configuration);
-                if let Err(e) = agent_tcp_loop.exec().await {
-                    error!("Error happen when execute agent tcp loop because of error: {e:?}");
+            let agent_tcp_connection =
+                match AgentTcpConnection::new(agent_tcp_stream, false, agent_connection_buffer_size, proxy_server_rsa_crypto_fetcher.clone()) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        error!("Fail to handle agent tcp connection because of error: {e:?}");
+                        drop(agent_tcp_connection_accept_permit);
+                        continue;
+                    },
                 };
-                drop(agent_tcp_connection_accept_permit);
-            });
+            let agent_transport = AgentTransport::new(agent_tcp_connection, configuration);
+            let agent_transport_id = agent_transport.get_id().to_owned();
+            if let Err(e) = agent_transport.exec().await {
+                error!("Error happen when execute agent tcp transport [{agent_transport_id}] because of error: {e:?}");
+            };
+            drop(agent_tcp_connection_accept_permit);
         }
     }
 }

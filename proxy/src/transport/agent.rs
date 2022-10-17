@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     net::{SocketAddr, ToSocketAddrs},
     sync::Arc,
 };
@@ -12,38 +11,37 @@ use ppaass_common::{generate_uuid, PpaassError};
 use ppaass_protocol::{
     PpaassMessage, PpaassMessageAgentPayloadTypeValue, PpaassMessageParts, PpaassMessagePayload, PpaassMessagePayloadParts, PpaassMessagePayloadType,
 };
-use tokio::{net::TcpStream, sync::mpsc::Sender};
+use tokio::net::TcpStream;
 use tracing::{error, info};
 
-use ppaass_io::PpaassTcpConnection;
-
-use crate::{config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher};
-
-pub(crate) type AgentTcpConnection = PpaassTcpConnection<TcpStream, ProxyServerRsaCryptoFetcher>;
+use crate::{common::AgentTcpConnection, config::ProxyServerConfig};
 
 #[derive(Debug)]
-pub(crate) struct AgentTcpLoop {
-    agent_tcp_loop_id: String,
+pub(crate) struct AgentTransport {
+    id: String,
     agent_tcp_connection: AgentTcpConnection,
 }
 
-impl AgentTcpLoop {
-    pub(crate) fn new(agent_tcp_connection: AgentTcpConnection, configuration: Arc<ProxyServerConfig>) -> Self {
+impl AgentTransport {
+    pub(crate) fn new(agent_tcp_connection: AgentTcpConnection, _configuration: Arc<ProxyServerConfig>) -> Self {
         Self {
-            agent_tcp_loop_id: generate_uuid(),
+            id: generate_uuid(),
             agent_tcp_connection,
         }
     }
 
+    pub(crate) fn get_id(&self) -> &str {
+        &self.id
+    }
+
     pub(crate) async fn exec(self) -> Result<()> {
         let mut agent_tcp_connection = self.agent_tcp_connection;
-        let agent_tcp_loop_id = self.agent_tcp_loop_id.clone();
         tokio::spawn(async move {
             loop {
                 let agent_message = agent_tcp_connection.try_next().await?;
                 let PpaassMessageParts { payload_bytes, user_token, .. } = match agent_message {
                     None => {
-                        info!("Agent tcp loop [{}] disconnected.", agent_tcp_loop_id);
+                        info!("Agent tcp connection [{agent_tcp_connection:?}] disconnected.");
                         return Ok(());
                     },
                     Some(v) => v.split(),
@@ -68,10 +66,7 @@ impl AgentTcpLoop {
                             payload_bytes,
                         );
                         if let Err(e) = agent_tcp_connection.send(keep_alive_success_message).await {
-                            error!(
-                                "Fail to do keep alive for agent tcp connection, tcp event loop: {}, error: {e:?}",
-                                agent_tcp_loop_id
-                            );
+                            error!("Fail to do keep alive for agent tcp connection [{agent_tcp_connection:?}], error: {e:?}");
                             return Err(anyhow!(e));
                         };
                         continue;
