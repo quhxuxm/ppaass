@@ -16,7 +16,7 @@ use crate::codec::PpaassMessageCodec;
 
 #[pin_project]
 #[derive(Debug)]
-pub struct PpaassTcpConnection<T, R>
+pub struct PpaassMessageFramed<T, R>
 where
     T: AsyncRead + AsyncWrite,
     R: RsaCryptoFetcher,
@@ -25,7 +25,7 @@ where
     inner: Framed<T, PpaassMessageCodec<R>>,
 }
 
-impl<T, R> PpaassTcpConnection<T, R>
+impl<T, R> PpaassMessageFramed<T, R>
 where
     T: AsyncRead + AsyncWrite,
     R: RsaCryptoFetcher,
@@ -36,7 +36,7 @@ where
     }
 }
 
-impl<T, R> Stream for PpaassTcpConnection<T, R>
+impl<T, R> Stream for PpaassMessageFramed<T, R>
 where
     T: AsyncRead + AsyncWrite,
     R: RsaCryptoFetcher,
@@ -54,7 +54,7 @@ where
     }
 }
 
-impl<T, R> Sink<PpaassMessage> for PpaassTcpConnection<T, R>
+impl<T, R> Sink<PpaassMessage> for PpaassMessageFramed<T, R>
 where
     T: AsyncRead + AsyncWrite,
     R: RsaCryptoFetcher,

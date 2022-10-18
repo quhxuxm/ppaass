@@ -1,28 +1,35 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::Result;
 
-use tokio::{io::AsyncWriteExt, net::TcpListener, sync::Semaphore};
+use tokio::{
+    io::AsyncWriteExt,
+    net::TcpListener,
+    sync::{mpsc::Sender, Semaphore},
+};
 use tracing::{error, info};
 
 use crate::{
-    common::AgentTcpConnection,
+    common::AgentMessageFramed,
     config::ProxyServerConfig,
     crypto::ProxyServerRsaCryptoFetcher,
-    transport::{agent::AgentTransport, target::TargetTransport},
+    transport::{agent::AgentTcpTransport, TargetTcpTransportInput},
 };
 
 pub(crate) struct ProxyServer {
     configuration: Arc<ProxyServerConfig>,
     agent_connection_number: Arc<Semaphore>,
+    target_tcp_transport_input_sender_repository: Arc<HashMap<String, Sender<TargetTcpTransportInput>>>,
 }
 
 impl ProxyServer {
     pub(crate) fn new(configuration: Arc<ProxyServerConfig>) -> Self {
         let agent_max_connection_number = configuration.get_agent_max_connection_number();
+        let target_tcp_transport_input_sender_repository = Arc::new(HashMap::new());
         Self {
             configuration,
             agent_connection_number: Arc::new(Semaphore::new(agent_max_connection_number)),
+            target_tcp_transport_input_sender_repository,
         }
     }
 
@@ -75,8 +82,8 @@ impl ProxyServer {
             };
             let proxy_server_rsa_crypto_fetcher = proxy_server_rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();
-            let agent_tcp_connection =
-                match AgentTcpConnection::new(agent_tcp_stream, false, agent_connection_buffer_size, proxy_server_rsa_crypto_fetcher.clone()) {
+            let agent_message_stream_and_sink =
+                match AgentMessageFramed::new(agent_tcp_stream, false, agent_connection_buffer_size, proxy_server_rsa_crypto_fetcher.clone()) {
                     Ok(v) => v,
                     Err(e) => {
                         error!("Fail to handle agent tcp connection because of error: {e:?}");
@@ -85,10 +92,13 @@ impl ProxyServer {
                     },
                 };
 
-            let (target_transport, agent_tcp_message_outbound_receiver) = TargetTransport::new(agent_tcp_message_inbound_receiver);
-            let agent_transport = AgentTransport::new(agent_tcp_connection, configuration);
-            let agent_transport_id = agent_transport.get_id().to_owned();
-            if let Err(e) = agent_transport.exec().await {
+            let agent_tcp_transport = AgentTcpTransport::new(
+                agent_message_stream_and_sink,
+                self.target_tcp_transport_input_sender_repository.clone(),
+                configuration,
+            );
+            let agent_transport_id = agent_tcp_transport.get_id().to_owned();
+            if let Err(e) = agent_tcp_transport.exec().await {
                 error!("Error happen when execute agent tcp transport [{agent_transport_id}] because of error: {e:?}");
             };
             drop(agent_tcp_connection_accept_permit);

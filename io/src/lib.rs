@@ -1,4 +1,4 @@
 pub(crate) mod codec;
-mod connection;
+mod framed;
 
-pub use connection::*;
+pub use framed::*;
