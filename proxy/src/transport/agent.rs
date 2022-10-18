@@ -41,6 +41,7 @@ impl AgentTcpTransport {
 
     pub(crate) async fn exec(self) -> Result<()> {
         let (agent_message_sink, agent_message_stream) = self.agent_message_framed.split();
+
         let id = self.id;
         tokio::spawn(async move {
             loop {
@@ -64,17 +65,17 @@ impl AgentTcpTransport {
                 match payload_type {
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::DomainNameResolve) => {},
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::ConnectionKeepAlive) => {
-                        // let keep_alive_success_message_payload = PpaassMessagePayload::new(None, source_address, target_address, payload_type, data);
-                        // let payload_bytes: Vec<u8> = keep_alive_success_message_payload.try_into()?;
-                        // let keep_alive_success_message = PpaassMessage::new(
-                        //     user_token,
-                        //     ppaass_protocol::PpaassMessagePayloadEncryption::Aes(generate_uuid().as_bytes().to_vec()),
-                        //     payload_bytes,
-                        // );
-                        // if let Err(e) = agent_message_framed.send(keep_alive_success_message).await {
-                        //     error!("Fail to do keep alive for agent tcp transport [{id}], error: {e:?}");
-                        //     return Err(anyhow!(e));
-                        // };
+                        let keep_alive_success_message_payload = PpaassMessagePayload::new(None, source_address, target_address, payload_type, data);
+                        let payload_bytes: Vec<u8> = keep_alive_success_message_payload.try_into()?;
+                        let keep_alive_success_message = PpaassMessage::new(
+                            user_token,
+                            ppaass_protocol::PpaassMessagePayloadEncryption::Aes(generate_uuid().as_bytes().to_vec()),
+                            payload_bytes,
+                        );
+                        if let Err(e) = agent_message_sink.send(keep_alive_success_message).await {
+                            error!("Fail to do keep alive for agent tcp transport [{id}], error: {e:?}");
+                            return Err(anyhow!(e));
+                        };
                         continue;
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpInitialize) => {
