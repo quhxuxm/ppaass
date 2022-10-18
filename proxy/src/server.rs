@@ -82,7 +82,7 @@ impl ProxyServer {
             };
             let proxy_server_rsa_crypto_fetcher = proxy_server_rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();
-            let agent_message_stream_and_sink =
+            let agent_message_framed =
                 match AgentMessageFramed::new(agent_tcp_stream, false, agent_connection_buffer_size, proxy_server_rsa_crypto_fetcher.clone()) {
                     Ok(v) => v,
                     Err(e) => {
@@ -92,11 +92,7 @@ impl ProxyServer {
                     },
                 };
 
-            let agent_tcp_transport = AgentTcpTransport::new(
-                agent_message_stream_and_sink,
-                self.target_tcp_transport_input_sender_repository.clone(),
-                configuration,
-            );
+            let agent_tcp_transport = AgentTcpTransport::new(agent_message_framed, self.target_tcp_transport_input_sender_repository.clone(), configuration);
             let agent_transport_id = agent_tcp_transport.get_id().to_owned();
             if let Err(e) = agent_tcp_transport.exec().await {
                 error!("Error happen when execute agent tcp transport [{agent_transport_id}] because of error: {e:?}");
