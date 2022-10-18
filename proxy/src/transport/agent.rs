@@ -8,7 +8,10 @@ use ppaass_common::{generate_uuid, PpaassError};
 use ppaass_protocol::{
     PpaassMessage, PpaassMessageAgentPayloadTypeValue, PpaassMessageParts, PpaassMessagePayload, PpaassMessagePayloadParts, PpaassMessagePayloadType,
 };
-use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::{
+    mpsc::{channel, Sender},
+    Mutex,
+};
 use tracing::{error, info};
 
 use crate::{common::AgentMessageFramed, config::ProxyServerConfig};
@@ -19,12 +22,12 @@ use super::{target::TargetTcpTransport, TargetTcpTransportInput, TargetTcpTransp
 pub(crate) struct AgentTcpTransport {
     id: String,
     agent_message_framed: AgentMessageFramed,
-    target_tcp_transport_input_sender_repository: Arc<HashMap<String, Sender<TargetTcpTransportInput>>>,
+    target_tcp_transport_input_sender_repository: Mutex<HashMap<String, Sender<TargetTcpTransportInput>>>,
 }
 
 impl AgentTcpTransport {
     pub(crate) fn new(
-        agent_message_framed: AgentMessageFramed, target_tcp_transport_input_sender_repository: Arc<HashMap<String, Sender<TargetTcpTransportInput>>>,
+        agent_message_framed: AgentMessageFramed, target_tcp_transport_input_sender_repository: Mutex<HashMap<String, Sender<TargetTcpTransportInput>>>,
         _configuration: Arc<ProxyServerConfig>,
     ) -> Self {
         let (outbound_sender, outbound_receiver) = channel::<TargetTcpTransportOutput>(1024);
@@ -40,7 +43,7 @@ impl AgentTcpTransport {
     }
 
     pub(crate) async fn exec(self) -> Result<()> {
-        let (agent_message_sink, agent_message_stream) = self.agent_message_framed.split();
+        let (mut agent_message_sink, mut agent_message_stream) = self.agent_message_framed.split();
 
         let id = self.id;
         tokio::spawn(async move {
@@ -89,8 +92,8 @@ impl AgentTcpTransport {
                             .send(target_tcp_transport_input)
                             .await
                             .map_err(|e| anyhow!("Can not send input to target transport"))?;
-                        self.target_tcp_transport_input_sender_repository
-                            .insert(target_tcp_transport.get_id().to_owned(), target_tcp_transport_input_sender);
+                        let mut target_tcp_transport_input_sender_repository = self.target_tcp_transport_input_sender_repository.lock().await;
+                        target_tcp_transport_input_sender_repository.insert(target_tcp_transport.get_id().to_owned(), target_tcp_transport_input_sender);
                         continue;
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpRelay) => {
@@ -108,9 +111,9 @@ impl AgentTcpTransport {
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpDestory) => {
                         let connection_id = connection_id.ok_or(anyhow!("No connection id assigned."))?;
-                        let target_tcp_transport_input_sender = self.target_tcp_transport_input_sender_repository.remove(&connection_id);
-                        let target_tcp_transport_input_sender =
-                            target_tcp_transport_input_sender.ok_or(anyhow!("Can not find target tcp transport input sender."))?;
+                        let mut target_tcp_transport_input_sender_repository = self.target_tcp_transport_input_sender_repository.lock().await;
+                        let target_tcp_transport_input_sender = target_tcp_transport_input_sender_repository.remove(&connection_id);
+                        target_tcp_transport_input_sender.ok_or(anyhow!("Can not find target tcp transport input sender."))?;
                         drop(target_tcp_transport_input_sender);
                         continue;
                     },
