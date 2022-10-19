@@ -1,35 +1,23 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Result;
 
-use tokio::{
-    io::AsyncWriteExt,
-    net::TcpListener,
-    sync::{mpsc::Sender, Semaphore},
-};
+use tokio::{io::AsyncWriteExt, net::TcpListener, sync::Semaphore};
 use tracing::{error, info};
 
-use crate::{
-    common::AgentMessageFramed,
-    config::ProxyServerConfig,
-    crypto::ProxyServerRsaCryptoFetcher,
-    transport::{agent::AgentTcpTransport, TargetTcpTransportInput},
-};
+use crate::{common::AgentMessageFramed, config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher, transport::Transport};
 
 pub(crate) struct ProxyServer {
     configuration: Arc<ProxyServerConfig>,
     agent_connection_number: Arc<Semaphore>,
-    target_tcp_transport_input_sender_repository: Arc<HashMap<String, Sender<TargetTcpTransportInput>>>,
 }
 
 impl ProxyServer {
     pub(crate) fn new(configuration: Arc<ProxyServerConfig>) -> Self {
         let agent_max_connection_number = configuration.get_agent_max_connection_number();
-        let target_tcp_transport_input_sender_repository = Arc::new(HashMap::new());
         Self {
             configuration,
             agent_connection_number: Arc::new(Semaphore::new(agent_max_connection_number)),
-            target_tcp_transport_input_sender_repository,
         }
     }
 
@@ -91,13 +79,9 @@ impl ProxyServer {
                         continue;
                     },
                 };
-
-            let agent_tcp_transport = AgentTcpTransport::new(agent_message_framed, self.target_tcp_transport_input_sender_repository.clone(), configuration);
-            let agent_transport_id = agent_tcp_transport.get_id().to_owned();
-            if let Err(e) = agent_tcp_transport.exec().await {
-                error!("Error happen when execute agent tcp transport [{agent_transport_id}] because of error: {e:?}");
-            };
-            drop(agent_tcp_connection_accept_permit);
+            let transport = Transport::new(agent_message_framed, configuration, agent_tcp_connection_accept_permit);
+            let transport_id = transport.get_id().to_owned();
+            transport.exec().await;
         }
     }
 }

@@ -1,45 +1,42 @@
-use anyhow::Result;
-use ppaass_common::generate_uuid;
 use tokio::{
     net::TcpStream,
     sync::mpsc::{Receiver, Sender},
 };
 
-use super::{TargetTcpTransportInput, TargetTcpTransportInputType, TargetTcpTransportOutput};
+use super::{AgentToTargetData, AgentToTargetDataType, TargetToAgentData};
 
-pub(crate) struct TargetTcpTransport {
-    id: String,
-    input_receiver: Receiver<TargetTcpTransportInput>,
-    output_sender: Sender<TargetTcpTransportOutput>,
+#[derive(Debug)]
+pub(crate) struct TargetEdge {
+    transport_id: String,
     target_tcp_stream: Option<TcpStream>,
+    agent_to_target_data_receiver: Receiver<AgentToTargetData>,
+    target_to_agent_data_sender: Sender<TargetToAgentData>,
 }
 
-impl TargetTcpTransport {
-    pub(crate) fn new(input_receiver: Receiver<TargetTcpTransportInput>, output_sender: Sender<TargetTcpTransportOutput>) -> Self {
+impl TargetEdge {
+    pub(crate) fn new(
+        transport_id: String, agent_to_target_data_receiver: Receiver<AgentToTargetData>, target_to_agent_data_sender: Sender<TargetToAgentData>,
+    ) -> Self {
         Self {
-            id: generate_uuid(),
-            input_receiver,
-            output_sender,
+            transport_id,
             target_tcp_stream: None,
+            agent_to_target_data_receiver,
+            target_to_agent_data_sender,
         }
     }
 
-    pub(crate) fn get_id(&self) -> &str {
-        &self.id
-    }
-
-    pub(crate) async fn exec(self) -> Result<()> {
-        let mut input_receiver = self.input_receiver;
+    pub(crate) async fn exec(self) {
+        let mut target_edge_request_receiver = self.target_edge_request_receiver;
         tokio::spawn(async move {
             loop {
-                let TargetTcpTransportInput { input_type } = match input_receiver.recv().await {
+                let AgentToTargetData { data_type: request_type } = match target_edge_request_receiver.recv().await {
                     None => {
                         return;
                     },
                     Some(v) => v,
                 };
-                match input_type {
-                    TargetTcpTransportInputType::Connect { target_address } => {
+                match request_type {
+                    AgentToTargetDataType::TcpInitialize { target_address } => {
                         // let target_address = target_address.ok_or(PpaassError::CodecError)?;
                         // let target_socket_addrs = target_address.to_socket_addrs()?;
                         // let target_socket_addrs = target_socket_addrs.collect::<Vec<SocketAddr>>();
@@ -63,6 +60,5 @@ impl TargetTcpTransport {
                 }
             }
         });
-        Ok(())
     }
 }
