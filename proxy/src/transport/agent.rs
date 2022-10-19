@@ -3,7 +3,7 @@ use std::{sync::Arc, vec};
 use anyhow::anyhow;
 
 use futures::{SinkExt, StreamExt, TryStreamExt};
-use ppaass_common::{generate_uuid, PpaassError};
+use ppaass_common::generate_uuid;
 
 use ppaass_protocol::{
     PpaassMessage, PpaassMessageAgentPayloadTypeValue, PpaassMessageParts, PpaassMessagePayload, PpaassMessagePayloadEncryptionSelector,
