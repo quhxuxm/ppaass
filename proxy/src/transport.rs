@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use ppaass_common::generate_uuid;
 
-use ppaass_protocol::{PpaassMessagePayloadEncryptionSelector, PpaassProtocolAddress};
+use ppaass_protocol::PpaassProtocolAddress;
 use tokio::sync::{mpsc::channel, OwnedSemaphorePermit};
 use tracing::debug;
 
