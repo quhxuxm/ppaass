@@ -17,13 +17,15 @@ pub enum PpaassMessageProxyPayloadTypeValue {
     TcpInitializeSuccess,
     TcpInitializeFail,
     TcpRelaySuccess,
+    TcpRelayFail,
     TcpDestorySuccess,
+    TcpDestoryFail,
     UdpInitializeSuccess,
     UdpRelaySuccess,
     UdpDestorySuccess,
     DomainNameResolveSuccess,
     DomainNameResolveFail,
-    HeartbeatSuccess,
+    ConnectionKeepAliveSuccess,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]

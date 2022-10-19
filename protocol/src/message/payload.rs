@@ -19,7 +19,6 @@ pub enum PayloadAdditionalInfoValue {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PpaassMessagePayload {
-    connection_id: Option<String>,
     payload_type: PpaassMessagePayloadType,
     source_address: Option<PpaassProtocolAddress>,
     target_address: Option<PpaassProtocolAddress>,
@@ -29,7 +28,6 @@ pub struct PpaassMessagePayload {
 }
 
 pub struct PpaassMessagePayloadParts {
-    pub connection_id: Option<String>,
     pub payload_type: PpaassMessagePayloadType,
     pub source_address: Option<PpaassProtocolAddress>,
     pub target_address: Option<PpaassProtocolAddress>,
@@ -39,11 +37,9 @@ pub struct PpaassMessagePayloadParts {
 
 impl PpaassMessagePayload {
     pub fn new(
-        connection_id: Option<String>, source_address: Option<PpaassProtocolAddress>, target_address: Option<PpaassProtocolAddress>,
-        payload_type: PpaassMessagePayloadType, data: Vec<u8>,
+        source_address: Option<PpaassProtocolAddress>, target_address: Option<PpaassProtocolAddress>, payload_type: PpaassMessagePayloadType, data: Vec<u8>,
     ) -> Self {
         Self {
-            connection_id,
             payload_type,
             source_address,
             target_address,
@@ -72,13 +68,8 @@ impl PpaassMessagePayload {
         &self.payload_type
     }
 
-    pub fn get_client_connection_id(&self) -> &Option<String> {
-        &self.connection_id
-    }
-
     pub fn split(self) -> PpaassMessagePayloadParts {
         PpaassMessagePayloadParts {
-            connection_id: self.connection_id,
             data: self.data,
             payload_type: self.payload_type,
             source_address: self.source_address,
@@ -91,7 +82,6 @@ impl PpaassMessagePayload {
 impl From<PpaassMessagePayloadParts> for PpaassMessagePayload {
     fn from(value: PpaassMessagePayloadParts) -> Self {
         Self {
-            connection_id: value.connection_id,
             payload_type: value.payload_type,
             source_address: value.source_address,
             target_address: value.target_address,

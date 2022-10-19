@@ -32,10 +32,10 @@ pub struct PpaassMessageParts {
 }
 
 impl PpaassMessage {
-    pub fn new(user_token: String, payload_encryption: PpaassMessagePayloadEncryption, payload_bytes: Vec<u8>) -> Self {
+    pub fn new(user_token: &str, payload_encryption: PpaassMessagePayloadEncryption, payload_bytes: Vec<u8>) -> Self {
         Self {
             id: generate_uuid(),
-            user_token,
+            user_token: user_token.to_owned(),
             payload_encryption,
             payload_bytes,
         }

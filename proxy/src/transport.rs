@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use ppaass_common::generate_uuid;
 
-use ppaass_protocol::PpaassProtocolAddress;
+use ppaass_protocol::{PpaassMessagePayloadEncryptionSelector, PpaassProtocolAddress};
 use tokio::sync::{mpsc::channel, OwnedSemaphorePermit};
 use tracing::debug;
 
@@ -29,16 +29,52 @@ struct AgentToTargetData {
 
 #[derive(Debug)]
 enum TargetToAgentDataType {
-    TcpInitializeSuccess { target_address: PpaassProtocolAddress },
-    TcpInitializeFail { target_address: PpaassProtocolAddress },
-    TcpReplaySuccess { data: Vec<u8> },
-    TcpReplayFail { data: Vec<u8> },
-    TcpDestorySuccess,
-    TcpDestoryFail,
-    ConnectionKeepAliveSuccess,
-    ConnectionKeepAliveFail,
-    DomainNameResolveSuccess { data: Vec<u8> },
-    DomainNameResolveFail { data: Vec<u8> },
+    TcpInitializeSuccess {
+        source_address: PpaassProtocolAddress,
+        target_address: PpaassProtocolAddress,
+        user_token: String,
+    },
+    TcpInitializeFail {
+        source_address: PpaassProtocolAddress,
+        target_address: PpaassProtocolAddress,
+        user_token: String,
+    },
+    TcpReplaySuccess {
+        source_address: PpaassProtocolAddress,
+        target_address: PpaassProtocolAddress,
+        user_token: String,
+        data: Vec<u8>,
+    },
+    TcpReplayFail {
+        source_address: PpaassProtocolAddress,
+        target_address: PpaassProtocolAddress,
+        user_token: String,
+    },
+    TcpDestorySuccess {
+        source_address: PpaassProtocolAddress,
+        target_address: PpaassProtocolAddress,
+        user_token: String,
+    },
+    TcpDestoryFail {
+        source_address: PpaassProtocolAddress,
+        target_address: PpaassProtocolAddress,
+        user_token: String,
+    },
+    ConnectionKeepAliveSuccess {
+        user_token: String,
+    },
+    ConnectionKeepAliveFail {
+        user_token: String,
+    },
+    DomainNameResolveSuccess {
+        source_address: PpaassProtocolAddress,
+        target_address: PpaassProtocolAddress,
+        user_token: String,
+        data: Vec<u8>,
+    },
+    DomainNameResolveFail {
+        user_token: String,
+    },
 }
 
 #[derive(Debug)]

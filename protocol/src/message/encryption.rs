@@ -8,3 +8,12 @@ pub enum PpaassMessagePayloadEncryption {
     Aes(#[serde(with = "vec_u8_to_base64")] Vec<u8>),
     Bloofish(#[serde(with = "vec_u8_to_base64")] Vec<u8>),
 }
+
+pub trait PpaassMessagePayloadEncryptionSelector {
+    fn select(_user_token: &str, encryption_token: Option<Vec<u8>>) -> PpaassMessagePayloadEncryption {
+        match encryption_token {
+            None => PpaassMessagePayloadEncryption::Plain,
+            Some(encryption_token) => PpaassMessagePayloadEncryption::Aes(encryption_token),
+        }
+    }
+}

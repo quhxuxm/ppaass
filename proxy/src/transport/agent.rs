@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, vec};
 
 use anyhow::anyhow;
 
@@ -6,14 +6,18 @@ use futures::{SinkExt, StreamExt, TryStreamExt};
 use ppaass_common::{generate_uuid, PpaassError};
 
 use ppaass_protocol::{
-    PpaassMessage, PpaassMessageAgentPayloadTypeValue, PpaassMessageParts, PpaassMessagePayload, PpaassMessagePayloadParts, PpaassMessagePayloadType,
+    PpaassMessage, PpaassMessageAgentPayloadTypeValue, PpaassMessageParts, PpaassMessagePayload, PpaassMessagePayloadEncryptionSelector,
+    PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassMessageProxyPayloadTypeValue,
 };
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::mpsc::{Receiver, Sender};
 use tracing::{error, info};
 
-use crate::{common::AgentMessageFramed, config::ProxyServerConfig};
+use crate::{
+    common::{AgentMessageFramed, ProxyServerPayloadEncryptionSelector},
+    config::ProxyServerConfig,
+};
 
-use super::{AgentToTargetData, TargetToAgentData};
+use super::{AgentToTargetData, TargetToAgentData, TargetToAgentDataType};
 
 #[derive(Debug)]
 pub(crate) struct AgentEdge {
@@ -43,97 +47,212 @@ impl AgentEdge {
         let transport_id = self.transport_id.clone();
         tokio::spawn(async move {
             loop {
-                let agent_message = agent_message_stream.try_next().await?;
+                let agent_message = match agent_message_stream.try_next().await {
+                    Err(e) => {
+                        error!("Fail to send agent to target data because of error: {e:?}");
+                        return;
+                    },
+                    Ok(v) => v,
+                };
                 let PpaassMessageParts { payload_bytes, user_token, .. } = match agent_message {
                     None => {
                         info!("Transport [{transport_id}] agent edge disconnected.");
                         drop(agent_to_target_data_sender);
-                        return Ok(());
+                        return;
                     },
                     Some(v) => v.split(),
                 };
-                let agent_message_payload: PpaassMessagePayload = payload_bytes.try_into()?;
+                let agent_message_payload: PpaassMessagePayload = match payload_bytes.try_into() {
+                    Err(e) => {
+                        error!("Fail to send agent to target data because of error: {e:?}");
+                        return;
+                    },
+                    Ok(v) => v,
+                };
                 let PpaassMessagePayloadParts {
-                    connection_id,
                     payload_type,
                     source_address,
                     target_address,
                     additional_info,
                     data,
                 } = agent_message_payload.split();
-                match payload_type {
-                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::DomainNameResolve) => {
-                        if let Err(e) = agent_to_target_data_sender
-                            .send(AgentToTargetData {
-                                data_type: super::AgentToTargetDataType::DomainNameResolve { data },
-                            })
-                            .await
-                        {
-                            error!("Fail to send domain name resolve to target because of sender error: {e:?}");
-                        };
-                        continue;
+                let agent_to_target_data = match payload_type {
+                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::DomainNameResolve) => AgentToTargetData {
+                        data_type: super::AgentToTargetDataType::DomainNameResolve { data },
                     },
-                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::ConnectionKeepAlive) => {
-                        if let Err(e) = agent_to_target_data_sender
-                            .send(AgentToTargetData {
-                                data_type: super::AgentToTargetDataType::ConnectionKeepAlive,
-                            })
-                            .await
-                        {
-                            error!("Fail to send connection keep alive to target because of sender error: {e:?}");
-                        };
-                        continue;
+                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::ConnectionKeepAlive) => AgentToTargetData {
+                        data_type: super::AgentToTargetDataType::ConnectionKeepAlive,
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpInitialize) => {
-                        let target_address = target_address.ok_or(anyhow!("No target address assigned."))?;
-                        if let Err(e) = agent_to_target_data_sender
-                            .send(AgentToTargetData {
-                                data_type: super::AgentToTargetDataType::TcpInitialize { target_address },
-                            })
-                            .await
-                        {
-                            error!("Fail to send tcp initialize to target because of sender error: {e:?}");
+                        let target_address = match target_address.ok_or(anyhow!("No target address assigned.")) {
+                            Err(e) => {
+                                error!("Fail to send agent to target data because of error: {e:?}");
+                                return;
+                            },
+                            Ok(v) => v,
                         };
-                        continue;
+                        AgentToTargetData {
+                            data_type: super::AgentToTargetDataType::TcpInitialize { target_address },
+                        }
                     },
-                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpRelay) => {
-                        if let Err(e) = agent_to_target_data_sender
-                            .send(AgentToTargetData {
-                                data_type: super::AgentToTargetDataType::TcpReplay { data },
-                            })
-                            .await
-                        {
-                            error!("Fail to send tcp relay data to target because of sender error: {e:?}");
-                        };
-                        continue;
+                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpRelay) => AgentToTargetData {
+                        data_type: super::AgentToTargetDataType::TcpReplay { data },
                     },
-                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpDestory) => {
-                        if let Err(e) = agent_to_target_data_sender
-                            .send(AgentToTargetData {
-                                data_type: super::AgentToTargetDataType::TcpDestory,
-                            })
-                            .await
-                        {
-                            error!("Fail to send tcp destory to target because of sender error: {e:?}");
-                        };
-                        continue;
+                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpDestory) => AgentToTargetData {
+                        data_type: super::AgentToTargetDataType::TcpDestory,
                     },
                     invalid_type => {
                         error!("Fail to parse agent payload type because of receove invalid data: {invalid_type:?}");
-                        return Err(anyhow!(PpaassError::CodecError));
+                        return;
                     },
-                }
+                };
+                if let Err(e) = agent_to_target_data_sender.send(agent_to_target_data).await {
+                    error!("Fail to send agent to target data because of sender error: {e:?}");
+                    return;
+                };
             }
         });
         let transport_id = self.transport_id.clone();
         tokio::spawn(async move {
             loop {
-                let target_to_agent_data = match target_to_agent_data_receiver.recv().await {
+                let TargetToAgentData { data_type } = match target_to_agent_data_receiver.recv().await {
                     None => {
                         info!("Transport [{transport_id}] target edge disconnected.");
                         return;
                     },
                     Some(v) => v,
+                };
+                let (message_payload, user_token) = match data_type {
+                    TargetToAgentDataType::TcpInitializeSuccess {
+                        target_address,
+                        source_address,
+                        user_token,
+                    } => (
+                        PpaassMessagePayload::new(
+                            Some(source_address),
+                            Some(target_address),
+                            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpInitializeSuccess),
+                            vec![],
+                        ),
+                        user_token,
+                    ),
+                    TargetToAgentDataType::TcpInitializeFail {
+                        target_address,
+                        source_address,
+                        user_token,
+                    } => (
+                        PpaassMessagePayload::new(
+                            Some(source_address),
+                            Some(target_address),
+                            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpInitializeFail),
+                            vec![],
+                        ),
+                        user_token,
+                    ),
+                    TargetToAgentDataType::TcpReplaySuccess {
+                        data,
+                        source_address,
+                        target_address,
+                        user_token,
+                    } => (
+                        PpaassMessagePayload::new(
+                            Some(source_address),
+                            Some(target_address),
+                            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpRelaySuccess),
+                            data,
+                        ),
+                        user_token,
+                    ),
+                    TargetToAgentDataType::TcpReplayFail {
+                        source_address,
+                        target_address,
+                        user_token,
+                    } => (
+                        PpaassMessagePayload::new(
+                            Some(source_address),
+                            Some(target_address),
+                            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpRelayFail),
+                            vec![],
+                        ),
+                        user_token,
+                    ),
+                    TargetToAgentDataType::TcpDestorySuccess {
+                        source_address,
+                        target_address,
+                        user_token,
+                    } => (
+                        PpaassMessagePayload::new(
+                            Some(source_address),
+                            Some(target_address),
+                            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpDestorySuccess),
+                            vec![],
+                        ),
+                        user_token,
+                    ),
+                    TargetToAgentDataType::TcpDestoryFail {
+                        source_address,
+                        target_address,
+                        user_token,
+                    } => (
+                        PpaassMessagePayload::new(
+                            Some(source_address),
+                            Some(target_address),
+                            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpDestoryFail),
+                            vec![],
+                        ),
+                        user_token,
+                    ),
+                    TargetToAgentDataType::ConnectionKeepAliveSuccess { user_token } => (
+                        PpaassMessagePayload::new(
+                            None,
+                            None,
+                            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::ConnectionKeepAliveSuccess),
+                            vec![],
+                        ),
+                        user_token,
+                    ),
+                    TargetToAgentDataType::ConnectionKeepAliveFail { user_token } => {
+                        return;
+                    },
+                    TargetToAgentDataType::DomainNameResolveSuccess {
+                        data,
+                        source_address,
+                        target_address,
+                        user_token,
+                    } => (
+                        PpaassMessagePayload::new(
+                            None,
+                            None,
+                            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::DomainNameResolveSuccess),
+                            data,
+                        ),
+                        user_token,
+                    ),
+                    TargetToAgentDataType::DomainNameResolveFail { user_token } => (
+                        PpaassMessagePayload::new(
+                            None,
+                            None,
+                            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::DomainNameResolveFail),
+                            vec![],
+                        ),
+                        user_token,
+                    ),
+                };
+                let message_payload_bytes = match message_payload.try_into() {
+                    Err(e) => {
+                        error!("Transport [{transport_id}] fail to initialize tcp connection because of error: {e:?}.");
+                        return;
+                    },
+                    Ok(v) => v,
+                };
+                let message = PpaassMessage::new(
+                    &user_token,
+                    ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes())),
+                    message_payload_bytes,
+                );
+                if let Err(e) = agent_message_sink.send(message).await {
+                    error!("Transport [{transport_id}] fail to send message to agent because of error: {e:?}.");
+                    return;
                 };
             }
         });

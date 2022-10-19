@@ -8,7 +8,7 @@ use ppaass_protocol::{
 
 #[test]
 fn test_serialize_message() -> Result<(), Box<dyn Error>> {
-    let message = ppaass_protocol::PpaassMessage::new("user1".to_string(), PpaassMessagePayloadEncryption::Aes(vec![1, 2, 3]), vec![1, 2, 3]);
+    let message = ppaass_protocol::PpaassMessage::new("user1", PpaassMessagePayloadEncryption::Aes(vec![1, 2, 3]), vec![1, 2, 3]);
     println!("{}", serde_json::to_string_pretty(&message)?);
     Ok(())
 }
@@ -21,7 +21,6 @@ fn test_serialize_message_payload() -> Result<(), Box<dyn Error>> {
         port: 800,
     };
     let mut message_payload = PpaassMessagePayload::new(
-        Some(generate_uuid()),
         Some(source_address),
         Some(target_address),
         PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpInitialize),
