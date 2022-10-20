@@ -6,7 +6,7 @@ use tokio::{
     net::TcpStream,
     sync::mpsc::{Receiver, Sender},
 };
-use tracing::debug;
+use tracing::{debug, error};
 
 use super::{AgentToTargetData, AgentToTargetDataType, TargetToAgentData, TargetToAgentDataType};
 
@@ -31,6 +31,7 @@ impl TargetEdge {
     pub(super) async fn exec(self) {
         let mut agent_to_target_data_receiver = self.agent_to_target_data_receiver;
         let target_to_agent_data_sender = self.target_to_agent_data_sender;
+        let transport_id = self.transport_id;
         tokio::spawn(async move {
             let mut target_tcp_stream = None::<TcpStream>;
             loop {
@@ -55,7 +56,8 @@ impl TargetEdge {
                         let target_socket_addrs = target_socket_addrs.collect::<Vec<SocketAddr>>();
                         target_tcp_stream = match TcpStream::connect(target_socket_addrs.as_slice()).await {
                             Err(e) => {
-                                target_to_agent_data_sender
+                                error!("Transport [{transport_id}] fail connect to target becacuse of error: {e:?}");
+                                if let Err(e) = target_to_agent_data_sender
                                     .send(TargetToAgentData {
                                         data_type: TargetToAgentDataType::TcpInitializeFail {
                                             source_address,
@@ -63,12 +65,15 @@ impl TargetEdge {
                                             user_token,
                                         },
                                     })
-                                    .await;
+                                    .await
+                                {
+                                    error!("Transport [{transport_id}] fail to send target connect fail message to agent becacuse of error: {e:?}");
+                                };
                                 drop(target_to_agent_data_sender);
                                 return;
                             },
                             Ok(v) => {
-                                target_to_agent_data_sender
+                                if let Err(e) = target_to_agent_data_sender
                                     .send(TargetToAgentData {
                                         data_type: TargetToAgentDataType::TcpInitializeSuccess {
                                             source_address,
@@ -76,7 +81,10 @@ impl TargetEdge {
                                             user_token,
                                         },
                                     })
-                                    .await;
+                                    .await
+                                {
+                                    error!("Transport [{transport_id}] fail to send target connect success message to agent becacuse of error: {e:?}");
+                                };
                                 Some(v)
                             },
                         };
@@ -94,7 +102,8 @@ impl TargetEdge {
                             Some(v) => v,
                         };
                         if let Err(e) = target_tcp_stream.write(&data).await {
-                            target_to_agent_data_sender
+                            error!("Transport [{transport_id}] fail to write data to target becacuse of error: {e:?}");
+                            if let Err(e) = target_to_agent_data_sender
                                 .send(TargetToAgentData {
                                     data_type: TargetToAgentDataType::TcpReplayFail {
                                         source_address,
@@ -102,7 +111,10 @@ impl TargetEdge {
                                         user_token,
                                     },
                                 })
-                                .await;
+                                .await
+                            {
+                                error!("Transport [{transport_id}] fail to send relay fail message to agent becacuse of error: {e:?}");
+                            };
                             drop(target_to_agent_data_sender);
                             return;
                         }
@@ -118,7 +130,9 @@ impl TargetEdge {
                             },
                             Some(v) => v,
                         };
-                        target_tcp_stream.shutdown().await;
+                        if let Err(e) = target_tcp_stream.shutdown().await {
+                            error!("Transport [{transport_id}] fail to shutdown target tcp stream becacuse of error: {e:?}");
+                        };
                         drop(target_to_agent_data_sender);
                         return;
                     },
