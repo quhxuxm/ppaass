@@ -3,11 +3,12 @@ use serde_derive::{Deserialize, Serialize};
 use tracing::error;
 
 mod address;
+mod dns;
 mod encryption;
 mod payload;
 mod types;
-
 pub use address::*;
+pub use dns::*;
 pub use encryption::*;
 pub use payload::*;
 pub use types::*;

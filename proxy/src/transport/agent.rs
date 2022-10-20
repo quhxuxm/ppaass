@@ -17,10 +17,10 @@ use crate::{
     config::ProxyServerConfig,
 };
 
-use super::{AgentToTargetData, TargetToAgentData, TargetToAgentDataType};
+use super::{AgentToTargetData, AgentToTargetDataType, TargetToAgentData, TargetToAgentDataType};
 
 #[derive(Debug)]
-pub(crate) struct AgentEdge {
+pub(super) struct AgentEdge {
     transport_id: String,
     agent_message_framed: AgentMessageFramed,
     agent_to_target_data_sender: Sender<AgentToTargetData>,
@@ -28,7 +28,7 @@ pub(crate) struct AgentEdge {
 }
 
 impl AgentEdge {
-    pub(crate) fn new(
+    pub(super) fn new(
         transport_id: String, agent_message_framed: AgentMessageFramed, _configuration: Arc<ProxyServerConfig>,
         agent_to_target_data_sender: Sender<AgentToTargetData>, target_to_agent_data_receiver: Receiver<TargetToAgentData>,
     ) -> Self {
@@ -40,7 +40,7 @@ impl AgentEdge {
         }
     }
 
-    pub(crate) async fn exec(self) {
+    pub(super) async fn exec(self) {
         let (mut agent_message_sink, mut agent_message_stream) = self.agent_message_framed.split();
         let agent_to_target_data_sender = self.agent_to_target_data_sender;
         let mut target_to_agent_data_receiver = self.target_to_agent_data_receiver;
@@ -78,10 +78,10 @@ impl AgentEdge {
                 } = agent_message_payload.split();
                 let agent_to_target_data = match payload_type {
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::DomainNameResolve) => AgentToTargetData {
-                        data_type: super::AgentToTargetDataType::DomainNameResolve { data },
+                        data_type: AgentToTargetDataType::DomainNameResolve { data, user_token },
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::ConnectionKeepAlive) => AgentToTargetData {
-                        data_type: super::AgentToTargetDataType::ConnectionKeepAlive,
+                        data_type: AgentToTargetDataType::ConnectionKeepAlive { user_token },
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpInitialize) => {
                         let target_address = match target_address.ok_or(anyhow!("No target address assigned.")) {
@@ -92,14 +92,45 @@ impl AgentEdge {
                             Ok(v) => v,
                         };
                         AgentToTargetData {
-                            data_type: super::AgentToTargetDataType::TcpInitialize { target_address },
+                            data_type: AgentToTargetDataType::TcpInitialize {
+                                source_address,
+                                target_address,
+                                user_token,
+                            },
                         }
                     },
-                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpRelay) => AgentToTargetData {
-                        data_type: super::AgentToTargetDataType::TcpReplay { data },
+                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpRelay) => {
+                        let target_address = match target_address.ok_or(anyhow!("No target address assigned.")) {
+                            Err(e) => {
+                                error!("Fail to send agent to target data because of error: {e:?}");
+                                return;
+                            },
+                            Ok(v) => v,
+                        };
+                        AgentToTargetData {
+                            data_type: AgentToTargetDataType::TcpReplay {
+                                source_address,
+                                target_address,
+                                user_token,
+                                data,
+                            },
+                        }
                     },
-                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpDestory) => AgentToTargetData {
-                        data_type: super::AgentToTargetDataType::TcpDestory,
+                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpDestory) => {
+                        let target_address = match target_address.ok_or(anyhow!("No target address assigned.")) {
+                            Err(e) => {
+                                error!("Fail to send agent to target data because of error: {e:?}");
+                                return;
+                            },
+                            Ok(v) => v,
+                        };
+                        AgentToTargetData {
+                            data_type: AgentToTargetDataType::TcpDestory {
+                                source_address,
+                                target_address,
+                                user_token,
+                            },
+                        }
                     },
                     invalid_type => {
                         error!("Fail to parse agent payload type because of receove invalid data: {invalid_type:?}");
@@ -129,7 +160,7 @@ impl AgentEdge {
                         user_token,
                     } => (
                         PpaassMessagePayload::new(
-                            Some(source_address),
+                            source_address,
                             Some(target_address),
                             PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpInitializeSuccess),
                             vec![],
@@ -142,7 +173,7 @@ impl AgentEdge {
                         user_token,
                     } => (
                         PpaassMessagePayload::new(
-                            Some(source_address),
+                            source_address,
                             Some(target_address),
                             PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpInitializeFail),
                             vec![],
@@ -169,7 +200,7 @@ impl AgentEdge {
                         user_token,
                     } => (
                         PpaassMessagePayload::new(
-                            Some(source_address),
+                            source_address,
                             Some(target_address),
                             PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpRelayFail),
                             vec![],
@@ -214,12 +245,7 @@ impl AgentEdge {
                     TargetToAgentDataType::ConnectionKeepAliveFail { user_token } => {
                         return;
                     },
-                    TargetToAgentDataType::DomainNameResolveSuccess {
-                        data,
-                        source_address,
-                        target_address,
-                        user_token,
-                    } => (
+                    TargetToAgentDataType::DomainNameResolveSuccess { data, user_token } => (
                         PpaassMessagePayload::new(
                             None,
                             None,

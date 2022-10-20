@@ -13,6 +13,7 @@ blowfish = "*"
 bytes = "*"
 cipher = "*"
 clap = "*"
+dns-lookup = "*"
 ecb = {version = "*", features = ["std"]}
 futures = "*"
 futures-util = "*"

@@ -1,62 +1,182 @@
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+
+use ppaass_protocol::{DomainResolveRequest, DomainResolveResponse};
 use tokio::{
+    io::AsyncWriteExt,
     net::TcpStream,
     sync::mpsc::{Receiver, Sender},
 };
+use tracing::debug;
 
-use super::{AgentToTargetData, AgentToTargetDataType, TargetToAgentData};
+use super::{AgentToTargetData, AgentToTargetDataType, TargetToAgentData, TargetToAgentDataType};
 
 #[derive(Debug)]
-pub(crate) struct TargetEdge {
+pub(super) struct TargetEdge {
     transport_id: String,
-    target_tcp_stream: Option<TcpStream>,
     agent_to_target_data_receiver: Receiver<AgentToTargetData>,
     target_to_agent_data_sender: Sender<TargetToAgentData>,
 }
 
 impl TargetEdge {
-    pub(crate) fn new(
+    pub(super) fn new(
         transport_id: String, agent_to_target_data_receiver: Receiver<AgentToTargetData>, target_to_agent_data_sender: Sender<TargetToAgentData>,
     ) -> Self {
         Self {
             transport_id,
-            target_tcp_stream: None,
             agent_to_target_data_receiver,
             target_to_agent_data_sender,
         }
     }
 
-    pub(crate) async fn exec(self) {
-        let mut target_edge_request_receiver = self.target_edge_request_receiver;
+    pub(super) async fn exec(self) {
+        let mut agent_to_target_data_receiver = self.agent_to_target_data_receiver;
+        let target_to_agent_data_sender = self.target_to_agent_data_sender;
         tokio::spawn(async move {
+            let mut target_tcp_stream = None::<TcpStream>;
             loop {
-                let AgentToTargetData { data_type: request_type } = match target_edge_request_receiver.recv().await {
+                let AgentToTargetData { data_type: request_type } = match agent_to_target_data_receiver.recv().await {
                     None => {
                         return;
                     },
                     Some(v) => v,
                 };
                 match request_type {
-                    AgentToTargetDataType::TcpInitialize { target_address } => {
-                        // let target_address = target_address.ok_or(PpaassError::CodecError)?;
-                        // let target_socket_addrs = target_address.to_socket_addrs()?;
-                        // let target_socket_addrs = target_socket_addrs.collect::<Vec<SocketAddr>>();
-                        // let target_tcp_stream = match TcpStream::connect(target_socket_addrs.as_slice()).await {
-                        //     Err(e) => {
-                        //         return Err(anyhow!(PpaassError::IoError { source: e }));
-                        //     },
-                        //     Ok(v) => v,
-                        // };
-                        // let connection_id = generate_uuid();
-                        // let tcp_initialize_success_message_payload =
-                        //     PpaassMessagePayload::new(Some(connection_id), source_address, Some(target_address), payload_type, data);
-                        // let payload_bytes: Vec<u8> = tcp_initialize_success_message_payload.try_into()?;
-                        // let tcp_initialize_success_message = PpaassMessage::new(
-                        //     user_token,
-                        //     ppaass_protocol::PpaassMessagePayloadEncryption::Aes("".as_bytes().to_vec()),
-                        //     payload_bytes,
-                        // );
+                    AgentToTargetDataType::TcpInitialize {
+                        target_address,
+                        source_address,
+                        user_token,
+                    } => {
+                        let target_socket_addrs = match target_address.to_socket_addrs() {
+                            Err(e) => {
+                                continue;
+                            },
+                            Ok(v) => v,
+                        };
+                        let target_socket_addrs = target_socket_addrs.collect::<Vec<SocketAddr>>();
+                        target_tcp_stream = match TcpStream::connect(target_socket_addrs.as_slice()).await {
+                            Err(e) => {
+                                target_to_agent_data_sender
+                                    .send(TargetToAgentData {
+                                        data_type: TargetToAgentDataType::TcpInitializeFail {
+                                            source_address,
+                                            target_address,
+                                            user_token,
+                                        },
+                                    })
+                                    .await;
+                                drop(target_to_agent_data_sender);
+                                return;
+                            },
+                            Ok(v) => {
+                                target_to_agent_data_sender
+                                    .send(TargetToAgentData {
+                                        data_type: TargetToAgentDataType::TcpInitializeSuccess {
+                                            source_address,
+                                            target_address,
+                                            user_token,
+                                        },
+                                    })
+                                    .await;
+                                Some(v)
+                            },
+                        };
                     },
-                    TargetTcpTransportInputType::Relay { data } => {},
+                    AgentToTargetDataType::TcpReplay {
+                        data,
+                        source_address,
+                        target_address,
+                        user_token,
+                    } => {
+                        let target_tcp_stream = match &mut target_tcp_stream {
+                            None => {
+                                continue;
+                            },
+                            Some(v) => v,
+                        };
+                        if let Err(e) = target_tcp_stream.write(&data).await {
+                            target_to_agent_data_sender
+                                .send(TargetToAgentData {
+                                    data_type: TargetToAgentDataType::TcpReplayFail {
+                                        source_address,
+                                        target_address,
+                                        user_token,
+                                    },
+                                })
+                                .await;
+                            drop(target_to_agent_data_sender);
+                            return;
+                        }
+                    },
+                    AgentToTargetDataType::TcpDestory {
+                        source_address,
+                        target_address,
+                        user_token,
+                    } => {
+                        let mut target_tcp_stream = match target_tcp_stream {
+                            None => {
+                                continue;
+                            },
+                            Some(v) => v,
+                        };
+                        target_tcp_stream.shutdown().await;
+                        drop(target_to_agent_data_sender);
+                        return;
+                    },
+                    AgentToTargetDataType::ConnectionKeepAlive { user_token } => {
+                        target_to_agent_data_sender
+                            .send(TargetToAgentData {
+                                data_type: TargetToAgentDataType::ConnectionKeepAliveSuccess { user_token },
+                            })
+                            .await;
+                    },
+                    AgentToTargetDataType::DomainNameResolve { data, user_token } => {
+                        let DomainResolveRequest { id, name } = match serde_json::from_slice(&data) {
+                            Err(e) => {
+                                target_to_agent_data_sender
+                                    .send(TargetToAgentData {
+                                        data_type: TargetToAgentDataType::ConnectionKeepAliveSuccess { user_token },
+                                    })
+                                    .await;
+                                continue;
+                            },
+                            Ok(v) => v,
+                        };
+                        let ip_addresses = match dns_lookup::lookup_host(name.as_str()) {
+                            Err(e) => {
+                                target_to_agent_data_sender
+                                    .send(TargetToAgentData {
+                                        data_type: TargetToAgentDataType::DomainNameResolveFail { user_token },
+                                    })
+                                    .await;
+                                continue;
+                            },
+                            Ok(v) => v,
+                        };
+                        let mut addresses = Vec::new();
+                        ip_addresses.iter().for_each(|addr| {
+                            if let IpAddr::V4(v4_addr) = addr {
+                                let ip_bytes = v4_addr.octets();
+                                addresses.push(ip_bytes);
+                                return;
+                            }
+                        });
+                        let domain_resolve_response = DomainResolveResponse {
+                            id,
+                            ip_addresses: addresses,
+                            name,
+                        };
+                        let data = match serde_json::to_vec(&domain_resolve_response) {
+                            Err(e) => {
+                                return;
+                            },
+                            Ok(v) => v,
+                        };
+                        target_to_agent_data_sender
+                            .send(TargetToAgentData {
+                                data_type: TargetToAgentDataType::DomainNameResolveSuccess { user_token, data },
+                            })
+                            .await;
+                    },
                 }
             }
         });

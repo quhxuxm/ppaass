@@ -67,3 +67,37 @@ pub(crate) mod array_u8_l16_to_base64 {
         deserialize_byte_array::<'de, D, 16>(d)
     }
 }
+
+pub(crate) mod vec_array_u8_l4_to_base64 {
+
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S: Serializer>(v: &Vec<[u8; 4]>, s: S) -> Result<S::Ok, S::Error> {
+        let mut base64_container = vec![];
+        v.iter().for_each(|v| {
+            let base64 = base64::encode(v);
+            base64_container.push(base64);
+        });
+        Vec::serialize(&base64_container, s)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<[u8; 4]>, D::Error> {
+        let base64_vec = Vec::<String>::deserialize(d)?;
+        let mut result = vec![];
+        base64_vec.iter().for_each(|base64| {
+            let decode_result = match base64::decode(base64.as_bytes()) {
+                Ok(v) => v,
+                Err(e) => {
+                    return;
+                },
+            };
+            if decode_result.len() != 4 {
+                return;
+            }
+            let mut ipv4 = [0u8; 4];
+            ipv4.copy_from_slice(&decode_result);
+            result.push(ipv4);
+        });
+        Ok(result)
+    }
+}

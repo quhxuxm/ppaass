@@ -15,11 +15,29 @@ use self::{agent::AgentEdge, target::TargetEdge};
 
 #[derive(Debug)]
 enum AgentToTargetDataType {
-    TcpInitialize { target_address: PpaassProtocolAddress },
-    TcpReplay { data: Vec<u8> },
-    TcpDestory,
-    ConnectionKeepAlive,
-    DomainNameResolve { data: Vec<u8> },
+    TcpInitialize {
+        source_address: Option<PpaassProtocolAddress>,
+        target_address: PpaassProtocolAddress,
+        user_token: String,
+    },
+    TcpReplay {
+        data: Vec<u8>,
+        source_address: Option<PpaassProtocolAddress>,
+        target_address: PpaassProtocolAddress,
+        user_token: String,
+    },
+    TcpDestory {
+        source_address: Option<PpaassProtocolAddress>,
+        target_address: PpaassProtocolAddress,
+        user_token: String,
+    },
+    ConnectionKeepAlive {
+        user_token: String,
+    },
+    DomainNameResolve {
+        data: Vec<u8>,
+        user_token: String,
+    },
 }
 
 #[derive(Debug)]
@@ -30,12 +48,12 @@ struct AgentToTargetData {
 #[derive(Debug)]
 enum TargetToAgentDataType {
     TcpInitializeSuccess {
-        source_address: PpaassProtocolAddress,
+        source_address: Option<PpaassProtocolAddress>,
         target_address: PpaassProtocolAddress,
         user_token: String,
     },
     TcpInitializeFail {
-        source_address: PpaassProtocolAddress,
+        source_address: Option<PpaassProtocolAddress>,
         target_address: PpaassProtocolAddress,
         user_token: String,
     },
@@ -46,7 +64,7 @@ enum TargetToAgentDataType {
         data: Vec<u8>,
     },
     TcpReplayFail {
-        source_address: PpaassProtocolAddress,
+        source_address: Option<PpaassProtocolAddress>,
         target_address: PpaassProtocolAddress,
         user_token: String,
     },
@@ -67,8 +85,6 @@ enum TargetToAgentDataType {
         user_token: String,
     },
     DomainNameResolveSuccess {
-        source_address: PpaassProtocolAddress,
-        target_address: PpaassProtocolAddress,
         user_token: String,
         data: Vec<u8>,
     },
