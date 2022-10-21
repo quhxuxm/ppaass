@@ -187,7 +187,7 @@ impl AgentEdge {
                         user_token,
                     } => (
                         PpaassMessagePayload::new(
-                            Some(source_address),
+                            source_address,
                             Some(target_address),
                             PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpRelaySuccess),
                             data,

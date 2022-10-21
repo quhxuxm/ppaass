@@ -7,7 +7,7 @@ use ppaass_common::generate_uuid;
 
 use ppaass_protocol::PpaassProtocolAddress;
 use tokio::sync::{mpsc::channel, OwnedSemaphorePermit};
-use tracing::debug;
+use tracing::{debug, error};
 
 use crate::{common::AgentMessageFramed, config::ProxyServerConfig};
 
@@ -58,7 +58,7 @@ enum TargetToAgentDataType {
         user_token: String,
     },
     TcpReplaySuccess {
-        source_address: PpaassProtocolAddress,
+        source_address: Option<PpaassProtocolAddress>,
         target_address: PpaassProtocolAddress,
         user_token: String,
         data: Vec<u8>,
