@@ -68,20 +68,7 @@ enum TargetToAgentDataType {
         target_address: PpaassProtocolAddress,
         user_token: String,
     },
-    TcpDestorySuccess {
-        source_address: PpaassProtocolAddress,
-        target_address: PpaassProtocolAddress,
-        user_token: String,
-    },
-    TcpDestoryFail {
-        source_address: PpaassProtocolAddress,
-        target_address: PpaassProtocolAddress,
-        user_token: String,
-    },
     ConnectionKeepAliveSuccess {
-        user_token: String,
-    },
-    ConnectionKeepAliveFail {
         user_token: String,
     },
     DomainNameResolveSuccess {

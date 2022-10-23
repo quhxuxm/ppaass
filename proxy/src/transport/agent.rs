@@ -208,32 +208,6 @@ impl AgentEdge {
                         ),
                         user_token,
                     ),
-                    TargetToAgentDataType::TcpDestorySuccess {
-                        source_address,
-                        target_address,
-                        user_token,
-                    } => (
-                        PpaassMessagePayload::new(
-                            Some(source_address),
-                            Some(target_address),
-                            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpDestorySuccess),
-                            vec![],
-                        ),
-                        user_token,
-                    ),
-                    TargetToAgentDataType::TcpDestoryFail {
-                        source_address,
-                        target_address,
-                        user_token,
-                    } => (
-                        PpaassMessagePayload::new(
-                            Some(source_address),
-                            Some(target_address),
-                            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpDestoryFail),
-                            vec![],
-                        ),
-                        user_token,
-                    ),
                     TargetToAgentDataType::ConnectionKeepAliveSuccess { user_token } => (
                         PpaassMessagePayload::new(
                             None,
@@ -243,9 +217,6 @@ impl AgentEdge {
                         ),
                         user_token,
                     ),
-                    TargetToAgentDataType::ConnectionKeepAliveFail { user_token } => {
-                        return;
-                    },
                     TargetToAgentDataType::DomainNameResolveSuccess { data, user_token } => (
                         PpaassMessagePayload::new(
                             None,

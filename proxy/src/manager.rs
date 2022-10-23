@@ -67,7 +67,8 @@ impl ProxyServerManager {
                     let new_proxy_server_config: ProxyServerConfig = match toml::from_str(&current_cfg_file_content) {
                         Err(e) => {
                             error!("Fail to re-generate proxy server configuration because of error: {e:?}");
-                            return;
+                            original_config_file_content = current_cfg_file_content;
+                            continue;
                         },
                         Ok(v) => v,
                     };
@@ -98,12 +99,13 @@ impl ProxyServerManager {
                         current_server_runtime = match server_runtime_builder.build() {
                             Err(e) => {
                                 error!("Fail to build new proxy server runtime because of error: {e:?}");
-                                return;
+                                panic!("Fail to build new proxy server runtime because of error: {e:?}");
                             },
                             Ok(v) => v,
                         };
                         if let Err(e) = Self::start_proxy_server(Arc::new(new_proxy_server_config), &current_server_runtime).await {
-                            error!("Fail to restart proxy server because of error: {e:?}")
+                            error!("Fail to restart proxy server because of error: {e:?}");
+                            panic!("Fail to restart proxy server because of error: {e:?}");
                         };
                         continue;
                     },
@@ -111,7 +113,8 @@ impl ProxyServerManager {
             }
         });
         if let Err(e) = guard.await {
-            error!("Error happen in proxy server monitor, error: {e:?}")
+            error!("Error happen in proxy server monitor, error: {e:?}");
+            panic!("Error happen in proxy server monitor, error: {e:?}");
         };
         Ok(())
     }
