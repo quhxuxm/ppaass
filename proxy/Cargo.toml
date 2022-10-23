@@ -8,6 +8,7 @@ version = "0.1.0"
 [dependencies]
 anyhow = {workspace = true}
 bytes = {workspace = true}
+chrono = {workspace = true}
 clap = {workspace = true, features = ["derive"]}
 dns-lookup = {workspace = true}
 futures = {workspace = true}
@@ -22,3 +23,5 @@ tokio = {workspace = true, features = ["macros", "time", "net", "io-util", "rt-m
 tokio-util = {workspace = true, features = ["codec"]}
 toml = {workspace = true}
 tracing = {workspace = true}
+tracing-appender = {workspace = true}
+tracing-subscriber = {workspace = true}

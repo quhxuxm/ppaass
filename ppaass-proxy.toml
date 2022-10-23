@@ -2,5 +2,5 @@ agent_connection_buffer_size = 65536
 compress = false
 ipv6 = false
 port = 9097
-rsa_root_dir = "./resources/rsa/"
+rsa_dir = "./resources/rsa/"
 thread_number = 2048

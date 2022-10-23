@@ -2,6 +2,8 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::constant::{DEFAULT_PROXY_SERVER_PORT, DEFAULT_RSA_DIR, DEFAULT_THREAD_NUMBER};
 
+pub const DEFAULT_PROXY_LOG_CONFIG_FILE: &str = "./ppaass-proxy-log.toml";
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub(crate) struct ProxyServerConfig {
     ipv6: Option<bool>,
@@ -72,5 +74,29 @@ impl ProxyServerConfig {
 
     pub(crate) fn get_agent_tcp_connection_accept_timout_seconds(&self) -> u64 {
         self.agent_tcp_connection_accept_timout_seconds.unwrap_or(20)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub(crate) struct ProxyServerLogConfig {
+    /// The log directory
+    dir: Option<String>,
+    /// The log file name prefix
+    file: Option<String>,
+    /// The max log level
+    level: Option<String>,
+}
+
+impl ProxyServerLogConfig {
+    pub(crate) fn get_dir(&self) -> &Option<String> {
+        &self.dir
+    }
+
+    pub(crate) fn get_file(&self) -> &Option<String> {
+        &self.file
+    }
+
+    pub(crate) fn get_level(&self) -> &Option<String> {
+        &self.level
     }
 }

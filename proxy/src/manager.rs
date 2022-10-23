@@ -17,8 +17,7 @@ pub(crate) enum ProxyServerManagementCommand {
 }
 pub(crate) struct ProxyServerManager {
     command_sender: Sender<ProxyServerManagementCommand>,
-    command_receiver: Receiver<ProxyServerManagementCommand>,
-    server_runtime: Option<Runtime>,
+    command_receiver: Option<Receiver<ProxyServerManagementCommand>>,
 }
 
 impl ProxyServerManager {
@@ -26,8 +25,7 @@ impl ProxyServerManager {
         let (command_sender, command_receiver) = tokio_mpsc_channel::<ProxyServerManagementCommand>(1);
         Ok(Self {
             command_sender,
-            command_receiver,
-            server_runtime: None,
+            command_receiver: Some(command_receiver),
         })
     }
 
@@ -75,46 +73,61 @@ impl ProxyServerManager {
         });
         Ok(())
     }
-    async fn start_command_monitor(&mut self, config: Arc<ProxyServerConfig>) -> Result<()> {
-        loop {
-            let command = self.command_receiver.recv().await;
-            match command {
-                None => {
-                    error!("Proxy server command channel closed.");
-                    return Ok(());
-                },
-                Some(ProxyServerManagementCommand::Restart) => {
-                    if let Some(server_runtime) = self.server_runtime.take() {
-                        server_runtime.shutdown_timeout(Duration::from_secs(10));
-                    }
-                    self.start_proxy_server(config.clone()).await?;
-                    continue;
-                },
+
+    async fn start_command_monitor(
+        &mut self, config: Arc<ProxyServerConfig>, mut server_runtime_builder: Builder, mut current_server_runtime: Runtime,
+    ) -> Result<()> {
+        let mut command_receiver = self.command_receiver.take().unwrap();
+        let guard = tokio::spawn(async move {
+            loop {
+                let command = command_receiver.recv().await;
+                match command {
+                    None => {
+                        error!("Proxy server command channel closed.");
+                        return;
+                    },
+                    Some(ProxyServerManagementCommand::Restart) => {
+                        current_server_runtime.shutdown_timeout(Duration::from_secs(10));
+                        current_server_runtime = match server_runtime_builder.build() {
+                            Err(e) => {
+                                error!("Fail to build new proxy server runtime because of error: {e:?}");
+                                return;
+                            },
+                            Ok(v) => v,
+                        };
+                        if let Err(e) = Self::start_proxy_server(config.clone(), &current_server_runtime).await {
+                            error!("Fail to restart proxy server because of error: {e:?}")
+                        };
+                        continue;
+                    },
+                }
             }
-        }
+        });
+        guard.await?;
+        Ok(())
     }
 
-    async fn start_proxy_server(&mut self, config: Arc<ProxyServerConfig>) -> Result<()> {
-        let mut server_runtime_builder = Builder::new_multi_thread();
-        server_runtime_builder.enable_all();
-        server_runtime_builder.thread_name("proxy-server-runtime");
-        server_runtime_builder.worker_threads(config.get_thread_number());
-        let server_runtime = server_runtime_builder.build()?;
+    async fn start_proxy_server(config: Arc<ProxyServerConfig>, server_runtime: &Runtime) -> Result<()> {
         server_runtime.spawn(async {
             let mut proxy_server = ProxyServer::new(config);
             if let Err(e) = proxy_server.start().await {
                 error!("Fail to start proxy server because of error: {e:?}");
+                panic!("Fail to start proxy server because of error: {e:?}")
             }
         });
-        self.server_runtime = Some(server_runtime);
         Ok(())
     }
 
     pub(crate) async fn start(mut self) -> Result<()> {
         let arguments = ProxyServerArguments::parse();
         let config = Arc::new(self.prepare_config(&arguments).await?);
-        self.start_command_monitor(config.clone()).await?;
-        self.start_proxy_server(config).await?;
+        let mut server_runtime_builder = Builder::new_multi_thread();
+        server_runtime_builder.enable_all();
+        server_runtime_builder.thread_name("proxy-server-runtime");
+        server_runtime_builder.worker_threads(config.get_thread_number());
+        let server_runtime = server_runtime_builder.build()?;
+        Self::start_proxy_server(config.clone(), &server_runtime).await?;
+        self.start_command_monitor(config, server_runtime_builder, server_runtime).await?;
         Ok(())
     }
 }
