@@ -7,7 +7,7 @@ use ppaass_common::generate_uuid;
 
 use ppaass_protocol::PpaassProtocolAddress;
 use tokio::sync::{mpsc::channel, OwnedSemaphorePermit};
-use tracing::{debug, error};
+use tracing::debug;
 
 use crate::{common::AgentMessageFramed, config::ProxyServerConfig};
 
@@ -101,9 +101,8 @@ struct TargetToAgentData {
 #[derive(Debug)]
 pub(crate) struct Transport {
     id: String,
-    agent_edge: AgentEdge,
-    target_edge: TargetEdge,
-    connection_number_permit: OwnedSemaphorePermit,
+    agent_edge: Option<AgentEdge>,
+    target_edge: Option<TargetEdge>,
 }
 
 impl Transport {
@@ -118,12 +117,11 @@ impl Transport {
             agent_to_target_sender,
             target_to_agent_receiver,
         );
-        let target_edge = TargetEdge::new(id.clone(), agent_to_target_receiver, target_to_agent_sender);
+        let target_edge = TargetEdge::new(id.clone(), agent_to_target_receiver, target_to_agent_sender, connection_number_permit);
         Self {
             id,
-            agent_edge,
-            target_edge,
-            connection_number_permit,
+            agent_edge: Some(agent_edge),
+            target_edge: Some(target_edge),
         }
     }
 
@@ -131,11 +129,11 @@ impl Transport {
         &self.id
     }
 
-    pub(crate) async fn exec(self) {
+    pub(crate) async fn exec(&mut self) {
         debug!("Begin to execute transport [{}]", self.id);
-        let agent_edge_guard = tokio::spawn(self.agent_edge.exec());
-        let target_edge_guard = tokio::spawn(self.target_edge.exec());
-        tokio::join!(agent_edge_guard, target_edge_guard);
-        drop(self.connection_number_permit)
+        let mut agent_edge = self.agent_edge.take().unwrap();
+        let mut target_edge = self.target_edge.take().unwrap();
+        tokio::spawn(async move { agent_edge.exec().await });
+        tokio::spawn(async move { target_edge.exec().await });
     }
 }

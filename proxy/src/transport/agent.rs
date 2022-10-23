@@ -22,9 +22,9 @@ use super::{AgentToTargetData, AgentToTargetDataType, TargetToAgentData, TargetT
 #[derive(Debug)]
 pub(super) struct AgentEdge {
     transport_id: String,
-    agent_message_framed: AgentMessageFramed,
-    agent_to_target_data_sender: Sender<AgentToTargetData>,
-    target_to_agent_data_receiver: Receiver<TargetToAgentData>,
+    agent_message_framed: Option<AgentMessageFramed>,
+    agent_to_target_data_sender: Option<Sender<AgentToTargetData>>,
+    target_to_agent_data_receiver: Option<Receiver<TargetToAgentData>>,
 }
 
 impl AgentEdge {
@@ -34,16 +34,17 @@ impl AgentEdge {
     ) -> Self {
         Self {
             transport_id,
-            agent_message_framed,
-            agent_to_target_data_sender,
-            target_to_agent_data_receiver,
+            agent_message_framed: Some(agent_message_framed),
+            agent_to_target_data_sender: Some(agent_to_target_data_sender),
+            target_to_agent_data_receiver: Some(target_to_agent_data_receiver),
         }
     }
 
-    pub(super) async fn exec(self) {
-        let (mut agent_message_sink, mut agent_message_stream) = self.agent_message_framed.split();
-        let agent_to_target_data_sender = self.agent_to_target_data_sender;
-        let mut target_to_agent_data_receiver = self.target_to_agent_data_receiver;
+    pub(super) async fn exec(&mut self) {
+        let agent_message_framed = self.agent_message_framed.take().unwrap();
+        let (mut agent_message_sink, mut agent_message_stream) = agent_message_framed.split();
+        let agent_to_target_data_sender = self.agent_to_target_data_sender.take().unwrap();
+        let mut target_to_agent_data_receiver = self.target_to_agent_data_receiver.take().unwrap();
         let transport_id = self.transport_id.clone();
         tokio::spawn(async move {
             loop {

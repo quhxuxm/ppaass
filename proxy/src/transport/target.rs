@@ -4,11 +4,11 @@ use bytes::BytesMut;
 use ppaass_protocol::{DomainResolveRequest, DomainResolveResponse};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::{
-        tcp::{OwnedReadHalf, OwnedWriteHalf},
-        TcpStream,
+    net::{tcp::OwnedWriteHalf, TcpStream},
+    sync::{
+        mpsc::{Receiver, Sender},
+        OwnedSemaphorePermit,
     },
-    sync::mpsc::{Receiver, Sender},
     task::JoinHandle,
 };
 use tracing::{debug, error};
@@ -18,25 +18,28 @@ use super::{AgentToTargetData, AgentToTargetDataType, TargetToAgentData, TargetT
 #[derive(Debug)]
 pub(super) struct TargetEdge {
     transport_id: String,
-    agent_to_target_data_receiver: Receiver<AgentToTargetData>,
-    target_to_agent_data_sender: Sender<TargetToAgentData>,
+    agent_to_target_data_receiver: Option<Receiver<AgentToTargetData>>,
+    target_to_agent_data_sender: Option<Sender<TargetToAgentData>>,
+    connection_number_permit: Option<OwnedSemaphorePermit>,
 }
 
 impl TargetEdge {
     pub(super) fn new(
         transport_id: String, agent_to_target_data_receiver: Receiver<AgentToTargetData>, target_to_agent_data_sender: Sender<TargetToAgentData>,
+        connection_number_permit: OwnedSemaphorePermit,
     ) -> Self {
         Self {
             transport_id,
-            agent_to_target_data_receiver,
-            target_to_agent_data_sender,
+            agent_to_target_data_receiver: Some(agent_to_target_data_receiver),
+            target_to_agent_data_sender: Some(target_to_agent_data_sender),
+            connection_number_permit: Some(connection_number_permit),
         }
     }
 
-    pub(super) async fn exec(self) {
-        let mut agent_to_target_data_receiver = self.agent_to_target_data_receiver;
-        let target_to_agent_data_sender = self.target_to_agent_data_sender;
-        let transport_id = self.transport_id;
+    pub(super) async fn exec(&mut self) {
+        let mut agent_to_target_data_receiver = self.agent_to_target_data_receiver.take().unwrap();
+        let target_to_agent_data_sender = self.target_to_agent_data_sender.take().unwrap();
+        let transport_id = self.transport_id.clone();
         let mut target_tcp_write = None::<OwnedWriteHalf>;
         let mut target_to_agent_relay_guard = None::<JoinHandle<()>>;
         loop {
@@ -93,11 +96,11 @@ impl TargetEdge {
 
                     let (mut target_tcp_read, new_target_tcp_write) = new_target_tcp_stream.into_split();
                     target_tcp_write = Some(new_target_tcp_write);
-
                     let target_to_agent_data_sender_clone = target_to_agent_data_sender.clone();
                     let source_address_clone = source_address.clone();
                     let target_address_clone = target_address.clone();
                     let user_token_clone = user_token.clone();
+                    let transport_id_for_target_to_agent = transport_id.clone();
                     let new_target_to_agent_relay_guard = tokio::spawn(async move {
                         loop {
                             let mut target_tcp_buffer = BytesMut::with_capacity(64 * 1024);
@@ -108,7 +111,7 @@ impl TargetEdge {
                                 },
                                 Ok(n) => {
                                     let data = target_tcp_buffer.split().freeze();
-                                    target_to_agent_data_sender_clone
+                                    if let Err(e) = target_to_agent_data_sender_clone
                                         .send(TargetToAgentData {
                                             data_type: TargetToAgentDataType::TcpReplaySuccess {
                                                 source_address: source_address_clone.clone(),
@@ -117,9 +120,16 @@ impl TargetEdge {
                                                 data: data.into(),
                                             },
                                         })
-                                        .await;
+                                        .await
+                                    {
+                                        error!("Transport [{transport_id_for_target_to_agent}] fail to send tcp relay success message to agent becacuse of error: {e:?}");
+                                        return;
+                                    };
+                                    debug!("Transport [{transport_id_for_target_to_agent}] success to read data from target, data size = {n}.");
+                                    return;
                                 },
                                 Err(e) => {
+                                    error!("Transport [{transport_id_for_target_to_agent}] fail read data from target becacuse of error: {e:?}");
                                     drop(target_to_agent_data_sender_clone);
                                     return;
                                 },
@@ -140,12 +150,14 @@ impl TargetEdge {
                         error!("Transport [{transport_id}] fail to send target connect success message to agent becacuse of error: {e:?}");
                         drop(target_to_agent_data_sender);
                         if let Some(ref mut write) = target_tcp_write {
-                            write.shutdown().await;
+                            if let Err(e) = write.shutdown().await {
+                                error!("Transport [{transport_id}] fail to shutdown write of the target becacuse of error: {e:?}");
+                            };
                         }
-                        if let Some(target_to_agent_relay_guard) = target_to_agent_relay_guard {
-                            target_to_agent_relay_guard.abort();
+                        if let Some(guard) = target_to_agent_relay_guard {
+                            guard.abort();
                         }
-                        target_to_agent_relay_guard = None;
+
                         return;
                     };
                 },
@@ -178,13 +190,13 @@ impl TargetEdge {
                         };
                         drop(target_to_agent_data_sender);
                         if let Some(ref mut write) = target_tcp_write {
-                            write.shutdown().await;
+                            if let Err(e) = write.shutdown().await {
+                                error!("Transport [{transport_id}] fail to shutdown write of the target becacuse of error: {e:?}");
+                            };
                         }
                         if let Some(guard) = target_to_agent_relay_guard {
                             guard.abort();
-                            target_to_agent_relay_guard = None;
                         }
-
                         return;
                     }
                 },
@@ -274,5 +286,13 @@ impl TargetEdge {
                 },
             }
         }
+    }
+}
+
+impl Drop for TargetEdge {
+    fn drop(&mut self) {
+        let permit = self.connection_number_permit.take();
+        let permit = permit.unwrap();
+        drop(permit);
     }
 }
