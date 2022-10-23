@@ -1,4 +1,4 @@
-use std::{sync::Arc, thread, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Result;
 use clap::Parser;
@@ -82,7 +82,7 @@ impl ProxyServerManager {
     }
 
     async fn start_command_monitor(
-        &mut self, config: Arc<ProxyServerConfig>, mut server_runtime_builder: Builder, mut current_server_runtime: Runtime,
+        &mut self, _config: Arc<ProxyServerConfig>, mut server_runtime_builder: Builder, mut current_server_runtime: Runtime,
     ) -> Result<()> {
         let mut command_receiver = self.command_receiver.take().unwrap();
         let guard = tokio::spawn(async move {
