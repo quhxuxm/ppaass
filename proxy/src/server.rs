@@ -1,4 +1,4 @@
-use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Result;
 
@@ -10,7 +10,6 @@ use crate::{common::AgentMessageFramed, config::ProxyServerConfig, crypto::Proxy
 pub(crate) struct ProxyServer {
     configuration: Arc<ProxyServerConfig>,
     agent_connection_number: Arc<Semaphore>,
-    transports: HashMap<SocketAddr, Transport>,
 }
 
 impl ProxyServer {
@@ -19,7 +18,6 @@ impl ProxyServer {
         Self {
             configuration,
             agent_connection_number: Arc::new(Semaphore::new(agent_max_connection_number)),
-            transports: HashMap::new(),
         }
     }
 
@@ -82,9 +80,6 @@ impl ProxyServer {
                     },
                 };
             let transport = Transport::new(agent_message_framed, configuration, agent_tcp_connection_accept_permit);
-            self.transports.insert(agent_socket_address, transport);
-            let transport = self.transports.get_mut(&agent_socket_address).unwrap();
-            let transport_id = transport.get_id().to_owned();
             transport.exec().await;
         }
     }

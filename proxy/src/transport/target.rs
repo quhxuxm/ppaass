@@ -18,9 +18,9 @@ use super::{AgentToTargetData, AgentToTargetDataType, TargetToAgentData, TargetT
 #[derive(Debug)]
 pub(super) struct TargetEdge {
     transport_id: String,
-    agent_to_target_data_receiver: Option<Receiver<AgentToTargetData>>,
-    target_to_agent_data_sender: Option<Sender<TargetToAgentData>>,
-    connection_number_permit: Option<OwnedSemaphorePermit>,
+    agent_to_target_data_receiver: Receiver<AgentToTargetData>,
+    target_to_agent_data_sender: Sender<TargetToAgentData>,
+    _connection_number_permit: OwnedSemaphorePermit,
 }
 
 impl TargetEdge {
@@ -30,15 +30,15 @@ impl TargetEdge {
     ) -> Self {
         Self {
             transport_id,
-            agent_to_target_data_receiver: Some(agent_to_target_data_receiver),
-            target_to_agent_data_sender: Some(target_to_agent_data_sender),
-            connection_number_permit: Some(connection_number_permit),
+            agent_to_target_data_receiver,
+            target_to_agent_data_sender,
+            _connection_number_permit: connection_number_permit,
         }
     }
 
-    pub(super) async fn exec(&mut self) {
-        let mut agent_to_target_data_receiver = self.agent_to_target_data_receiver.take().unwrap();
-        let target_to_agent_data_sender = self.target_to_agent_data_sender.take().unwrap();
+    pub(super) async fn exec(self) {
+        let mut agent_to_target_data_receiver = self.agent_to_target_data_receiver;
+        let target_to_agent_data_sender = self.target_to_agent_data_sender;
         let transport_id = self.transport_id.clone();
         let mut target_tcp_write = None::<OwnedWriteHalf>;
         let mut target_to_agent_relay_guard = None::<JoinHandle<()>>;
@@ -286,13 +286,5 @@ impl TargetEdge {
                 },
             }
         }
-    }
-}
-
-impl Drop for TargetEdge {
-    fn drop(&mut self) {
-        let permit = self.connection_number_permit.take();
-        let permit = permit.unwrap();
-        drop(permit);
     }
 }

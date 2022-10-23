@@ -9,7 +9,7 @@ use tokio::{
     runtime::Runtime,
     sync::mpsc::{Receiver, Sender},
 };
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 #[derive(Debug)]
 pub(crate) enum ProxyServerManagementCommand {
@@ -118,6 +118,7 @@ impl ProxyServerManager {
 
     async fn start_proxy_server(config: Arc<ProxyServerConfig>, server_runtime: &Runtime) -> Result<()> {
         server_runtime.spawn(async {
+            info!("Begin to start proxy server.");
             let mut proxy_server = ProxyServer::new(config);
             if let Err(e) = proxy_server.start().await {
                 error!("Fail to start proxy server because of error: {e:?}");

@@ -101,8 +101,8 @@ struct TargetToAgentData {
 #[derive(Debug)]
 pub(crate) struct Transport {
     id: String,
-    agent_edge: Option<AgentEdge>,
-    target_edge: Option<TargetEdge>,
+    agent_edge: AgentEdge,
+    target_edge: TargetEdge,
 }
 
 impl Transport {
@@ -118,21 +118,17 @@ impl Transport {
             target_to_agent_receiver,
         );
         let target_edge = TargetEdge::new(id.clone(), agent_to_target_receiver, target_to_agent_sender, connection_number_permit);
-        Self {
-            id,
-            agent_edge: Some(agent_edge),
-            target_edge: Some(target_edge),
-        }
+        Self { id, agent_edge, target_edge }
     }
 
     pub(crate) fn get_id(&self) -> &str {
         &self.id
     }
 
-    pub(crate) async fn exec(&mut self) {
+    pub(crate) async fn exec(self) {
         debug!("Begin to execute transport [{}]", self.id);
-        let mut agent_edge = self.agent_edge.take().unwrap();
-        let mut target_edge = self.target_edge.take().unwrap();
+        let agent_edge = self.agent_edge;
+        let target_edge = self.target_edge;
         tokio::spawn(async move { agent_edge.exec().await });
         tokio::spawn(async move { target_edge.exec().await });
     }
