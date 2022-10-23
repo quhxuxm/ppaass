@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc, thread, time::Duration};
 
 use anyhow::Result;
 use clap::Parser;
@@ -13,7 +13,7 @@ use tracing::{debug, error};
 
 #[derive(Debug)]
 pub(crate) enum ProxyServerManagementCommand {
-    Restart,
+    Restart(ProxyServerConfig),
 }
 pub(crate) struct ProxyServerManager {
     command_sender: Sender<ProxyServerManagementCommand>,
@@ -64,7 +64,14 @@ impl ProxyServerManager {
                     Ok(v) => v,
                 };
                 if !current_cfg_file_content.eq(&original_config_file_content) {
-                    if let Err(e) = command_sender.send(ProxyServerManagementCommand::Restart).await {
+                    let new_proxy_server_config: ProxyServerConfig = match toml::from_str(&current_cfg_file_content) {
+                        Err(e) => {
+                            error!("Fail to re-generate proxy server configuration because of error: {e:?}");
+                            return;
+                        },
+                        Ok(v) => v,
+                    };
+                    if let Err(e) = command_sender.send(ProxyServerManagementCommand::Restart(new_proxy_server_config)).await {
                         error!("Fail to send Proxy server management command (Restart) because of error: {e:?}");
                     };
                 }
@@ -86,8 +93,8 @@ impl ProxyServerManager {
                         error!("Proxy server command channel closed.");
                         return;
                     },
-                    Some(ProxyServerManagementCommand::Restart) => {
-                        current_server_runtime.shutdown_timeout(Duration::from_secs(10));
+                    Some(ProxyServerManagementCommand::Restart(new_proxy_server_config)) => {
+                        current_server_runtime.shutdown_background();
                         current_server_runtime = match server_runtime_builder.build() {
                             Err(e) => {
                                 error!("Fail to build new proxy server runtime because of error: {e:?}");
@@ -95,7 +102,7 @@ impl ProxyServerManager {
                             },
                             Ok(v) => v,
                         };
-                        if let Err(e) = Self::start_proxy_server(config.clone(), &current_server_runtime).await {
+                        if let Err(e) = Self::start_proxy_server(Arc::new(new_proxy_server_config), &current_server_runtime).await {
                             error!("Fail to restart proxy server because of error: {e:?}")
                         };
                         continue;
@@ -103,7 +110,9 @@ impl ProxyServerManager {
                 }
             }
         });
-        guard.await?;
+        if let Err(e) = guard.await {
+            error!("Error happen in proxy server monitor, error: {e:?}")
+        };
         Ok(())
     }
 

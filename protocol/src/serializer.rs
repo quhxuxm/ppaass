@@ -71,6 +71,7 @@ pub(crate) mod array_u8_l16_to_base64 {
 pub(crate) mod vec_array_u8_l4_to_base64 {
 
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use tracing::error;
 
     pub fn serialize<S: Serializer>(v: &Vec<[u8; 4]>, s: S) -> Result<S::Ok, S::Error> {
         let mut base64_container = vec![];
@@ -88,6 +89,7 @@ pub(crate) mod vec_array_u8_l4_to_base64 {
             let decode_result = match base64::decode(base64.as_bytes()) {
                 Ok(v) => v,
                 Err(e) => {
+                    error!("Fail to decode base64 bytes because of error: {e:?}");
                     return;
                 },
             };

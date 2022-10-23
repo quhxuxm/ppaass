@@ -5,7 +5,7 @@ use anyhow::Result;
 use common::ProxyServerLogTimer;
 use config::ProxyServerLogConfig;
 use manager::ProxyServerManager;
-use tracing::metadata::LevelFilter;
+use tracing::{metadata::LevelFilter, subscriber};
 use tracing_subscriber::{fmt::Layer, prelude::__tracing_subscriber_SubscriberExt, Registry};
 
 mod arguments;
@@ -59,7 +59,7 @@ async fn main() -> Result<()> {
                 .with_writer(non_blocking),
         )
         .with(log_level_filter);
-    tracing::subscriber::set_global_default(subscriber).expect("Fail to initialize tracing subscriber");
+    subscriber::set_global_default(subscriber).expect("Fail to initialize tracing subscriber");
     let proxy_server_manager = ProxyServerManager::new()?;
     proxy_server_manager.start().await?;
     Ok(())
