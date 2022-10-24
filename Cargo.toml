@@ -1,5 +1,5 @@
 [workspace]
-members = ["proxy", "agent-android", "agent-desktop", "protocol", "common", "io"]
+members = ["proxy", "agent-android", "agent-desktop-lib", "agent-desktop-linux", "agent-desktop-windows", "protocol", "common", "io"]
 [workspace.package]
 authors = ["Hao Qu"]
 description = "A security network channel"
