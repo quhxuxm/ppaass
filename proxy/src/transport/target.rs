@@ -1,10 +1,13 @@
-use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+use std::{
+    net::{IpAddr, SocketAddr, ToSocketAddrs},
+    sync::Arc,
+};
 
 use bytes::BytesMut;
 use ppaass_protocol::{DomainResolveRequest, DomainResolveResponse};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::{tcp::OwnedWriteHalf, TcpStream},
+    net::{tcp::OwnedWriteHalf, TcpStream, UdpSocket},
     sync::{
         mpsc::{Receiver, Sender},
         OwnedSemaphorePermit,
@@ -41,7 +44,9 @@ impl TargetEdge {
         let target_to_agent_data_sender = self.target_to_agent_data_sender;
         let transport_id = self.transport_id.clone();
         let mut target_tcp_write = None::<OwnedWriteHalf>;
-        let mut target_to_agent_relay_guard = None::<JoinHandle<()>>;
+        let mut target_udp_socket = None::<Arc<UdpSocket>>;
+        let mut target_to_agent_tcp_relay_guard = None::<JoinHandle<()>>;
+        let mut target_to_agent_udp_relay_guard = None::<JoinHandle<()>>;
         loop {
             let AgentToTargetData { data_type: request_type } = match agent_to_target_data_receiver.recv().await {
                 None => {
@@ -61,9 +66,9 @@ impl TargetEdge {
                         };
                         target_tcp_write = None;
                     }
-                    if let Some(ref guard) = target_to_agent_relay_guard {
+                    if let Some(ref guard) = target_to_agent_tcp_relay_guard {
                         guard.abort();
-                        target_to_agent_relay_guard = None;
+                        target_to_agent_tcp_relay_guard = None;
                     }
                     let target_socket_addrs = match target_address.to_socket_addrs() {
                         Err(e) => {
@@ -136,7 +141,7 @@ impl TargetEdge {
                             }
                         }
                     });
-                    target_to_agent_relay_guard = Some(new_target_to_agent_relay_guard);
+                    target_to_agent_tcp_relay_guard = Some(new_target_to_agent_relay_guard);
                     if let Err(e) = target_to_agent_data_sender
                         .send(TargetToAgentData {
                             data_type: TargetToAgentDataType::TcpInitializeSuccess {
@@ -154,7 +159,7 @@ impl TargetEdge {
                                 error!("Transport [{transport_id}] fail to shutdown write of the target becacuse of error: {e:?}");
                             };
                         }
-                        if let Some(guard) = target_to_agent_relay_guard {
+                        if let Some(guard) = target_to_agent_tcp_relay_guard {
                             guard.abort();
                         }
 
@@ -194,7 +199,7 @@ impl TargetEdge {
                                 error!("Transport [{transport_id}] fail to shutdown write of the target becacuse of error: {e:?}");
                             };
                         }
-                        if let Some(guard) = target_to_agent_relay_guard {
+                        if let Some(guard) = target_to_agent_tcp_relay_guard {
                             guard.abort();
                         }
                         return;
@@ -283,6 +288,117 @@ impl TargetEdge {
                     {
                         error!("Transport [{transport_id}] fail to send domain name resolve success message to agent becacuse of error: {e:?}");
                     };
+                },
+                AgentToTargetDataType::UdpInitialize {
+                    source_address,
+                    target_address,
+                    user_token,
+                } => {
+                    if let Some(ref udp_socket) = target_udp_socket {
+                        drop(udp_socket);
+                    }
+                    if let Some(ref udp_relay_guard) = target_to_agent_udp_relay_guard {
+                        udp_relay_guard.abort();
+                    }
+                    target_udp_socket = match UdpSocket::bind("0.0.0.0:0").await {
+                        Ok(v) => Some(Arc::new(v)),
+                        Err(e) => {
+                            error!("Transport [{transport_id}] fail to initialize udp socket becacuse of error: {e:?}");
+                            continue;
+                        },
+                    };
+
+                    let target_udp_socket_for_relay = target_udp_socket.clone();
+
+                    let source_address_clone = source_address.clone();
+                    let target_address_clone = target_address.clone();
+                    let user_token_clone = user_token.clone();
+                    let target_to_agent_data_sender_clone = target_to_agent_data_sender.clone();
+                    let transport_id_clone = transport_id.clone();
+                    let new_target_to_agent_udp_relay_guard = tokio::spawn(async move {
+                        let target_udp_socket_for_relay = target_udp_socket_for_relay.expect("Fail to get target udp socket for relay.");
+                        loop {
+                            let mut buf = [0u8; 1024 * 64];
+                            if let Ok(size) = target_udp_socket_for_relay.recv(&mut buf).await {
+                                if let Err(e) = target_to_agent_data_sender_clone
+                                    .send(TargetToAgentData {
+                                        data_type: TargetToAgentDataType::UdpReplaySuccess {
+                                            source_address: source_address_clone.clone(),
+                                            target_address: target_address_clone.clone(),
+                                            user_token: user_token_clone.clone(),
+                                            data: buf[..size].into(),
+                                        },
+                                    })
+                                    .await
+                                {
+                                    error!("Transport [{transport_id_clone}] fail to send udp relay success message to agent becacuse of error: {e:?}");
+                                };
+                            } else {
+                                error!("Fail to receive udp data from target because of error.");
+                            };
+                        }
+                    });
+
+                    target_to_agent_udp_relay_guard = Some(new_target_to_agent_udp_relay_guard);
+
+                    if let Err(e) = target_to_agent_data_sender
+                        .send(TargetToAgentData {
+                            data_type: TargetToAgentDataType::UdpInitializeSuccess {
+                                source_address,
+                                target_address,
+                                user_token,
+                            },
+                        })
+                        .await
+                    {
+                        error!("Transport [{transport_id}] fail to send udp initialize success message to agent becacuse of error: {e:?}");
+                    };
+                },
+                AgentToTargetDataType::UdpReplay {
+                    source_address,
+                    target_address,
+                    user_token,
+                    data,
+                } => {
+                    let current_target_udp_socket = match &mut target_udp_socket {
+                        None => {
+                            drop(target_to_agent_data_sender);
+                            return;
+                        },
+                        Some(v) => v,
+                    };
+                    let target_socket_addrs = match target_address.to_socket_addrs() {
+                        Err(e) => {
+                            error!("Transport [{transport_id}] fail connect to target becacuse of error when convert target address: {e:?}");
+                            continue;
+                        },
+                        Ok(v) => v,
+                    };
+                    let target_socket_addrs = target_socket_addrs.collect::<Vec<SocketAddr>>();
+                    if let Err(e) = current_target_udp_socket.send_to(&data, target_socket_addrs.as_slice()).await {
+                        error!("Transport [{transport_id}] fail to relay udp package to target becacuse of error: {e:?}");
+                        if let Err(e) = target_to_agent_data_sender
+                            .send(TargetToAgentData {
+                                data_type: TargetToAgentDataType::UdpReplayFail {
+                                    source_address,
+                                    target_address,
+                                    user_token,
+                                },
+                            })
+                            .await
+                        {
+                            error!("Transport [{transport_id}] fail to relay udp data fail message to agent becacuse of error: {e:?}");
+                        };
+                        continue;
+                    };
+                },
+                AgentToTargetDataType::UdpDestory { .. } => {
+                    if let Some(ref udp_socket) = target_udp_socket {
+                        drop(udp_socket);
+                    }
+                    if let Some(ref udp_relay_guard) = target_to_agent_udp_relay_guard {
+                        udp_relay_guard.abort();
+                    }
                 },
             }
         }

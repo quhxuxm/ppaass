@@ -6,11 +6,11 @@ use futures::{SinkExt, StreamExt, TryStreamExt};
 use ppaass_common::generate_uuid;
 
 use ppaass_protocol::{
-    PpaassMessage, PpaassMessageAgentPayloadTypeValue, PpaassMessageParts, PpaassMessagePayload, PpaassMessagePayloadEncryptionSelector,
-    PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassMessageProxyPayloadTypeValue,
+    PayloadAdditionalInfoKey, PayloadAdditionalInfoValue, PpaassMessage, PpaassMessageAgentPayloadTypeValue, PpaassMessageParts, PpaassMessagePayload,
+    PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassMessageProxyPayloadTypeValue,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::{
     common::{AgentMessageFramed, ProxyServerPayloadEncryptionSelector},
@@ -55,7 +55,12 @@ impl AgentEdge {
                     },
                     Ok(v) => v,
                 };
-                let PpaassMessageParts { payload_bytes, user_token, .. } = match agent_message {
+                let PpaassMessageParts {
+                    payload_bytes,
+                    user_token,
+                    id: agent_message_id,
+                    ..
+                } = match agent_message {
                     None => {
                         info!("Transport [{transport_id}] agent edge disconnected.");
                         drop(agent_to_target_data_sender);
@@ -77,6 +82,14 @@ impl AgentEdge {
                     additional_info,
                     data,
                 } = agent_message_payload.split();
+                let reference_message_id_value = additional_info.get(&PayloadAdditionalInfoKey::ReferenceMessageId);
+                if let Some(value) = reference_message_id_value {
+                    match value {
+                        PayloadAdditionalInfoValue::ReferenceMessageIdValue(reference_message_id) => {
+                            debug!("Receive agent message [{agent_message_id}], reference messag [{reference_message_id}]")
+                        },
+                    }
+                }
                 let agent_to_target_data = match payload_type {
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::DomainNameResolve) => AgentToTargetData {
                         data_type: AgentToTargetDataType::DomainNameResolve { data, user_token },
@@ -132,6 +145,28 @@ impl AgentEdge {
                                 user_token,
                             },
                         }
+                    },
+                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpInitialize) => {
+                        let target_address = match target_address.ok_or(anyhow!("No target address assigned.")) {
+                            Err(e) => {
+                                error!("Fail to send agent to target data because of error: {e:?}");
+                                return;
+                            },
+                            Ok(v) => v,
+                        };
+                        AgentToTargetData {
+                            data_type: AgentToTargetDataType::UdpInitialize {
+                                source_address,
+                                target_address,
+                                user_token,
+                            },
+                        }
+                    },
+                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpRelay) => {
+                        todo!()
+                    },
+                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpDestory) => {
+                        todo!()
                     },
                     invalid_type => {
                         error!("Fail to parse agent payload type because of receove invalid data: {invalid_type:?}");
@@ -235,6 +270,27 @@ impl AgentEdge {
                         ),
                         user_token,
                     ),
+                    TargetToAgentDataType::UdpInitializeSuccess {
+                        source_address,
+                        target_address,
+                        user_token,
+                    } => todo!(),
+                    TargetToAgentDataType::UdpInitializeFail {
+                        source_address,
+                        target_address,
+                        user_token,
+                    } => todo!(),
+                    TargetToAgentDataType::UdpReplaySuccess {
+                        source_address,
+                        target_address,
+                        user_token,
+                        data,
+                    } => todo!(),
+                    TargetToAgentDataType::UdpReplayFail {
+                        source_address,
+                        target_address,
+                        user_token,
+                    } => todo!(),
                 };
                 let message_payload_bytes = match message_payload.try_into() {
                     Err(e) => {

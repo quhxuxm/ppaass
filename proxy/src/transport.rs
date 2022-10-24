@@ -20,13 +20,29 @@ enum AgentToTargetDataType {
         target_address: PpaassProtocolAddress,
         user_token: String,
     },
+    UdpInitialize {
+        source_address: Option<PpaassProtocolAddress>,
+        target_address: PpaassProtocolAddress,
+        user_token: String,
+    },
     TcpReplay {
         data: Vec<u8>,
         source_address: Option<PpaassProtocolAddress>,
         target_address: PpaassProtocolAddress,
         user_token: String,
     },
+    UdpReplay {
+        data: Vec<u8>,
+        source_address: Option<PpaassProtocolAddress>,
+        target_address: PpaassProtocolAddress,
+        user_token: String,
+    },
     TcpDestory {
+        source_address: Option<PpaassProtocolAddress>,
+        target_address: PpaassProtocolAddress,
+        user_token: String,
+    },
+    UdpDestory {
         source_address: Option<PpaassProtocolAddress>,
         target_address: PpaassProtocolAddress,
         user_token: String,
@@ -57,6 +73,16 @@ enum TargetToAgentDataType {
         target_address: PpaassProtocolAddress,
         user_token: String,
     },
+    UdpInitializeSuccess {
+        source_address: Option<PpaassProtocolAddress>,
+        target_address: PpaassProtocolAddress,
+        user_token: String,
+    },
+    UdpInitializeFail {
+        source_address: Option<PpaassProtocolAddress>,
+        target_address: PpaassProtocolAddress,
+        user_token: String,
+    },
     TcpReplaySuccess {
         source_address: Option<PpaassProtocolAddress>,
         target_address: PpaassProtocolAddress,
@@ -64,6 +90,17 @@ enum TargetToAgentDataType {
         data: Vec<u8>,
     },
     TcpReplayFail {
+        source_address: Option<PpaassProtocolAddress>,
+        target_address: PpaassProtocolAddress,
+        user_token: String,
+    },
+    UdpReplaySuccess {
+        source_address: Option<PpaassProtocolAddress>,
+        target_address: PpaassProtocolAddress,
+        user_token: String,
+        data: Vec<u8>,
+    },
+    UdpReplayFail {
         source_address: Option<PpaassProtocolAddress>,
         target_address: PpaassProtocolAddress,
         user_token: String,
