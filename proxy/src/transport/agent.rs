@@ -7,6 +7,7 @@ use ppaass_protocol::{
     PayloadAdditionalInfoKey, PayloadAdditionalInfoValue, PpaassMessage, PpaassMessageAgentPayloadTypeValue, PpaassMessageParts, PpaassMessagePayload,
     PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassMessageProxyPayloadTypeValue,
 };
+use snafu::whatever;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tracing::{debug, error, info};
 
@@ -16,8 +17,6 @@ use crate::{
 };
 
 use super::{AgentToTargetData, AgentToTargetDataType, TargetToAgentData, TargetToAgentDataType};
-
-use crate::error::OtherError;
 
 #[derive(Debug)]
 pub(super) struct AgentEdge {
@@ -98,12 +97,12 @@ impl AgentEdge {
                         data_type: AgentToTargetDataType::ConnectionKeepAlive { user_token },
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpInitialize) => {
-                        let target_address = match target_address.ok_or(anyhow!("No target address assigned.")) {
-                            Err(e) => {
-                                error!("Fail to send agent to target data because of error: {e:?}");
+                        let target_address = match target_address {
+                            None => {
+                                error!("Fail to send agent to target data.");
                                 return;
                             },
-                            Ok(v) => v,
+                            Some(v) => v,
                         };
                         AgentToTargetData {
                             data_type: AgentToTargetDataType::TcpInitialize {
@@ -114,12 +113,12 @@ impl AgentEdge {
                         }
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpRelay) => {
-                        let target_address = match target_address.ok_or(anyhow!("No target address assigned.")) {
-                            Err(e) => {
-                                error!("Fail to send agent to target data because of error: {e:?}");
+                        let target_address = match target_address {
+                            None => {
+                                error!("Fail to send agent to target data.");
                                 return;
                             },
-                            Ok(v) => v,
+                            Some(v) => v,
                         };
                         AgentToTargetData {
                             data_type: AgentToTargetDataType::TcpReplay {
