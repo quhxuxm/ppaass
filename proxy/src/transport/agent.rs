@@ -130,12 +130,12 @@ impl AgentEdge {
                         }
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpDestory) => {
-                        let target_address = match target_address.ok_or(anyhow!("No target address assigned.")) {
-                            Err(e) => {
-                                error!("Fail to send agent to target data because of error: {e:?}");
+                        let target_address = match target_address {
+                            None => {
+                                error!("Fail to send agent to target data.");
                                 return;
                             },
-                            Ok(v) => v,
+                            Some(v) => v,
                         };
                         AgentToTargetData {
                             data_type: AgentToTargetDataType::TcpDestory {
@@ -146,12 +146,12 @@ impl AgentEdge {
                         }
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpInitialize) => {
-                        let target_address = match target_address.ok_or(anyhow!("No target address assigned.")) {
-                            Err(e) => {
-                                error!("Fail to send agent to target data because of error: {e:?}");
+                        let target_address = match target_address {
+                            None => {
+                                error!("Fail to send agent to target data.");
                                 return;
                             },
-                            Ok(v) => v,
+                            Some(v) => v,
                         };
                         AgentToTargetData {
                             data_type: AgentToTargetDataType::UdpInitialize {
