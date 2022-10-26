@@ -1,11 +1,10 @@
 use std::{sync::Arc, time::Duration};
 
-use anyhow::Result;
-
+use crate::error::IoError;
+use crate::{common::AgentMessageFramed, config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher, error::Error, transport::Transport};
+use snafu::ResultExt;
 use tokio::{io::AsyncWriteExt, net::TcpListener, sync::Semaphore};
 use tracing::{error, info};
-
-use crate::{common::AgentMessageFramed, config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher, transport::Transport};
 
 pub(crate) struct ProxyServer {
     configuration: Arc<ProxyServerConfig>,
@@ -21,7 +20,7 @@ impl ProxyServer {
         }
     }
 
-    pub(crate) async fn start(&mut self) -> Result<()> {
+    pub(crate) async fn start(&mut self) -> Result<(), Error> {
         let server_bind_addr = if self.configuration.get_ipv6() {
             format!("::1:{}", self.configuration.get_port())
         } else {
@@ -30,13 +29,9 @@ impl ProxyServer {
         let proxy_server_rsa_crypto_fetcher = Arc::new(ProxyServerRsaCryptoFetcher::new(self.configuration.clone())?);
         let agent_connection_buffer_size = self.configuration.get_agent_connection_buffer_size();
         info!("Proxy server start to serve request on address: {server_bind_addr}.");
-        let tcp_listener = match TcpListener::bind(&server_bind_addr).await {
-            Err(e) => {
-                error!("Fail to bind proxy server on address: [{server_bind_addr}] because of error: {e:?}");
-                return Err(anyhow::anyhow!(e));
-            },
-            Ok(v) => v,
-        };
+        let tcp_listener = TcpListener::bind(&server_bind_addr).await.context(IoError {
+            message: "Fail to bind tcp listener for proxy server",
+        })?;
         loop {
             let (mut agent_tcp_stream, agent_socket_address) = match tcp_listener.accept().await {
                 Ok(v) => v,

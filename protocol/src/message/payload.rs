@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-
-use ppaass_common::PpaassError;
+use crate::error::JsonSerializeError;
+use crate::error::{Error, JsonDeserializeError};
 use serde_derive::{Deserialize, Serialize};
-use tracing::error;
+use snafu::ResultExt;
+use std::collections::HashMap;
 
 use crate::{serializer::vec_u8_to_base64, PpaassMessagePayloadType, PpaassProtocolAddress};
 
@@ -92,24 +92,22 @@ impl From<PpaassMessagePayloadParts> for PpaassMessagePayload {
 }
 
 impl TryFrom<PpaassMessagePayload> for Vec<u8> {
-    type Error = PpaassError;
+    type Error = Error;
 
     fn try_from(value: PpaassMessagePayload) -> Result<Self, Self::Error> {
-        let result = serde_json::to_vec(&value).map_err(|e| {
-            error!("Fail to convert message payload object to bytes because of error: {e:#?}");
-            PpaassError::CodecError
+        let result = serde_json::to_vec(&value).context(JsonSerializeError {
+            message: "Fail to serialize PpaassMessagePayload object to bytes",
         })?;
         Ok(result)
     }
 }
 
 impl TryFrom<Vec<u8>> for PpaassMessagePayload {
-    type Error = PpaassError;
+    type Error = Error;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        let result = serde_json::from_slice(value.as_ref()).map_err(|e| {
-            error!("Fail to convert bytes to message payload object because of error: {e:?}");
-            PpaassError::CodecError
+        let result = serde_json::from_slice(value.as_ref()).context(JsonDeserializeError {
+            message: "Fail to deserialize bytes to PpaassMessagePayload object",
         })?;
         Ok(result)
     }

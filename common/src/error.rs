@@ -1,48 +1,41 @@
-/// The general error happen in ppaass project.
+use cipher::block_padding::UnpadError;
+use snafu::{Backtrace, Snafu};
+use std::fmt::Debug;
 
-type StdIoError = std::io::Error;
-type StdIoErrorKind = std::io::ErrorKind;
+#[derive(Debug, Snafu)]
+pub struct Error(InnerError);
 
-#[derive(thiserror::Error, Debug)]
-pub enum PpaassError {
-    #[error("Codec error happen.")]
-    CodecError,
-    #[error("Error happen, original io error: {:?}", source)]
-    IoError {
-        #[from]
-        source: StdIoError,
+#[derive(Debug, Snafu)]
+#[snafu(visibility(pub(crate)), context(suffix(Error)))]
+pub(crate) enum InnerError {
+    #[snafu(display("I/O error happen: {message}"))]
+    Io {
+        message: String,
+        backtrace: Backtrace,
+        source: std::io::Error,
     },
-    #[error("RSA public key error happen, original io error: {:?}", source)]
-    RsaPublicKeyError {
-        #[from]
+    #[snafu(display("RSA public key error happen: {message}"))]
+    RsaPublicKey {
+        message: String,
+        backtrace: Backtrace,
         source: rsa::pkcs8::spki::Error,
     },
-    #[error("RSA private key error happen, original io error: {:?}", source)]
-    RsaPrivateKeyError {
-        #[from]
+    #[snafu(display("RSA private key error happen: {message}"))]
+    RsaPrivateKey {
+        message: String,
+        backtrace: Backtrace,
         source: rsa::pkcs8::Error,
     },
-    #[error("RSA error happen, original io error: {:?}", source)]
-    RsaError {
-        #[from]
+    #[snafu(display("RSA crypto error happen: {message}"))]
+    RsaCrypto {
+        message: String,
+        backtrace: Backtrace,
         source: rsa::errors::Error,
     },
-    #[error("Cipher padding error happen, original io error: {:?}", source)]
-    CipherPaddingError {
-        #[from]
-        source: cipher::block_padding::UnpadError,
+    #[snafu(display("Crypto un-pad error happen: {message}"))]
+    CryptoUnpad {
+        message: String,
+        backtrace: Backtrace,
+        source: UnpadError,
     },
-}
-
-impl From<PpaassError> for StdIoError {
-    fn from(value: PpaassError) -> Self {
-        match value {
-            PpaassError::CodecError => StdIoError::new(StdIoErrorKind::InvalidData, value),
-            PpaassError::IoError { source } => source,
-            PpaassError::RsaPublicKeyError { source } => StdIoError::new(StdIoErrorKind::InvalidData, source),
-            PpaassError::RsaPrivateKeyError { source } => StdIoError::new(StdIoErrorKind::InvalidData, source),
-            PpaassError::CipherPaddingError { source } => StdIoError::new(StdIoErrorKind::InvalidData, source),
-            PpaassError::RsaError { source } => StdIoError::new(StdIoErrorKind::InvalidData, source),
-        }
-    }
 }

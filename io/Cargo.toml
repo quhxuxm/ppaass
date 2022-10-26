@@ -15,6 +15,7 @@ ppaass-common = {path = "../common"}
 ppaass-protocol = {path = "../protocol"}
 pretty-hex = {workspace = true}
 serde = {workspace = true}
+snafu = {workspace = true}
 tokio = {workspace = true, features = ["macros", "time", "net", "io-util", "rt-multi-thread"]}
 tokio-util = {workspace = true, features = ["codec"]}
 tracing = {workspace = true}

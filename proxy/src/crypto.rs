@@ -1,9 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
-use ppaass_common::{PpaassError, RsaCrypto, RsaCryptoFetcher};
+use crate::error::IoError;
+use crate::{config::ProxyServerConfig, error::Error};
+use ppaass_common::{RsaCrypto, RsaCryptoFetcher};
+use snafu::ResultExt;
 use tracing::error;
-
-use crate::config::ProxyServerConfig;
 
 #[derive(Debug)]
 pub(crate) struct ProxyServerRsaCryptoFetcher {
@@ -11,10 +12,12 @@ pub(crate) struct ProxyServerRsaCryptoFetcher {
 }
 
 impl ProxyServerRsaCryptoFetcher {
-    pub(crate) fn new(configuration: Arc<ProxyServerConfig>) -> Result<Self, PpaassError> {
+    pub(crate) fn new(configuration: Arc<ProxyServerConfig>) -> Result<Self, Error> {
         let mut result = Self { cache: HashMap::new() };
         let rsa_dir_path = configuration.get_rsa_dir();
-        let rsa_dir = std::fs::read_dir(&rsa_dir_path)?;
+        let rsa_dir = std::fs::read_dir(&rsa_dir_path).context(IoError {
+            message: "Fail to read rsa directory.",
+        })?;
         rsa_dir.for_each(|entry| {
             let entry = match entry {
                 Err(e) => {
@@ -65,7 +68,7 @@ impl ProxyServerRsaCryptoFetcher {
 }
 
 impl RsaCryptoFetcher for ProxyServerRsaCryptoFetcher {
-    fn fetch(&self, user_token: &str) -> Result<Option<&ppaass_common::RsaCrypto>, ppaass_common::PpaassError> {
+    fn fetch(&self, user_token: &str) -> Result<Option<&ppaass_common::RsaCrypto>, ppaass_common::error::Error> {
         Ok(self.cache.get(user_token))
     }
 }

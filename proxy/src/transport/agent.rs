@@ -1,7 +1,5 @@
 use std::{sync::Arc, vec};
 
-use anyhow::anyhow;
-
 use futures::{SinkExt, StreamExt, TryStreamExt};
 use ppaass_common::generate_uuid;
 
@@ -18,6 +16,8 @@ use crate::{
 };
 
 use super::{AgentToTargetData, AgentToTargetDataType, TargetToAgentData, TargetToAgentDataType};
+
+use crate::error::OtherError;
 
 #[derive(Debug)]
 pub(super) struct AgentEdge {

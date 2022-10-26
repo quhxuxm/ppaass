@@ -1,8 +1,9 @@
-use crate::serializer::array_u8_l16_to_base64;
+use crate::error::IoError;
 use crate::serializer::array_u8_l4_to_base64;
+use crate::{error::Error, serializer::array_u8_l16_to_base64};
 use bytes::Buf;
-use ppaass_common::PpaassError;
 use serde_derive::{Deserialize, Serialize};
+use snafu::ResultExt;
 use std::net::{IpAddr, SocketAddr};
 use std::{
     io::Cursor,
@@ -51,13 +52,13 @@ impl ToSocketAddrs for PpaassProtocolAddress {
     type Iter = SocketAddrIter;
 
     fn to_socket_addrs(&self) -> std::io::Result<Self::Iter> {
-        let socket_addr_vec: Vec<SocketAddr> = self.try_into()?;
+        let socket_addr_vec: Vec<SocketAddr> = self.try_into().map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         Ok(SocketAddrIter::new(socket_addr_vec))
     }
 }
 
 impl TryFrom<&PpaassProtocolAddress> for Vec<SocketAddr> {
-    type Error = PpaassError;
+    type Error = Error;
 
     fn try_from(value: &PpaassProtocolAddress) -> Result<Self, Self::Error> {
         match value {
@@ -86,7 +87,12 @@ impl TryFrom<&PpaassProtocolAddress> for Vec<SocketAddr> {
             },
             PpaassProtocolAddress::Domain { host, port } => {
                 let address_string = format!("{}:{}", host, port);
-                let addresses = address_string.to_socket_addrs()?.collect::<Vec<_>>();
+                let addresses = address_string
+                    .to_socket_addrs()
+                    .context(IoError {
+                        message: "Fail to convert domain adddress to socket address",
+                    })?
+                    .collect::<Vec<_>>();
                 Ok(addresses)
             },
         }
@@ -94,8 +100,8 @@ impl TryFrom<&PpaassProtocolAddress> for Vec<SocketAddr> {
 }
 
 impl TryFrom<PpaassProtocolAddress> for Vec<SocketAddr> {
-    type Error = PpaassError;
-    fn try_from(value: PpaassProtocolAddress) -> Result<Self, PpaassError> {
+    type Error = Error;
+    fn try_from(value: PpaassProtocolAddress) -> Result<Self, Self::Error> {
         (&value).try_into()
     }
 }

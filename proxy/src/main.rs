@@ -1,38 +1,33 @@
 use std::str::FromStr;
 
-use anyhow::anyhow;
-use anyhow::Result;
 use common::ProxyServerLogTimer;
 use config::ProxyServerLogConfig;
+use error::Error;
 use manager::ProxyServerManager;
+use snafu::ResultExt;
 use tracing::{metadata::LevelFilter, subscriber};
 use tracing_subscriber::{fmt::Layer, prelude::__tracing_subscriber_SubscriberExt, Registry};
 
+use error::ConfigurtionFileParseFailError;
+use error::IoError;
 mod arguments;
 mod common;
 mod config;
 mod constant;
 mod crypto;
+mod error;
 mod manager;
 mod server;
 mod transport;
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    let log_configuration_file_content = match tokio::fs::read_to_string(config::DEFAULT_PROXY_LOG_CONFIG_FILE).await {
-        Err(e) => {
-            eprintln!("Fail to read proxy server log configuration file because of error: {e:?}");
-            return Err(anyhow!(e));
-        },
-        Ok(v) => v,
-    };
-    let proxy_server_log_config: ProxyServerLogConfig = match toml::from_str(&log_configuration_file_content) {
-        Err(e) => {
-            eprintln!("Fail to parse proxy server log configuration file because of error: {e:?}");
-            return Err(anyhow!(e));
-        },
-        Ok(v) => v,
-    };
+async fn main() -> Result<(), Error> {
+    let log_configuration_file_content = tokio::fs::read_to_string(config::DEFAULT_PROXY_LOG_CONFIG_FILE).await.context(IoError {
+        message: "Fail to read proxy log configuration file",
+    })?;
+    let proxy_server_log_config: ProxyServerLogConfig = toml::from_str(&log_configuration_file_content).context(ConfigurtionFileParseFailError {
+        file_name: config::DEFAULT_PROXY_LOG_CONFIG_FILE,
+    })?;
     let log_dir = proxy_server_log_config
         .get_dir()
         .as_ref()

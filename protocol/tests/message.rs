@@ -1,6 +1,5 @@
 use std::error::Error;
 
-use ppaass_common::generate_uuid;
 use ppaass_protocol::{
     PayloadAdditionalInfoKey, PayloadAdditionalInfoValue, PpaassMessageAgentPayloadTypeValue, PpaassMessagePayload, PpaassMessagePayloadEncryption,
     PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassProtocolAddress,

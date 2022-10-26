@@ -1,16 +1,17 @@
 use std::{sync::Arc, time::Duration};
 
-use anyhow::Result;
 use clap::Parser;
+use snafu::ResultExt;
 
-use crate::{arguments::ProxyServerArguments, config::ProxyServerConfig, constant::DEFAULT_CONFIG_FILE_PATH, server::ProxyServer};
+use crate::error::ConfigurtionFileParseFailError;
+use crate::error::IoError;
+use crate::{arguments::ProxyServerArguments, config::ProxyServerConfig, constant::DEFAULT_CONFIG_FILE_PATH, error::Error, server::ProxyServer};
 use tokio::{runtime::Builder, sync::mpsc::channel as tokio_mpsc_channel};
 use tokio::{
     runtime::Runtime,
     sync::mpsc::{Receiver, Sender},
 };
 use tracing::{debug, error, info};
-
 #[derive(Debug)]
 pub(crate) enum ProxyServerManagementCommand {
     Restart(ProxyServerConfig),
@@ -21,7 +22,7 @@ pub(crate) struct ProxyServerManager {
 }
 
 impl ProxyServerManager {
-    pub(crate) fn new() -> Result<Self> {
+    pub(crate) fn new() -> Result<Self, Error> {
         let (command_sender, command_receiver) = tokio_mpsc_channel::<ProxyServerManagementCommand>(1);
         Ok(Self {
             command_sender,
@@ -29,13 +30,15 @@ impl ProxyServerManager {
         })
     }
 
-    async fn prepare_config(&self, arguments: &ProxyServerArguments) -> Result<ProxyServerConfig> {
+    async fn prepare_config(&self, arguments: &ProxyServerArguments) -> Result<ProxyServerConfig, Error> {
         let mut config_file_path = DEFAULT_CONFIG_FILE_PATH;
         if let Some(ref path) = arguments.configuration_file {
             config_file_path = path.as_str();
         }
-        let config_file_content = tokio::fs::read_to_string(config_file_path).await?;
-        let mut result = toml::from_str::<ProxyServerConfig>(&config_file_content)?;
+        let config_file_content = tokio::fs::read_to_string(config_file_path).await.context(IoError {
+            message: "Fail to read configuration file content.",
+        })?;
+        let mut result = toml::from_str::<ProxyServerConfig>(&config_file_content).context(ConfigurtionFileParseFailError { file_name: config_file_path })?;
         if let Some(port) = arguments.port {
             result.set_port(port);
         }
@@ -49,7 +52,7 @@ impl ProxyServerManager {
         Ok(result)
     }
 
-    async fn start_config_monitor(&self, config_file_path: String, original_config_file_content: String) -> Result<()> {
+    async fn start_config_monitor(&self, config_file_path: String, original_config_file_content: String) -> Result<(), Error> {
         let command_sender = self.command_sender.clone();
         tokio::spawn(async move {
             let mut original_config_file_content = original_config_file_content;
@@ -84,7 +87,7 @@ impl ProxyServerManager {
 
     async fn start_command_monitor(
         &mut self, _config: Arc<ProxyServerConfig>, mut server_runtime_builder: Builder, mut current_server_runtime: Runtime,
-    ) -> Result<()> {
+    ) -> Result<(), Error> {
         let mut command_receiver = self.command_receiver.take().unwrap();
         let guard = tokio::spawn(async move {
             loop {
@@ -119,7 +122,7 @@ impl ProxyServerManager {
         Ok(())
     }
 
-    async fn start_proxy_server(config: Arc<ProxyServerConfig>, server_runtime: &Runtime) -> Result<()> {
+    async fn start_proxy_server(config: Arc<ProxyServerConfig>, server_runtime: &Runtime) -> Result<(), Error> {
         server_runtime.spawn(async {
             info!("Begin to start proxy server.");
             let mut proxy_server = ProxyServer::new(config);
@@ -131,14 +134,16 @@ impl ProxyServerManager {
         Ok(())
     }
 
-    pub(crate) async fn start(mut self) -> Result<()> {
+    pub(crate) async fn start(mut self) -> Result<(), Error> {
         let arguments = ProxyServerArguments::parse();
         let config = Arc::new(self.prepare_config(&arguments).await?);
         let mut server_runtime_builder = Builder::new_multi_thread();
         server_runtime_builder.enable_all();
         server_runtime_builder.thread_name("proxy-server-runtime");
         server_runtime_builder.worker_threads(config.get_thread_number());
-        let server_runtime = server_runtime_builder.build()?;
+        let server_runtime = server_runtime_builder.build().context(IoError {
+            message: "Fail to build proxy server runtime.",
+        })?;
         Self::start_proxy_server(config.clone(), &server_runtime).await?;
         self.start_command_monitor(config, server_runtime_builder, server_runtime).await?;
         Ok(())

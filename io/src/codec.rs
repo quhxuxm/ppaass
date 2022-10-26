@@ -4,14 +4,18 @@ use std::{
     sync::Arc,
 };
 
+use crate::error::{
+    CodecError, DecryptAesDataFailError, DecryptAesTokenFailError, DecryptBloofishDataFailError, DecryptBloofishTokenFailError, EncryptAesTokenFailError,
+    EncryptBloofishTokenFailError, Error, FetchRsaCryptoFailError, RsaCryptoNotExistError,
+};
 use bytes::{Buf, BufMut, BytesMut};
 use lz4::block::{compress, decompress};
+use ppaass_common::{decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_with_blowfish, RsaCryptoFetcher};
 use ppaass_protocol::{PpaassMessage, PpaassMessageParts, PpaassMessagePayloadEncryption};
 use pretty_hex::*;
+use snafu::{OptionExt, ResultExt};
 use tokio_util::codec::{Decoder, Encoder};
-use tracing::{debug, error, trace};
-
-use ppaass_common::{decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_with_blowfish, PpaassError, RsaCryptoFetcher};
+use tracing::{debug, trace};
 
 const PPAASS_FLAG: &[u8] = "__PPAASS__".as_bytes();
 
@@ -54,7 +58,7 @@ where
     T: RsaCryptoFetcher,
 {
     type Item = PpaassMessage;
-    type Error = PpaassError;
+    type Error = Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         let header_length = PPAASS_FLAG.len() + size_of::<u8>() + size_of::<u64>();
@@ -67,12 +71,12 @@ where
                 }
                 let ppaass_flag = src.split_to(PPAASS_FLAG.len());
                 if !PPAASS_FLAG.eq(&ppaass_flag) {
-                    error!(
-                        "Fail to decode input ppaass message because of it dose not begin with ppaass flag, hex data:\n\n{}\n\n",
-                        pretty_hex(src)
-                    );
-                    return Err(PpaassError::CodecError);
+                    return Err(Error::from(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Fail to decode input ppaass message because of it dose not begin with ppaass flag",
+                    )));
                 }
+
                 let compressed = src.get_u8() == 1;
                 let body_length = src.get_u64();
                 src.reserve(body_length as usize);
@@ -96,9 +100,13 @@ where
         let encrypted_message: PpaassMessage = if body_is_compressed {
             debug!("Input message body is compressed.");
             let decompress_result = decompress(body_bytes.chunk(), None)?;
-            decompress_result.try_into()?
+            decompress_result.try_into().context(CodecError {
+                message: "Fail to decompress bytes of the PpaassMessage",
+            })?
         } else {
-            body_bytes.to_vec().try_into()?
+            body_bytes.to_vec().try_into().context(CodecError {
+                message: "Fail to decompress bytes of the PpaassMessage",
+            })?
         };
 
         let PpaassMessageParts {
@@ -108,20 +116,25 @@ where
             payload_bytes,
         } = encrypted_message.split();
 
-        let rsa_crypto = self.rsa_crypto_fetcher.fetch(&user_token)?.ok_or_else(|| {
-            error!("Fail to get user rsa crypto because of not exist, user token: {}", &user_token);
-            PpaassError::CodecError
-        })?;
+        let rsa_crypto = self
+            .rsa_crypto_fetcher
+            .fetch(&user_token)
+            .context(FetchRsaCryptoFailError {
+                user_token: user_token.clone(),
+            })?
+            .context(RsaCryptoNotExistError {
+                user_token: user_token.clone(),
+            })?;
 
         let decrypt_payload_bytes = match payload_encryption {
             PpaassMessagePayloadEncryption::Plain => payload_bytes,
             PpaassMessagePayloadEncryption::Aes(ref encryption_token) => {
-                let original_encryption_token = rsa_crypto.decrypt(&encryption_token)?;
-                decrypt_with_aes(&original_encryption_token, &payload_bytes)?
+                let original_encryption_token = rsa_crypto.decrypt(&encryption_token).context(DecryptAesTokenFailError)?;
+                decrypt_with_aes(&original_encryption_token, &payload_bytes).context(DecryptAesDataFailError)?
             },
             PpaassMessagePayloadEncryption::Bloofish(ref encryption_token) => {
-                let original_encryption_token = rsa_crypto.decrypt(&encryption_token)?;
-                decrypt_with_blowfish(&original_encryption_token, &payload_bytes)?
+                let original_encryption_token = rsa_crypto.decrypt(&encryption_token).context(DecryptBloofishTokenFailError)?;
+                decrypt_with_blowfish(&original_encryption_token, &payload_bytes).context(DecryptBloofishDataFailError)?
             },
         };
         self.status = DecodeStatus::Head;
@@ -141,7 +154,7 @@ impl<T> Encoder<PpaassMessage> for PpaassMessageCodec<T>
 where
     T: RsaCryptoFetcher,
 {
-    type Error = PpaassError;
+    type Error = Error;
 
     fn encode(&mut self, original_message: PpaassMessage, dst: &mut BytesMut) -> Result<(), Self::Error> {
         debug!("Encode message to output(decrypted): {:?}", original_message);
@@ -158,16 +171,24 @@ where
             payload_bytes,
         } = original_message.split();
 
-        let rsa_crypto = self.rsa_crypto_fetcher.fetch(&user_token)?.ok_or(PpaassError::CodecError)?;
+        let rsa_crypto = self
+            .rsa_crypto_fetcher
+            .fetch(&user_token)
+            .context(FetchRsaCryptoFailError {
+                user_token: user_token.clone(),
+            })?
+            .context(RsaCryptoNotExistError {
+                user_token: user_token.clone(),
+            })?;
         let (encrypted_payload_bytes, encrypted_payload_encryption_type) = match payload_encryption {
             PpaassMessagePayloadEncryption::Plain => (payload_bytes, PpaassMessagePayloadEncryption::Plain),
             PpaassMessagePayloadEncryption::Aes(ref original_token) => {
-                let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token)?;
+                let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token).context(EncryptAesTokenFailError)?;
                 let encrypted_payload_bytes = encrypt_with_aes(original_token, &payload_bytes);
                 (encrypted_payload_bytes, PpaassMessagePayloadEncryption::Aes(encrypted_payload_encryption_token))
             },
             PpaassMessagePayloadEncryption::Bloofish(ref original_token) => {
-                let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token)?;
+                let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token).context(EncryptBloofishTokenFailError)?;
                 let encrypted_payload_bytes = encrypt_with_blowfish(original_token, &payload_bytes);
                 (
                     encrypted_payload_bytes,
@@ -182,7 +203,9 @@ where
             payload_bytes: encrypted_payload_bytes,
         };
         let message_to_encode: PpaassMessage = message_parts_to_encode.into();
-        let result_bytes: Vec<u8> = message_to_encode.try_into()?;
+        let result_bytes: Vec<u8> = message_to_encode.try_into().context(CodecError {
+            message: "Fail to encode message object to bytes.",
+        })?;
         let result_bytes = if self.compress {
             compress(&result_bytes, None, true)?
         } else {

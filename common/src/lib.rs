@@ -1,8 +1,7 @@
 mod crypto;
-mod error;
+pub mod error;
 
 pub use crypto::*;
-pub use error::*;
 
 use uuid::Uuid;
 

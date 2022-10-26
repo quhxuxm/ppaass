@@ -12,6 +12,7 @@ cipher = {workspace = true}
 ecb = {workspace = true}
 rand = {workspace = true}
 rsa = {workspace = true}
-thiserror = {workspace = true}
+serde_json = {workspace = true}
+snafu = {workspace = true, features = ["backtraces"]}
 tracing = {workspace = true}
 uuid = {workspace = true}
