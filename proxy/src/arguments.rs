@@ -11,6 +11,12 @@ pub(crate) struct ProxyServerArguments {
     /// Port of the ppaass proxy
     #[clap(short = 'p', long, value_parser)]
     pub port: Option<u16>,
+    /// Use ip v6
+    #[clap(short = '6', long, value_parser)]
+    pub ip_v6: Option<bool>,
+    /// Worker thread number
+    #[clap(short = 't', long, value_parser)]
+    pub thread_number: Option<usize>,
     /// The root directory used to store the rsa
     /// files for each user
     #[clap(long, value_parser)]

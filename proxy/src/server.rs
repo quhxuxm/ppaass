@@ -65,15 +65,19 @@ impl ProxyServer {
             };
             let proxy_server_rsa_crypto_fetcher = proxy_server_rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();
-            let agent_message_framed =
-                match AgentMessageFramed::new(agent_tcp_stream, false, agent_connection_buffer_size, proxy_server_rsa_crypto_fetcher.clone()) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        error!("Fail to handle agent tcp connection because of error: {e:?}");
-                        drop(agent_tcp_connection_accept_permit);
-                        continue;
-                    },
-                };
+            let agent_message_framed = match AgentMessageFramed::new(
+                agent_tcp_stream,
+                self.configuration.get_compress(),
+                agent_connection_buffer_size,
+                proxy_server_rsa_crypto_fetcher.clone(),
+            ) {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("Fail to handle agent tcp connection because of error: {e:?}");
+                    drop(agent_tcp_connection_accept_permit);
+                    continue;
+                },
+            };
             let transport = Transport::new(agent_message_framed, configuration, agent_tcp_connection_accept_permit);
             transport.exec().await;
         }

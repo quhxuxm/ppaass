@@ -48,6 +48,10 @@ impl ProxyServerManager {
         if let Some(ref dir) = arguments.rsa_dir {
             result.set_rsa_dir(dir.as_str());
         }
+        if let Some(thread_number) = arguments.thread_number {
+            result.set_thread_number(thread_number);
+        }
+        result.set_ipv6(arguments.ip_v6.unwrap_or(false));
         self.start_config_monitor(config_file_path.to_owned(), config_file_content).await?;
         Ok(result)
     }
