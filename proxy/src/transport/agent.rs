@@ -162,10 +162,37 @@ impl AgentEdge {
                         }
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpRelay) => {
-                        todo!()
+                        let target_address = match target_address {
+                            None => {
+                                error!("Fail to send agent to target data.");
+                                return;
+                            },
+                            Some(v) => v,
+                        };
+                        AgentToTargetData {
+                            data_type: AgentToTargetDataType::UdpReplay {
+                                data,
+                                source_address,
+                                target_address,
+                                user_token,
+                            },
+                        }
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpDestory) => {
-                        todo!()
+                        let target_address = match target_address {
+                            None => {
+                                error!("Fail to send agent to target data.");
+                                return;
+                            },
+                            Some(v) => v,
+                        };
+                        AgentToTargetData {
+                            data_type: AgentToTargetDataType::UdpDestory {
+                                source_address,
+                                target_address,
+                                user_token,
+                            },
+                        }
                     },
                     invalid_type => {
                         error!("Fail to parse agent payload type because of receove invalid data: {invalid_type:?}");
