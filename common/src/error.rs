@@ -32,10 +32,16 @@ pub(crate) enum InnerError {
         backtrace: Backtrace,
         source: rsa::errors::Error,
     },
-    #[snafu(display("Crypto un-pad error happen: {message}"))]
+    #[snafu(display("Crypto unpad error happen: {message}"))]
     CryptoUnpad {
         message: String,
         backtrace: Backtrace,
         source: UnpadError,
+    },
+    #[snafu(whatever, display("{message}"))]
+    Other {
+        message: String,
+        #[snafu(source(from(Box<dyn std::error::Error>, Some)))]
+        source: Option<Box<dyn std::error::Error>>,
     },
 }

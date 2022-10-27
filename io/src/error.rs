@@ -1,10 +1,12 @@
 use snafu::{Backtrace, GenerateImplicitData, Snafu};
 use std::fmt::Debug;
+use std::io::Error as StdIoError;
+
 #[derive(Debug, Snafu)]
 pub struct Error(InnerError);
 
-impl From<std::io::Error> for Error {
-    fn from(io_error: std::io::Error) -> Self {
+impl From<StdIoError> for Error {
+    fn from(io_error: StdIoError) -> Self {
         Error(InnerError::Io {
             message: format!("Io error happen: {io_error:?}"),
             backtrace: Backtrace::generate_with_source(&io_error),
@@ -65,5 +67,11 @@ pub(crate) enum InnerError {
         message: String,
         backtrace: Backtrace,
         source: ppaass_protocol::error::Error,
+    },
+    #[snafu(whatever, display("{message}"))]
+    Other {
+        message: String,
+        #[snafu(source(from(Box<dyn std::error::Error>, Some)))]
+        source: Option<Box<dyn std::error::Error>>,
     },
 }

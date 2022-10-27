@@ -7,7 +7,7 @@ use ppaass_protocol::{
     PayloadAdditionalInfoKey, PayloadAdditionalInfoValue, PpaassMessage, PpaassMessageAgentPayloadTypeValue, PpaassMessageParts, PpaassMessagePayload,
     PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassMessageProxyPayloadTypeValue,
 };
-use snafu::whatever;
+
 use tokio::sync::mpsc::{Receiver, Sender};
 use tracing::{debug, error, info};
 
@@ -273,23 +273,55 @@ impl AgentEdge {
                         source_address,
                         target_address,
                         user_token,
-                    } => todo!(),
+                    } => (
+                        PpaassMessagePayload::new(
+                            source_address,
+                            Some(target_address),
+                            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::UdpInitializeSuccess),
+                            vec![],
+                        ),
+                        user_token,
+                    ),
                     TargetToAgentDataType::UdpInitializeFail {
                         source_address,
                         target_address,
                         user_token,
-                    } => todo!(),
+                    } => (
+                        PpaassMessagePayload::new(
+                            source_address,
+                            Some(target_address),
+                            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::UdpInitializeFail),
+                            vec![],
+                        ),
+                        user_token,
+                    ),
                     TargetToAgentDataType::UdpReplaySuccess {
                         source_address,
                         target_address,
                         user_token,
                         data,
-                    } => todo!(),
+                    } => (
+                        PpaassMessagePayload::new(
+                            source_address,
+                            Some(target_address),
+                            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::UdpRelaySuccess),
+                            data,
+                        ),
+                        user_token,
+                    ),
                     TargetToAgentDataType::UdpReplayFail {
                         source_address,
                         target_address,
                         user_token,
-                    } => todo!(),
+                    } => (
+                        PpaassMessagePayload::new(
+                            source_address,
+                            Some(target_address),
+                            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::UdpRelayFail),
+                            vec![],
+                        ),
+                        user_token,
+                    ),
                 };
                 let message_payload_bytes = match message_payload.try_into() {
                     Err(e) => {
