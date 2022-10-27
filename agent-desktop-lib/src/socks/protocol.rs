@@ -7,7 +7,7 @@ use std::{
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use ppaass_protocol::PpaassProtocolAddress;
-use snafu::{Backtrace, GenerateImplicitData, OptionExt};
+use snafu::{Backtrace, GenerateImplicitData, OptionExt, ResultExt};
 use tracing::error;
 
 use crate::error::Error;
@@ -272,25 +272,21 @@ impl TryFrom<&mut Bytes> for Socks5Address {
                     });
                 }
                 let domain_name_bytes = value.copy_to_bytes(domain_name_length);
-                let domain_name = match String::from_utf8(domain_name_bytes.to_vec()) {
-                    Ok(v) => {
-                        if "0".eq(&v) {
-                            "127.0.0.1".to_string()
-                        } else {
-                            v
-                        }
-                    },
-                    Err(e) => {
-                        error!("Fail to parse socks5 address(Domain) because of error: {:#?}.", e);
-                        return Err(PpaassError::CodecError);
-                    },
+                let domain_name = match &String::from_utf8(domain_name_bytes.to_vec()).context(Socks5AddressParseError {
+                    message: format!("Fail to parse socks5 address (Domain) because of error"),
+                })? {
+                    "0" => "127.0.0.1".to_string(),
+                    v => v,
                 };
                 let port = value.get_u16();
                 Socks5Address::Domain(domain_name, port)
             },
             unknown_addr_type => {
                 error!("Fail to decode socks 5 address type: {}", unknown_addr_type);
-                return Err(PpaassError::CodecError);
+                return Err(Error::Socks5AddressParse {
+                    message: format!("Fail to decode socks 5 address type: {}", unknown_addr_type),
+                    backtrace: Backtrace::generate(),
+                });
             },
         };
         Ok(address)
@@ -298,7 +294,7 @@ impl TryFrom<&mut Bytes> for Socks5Address {
 }
 
 impl TryFrom<Bytes> for Socks5Address {
-    type Error = PpaassError;
+    type Error = Error;
 
     fn try_from(mut value: Bytes) -> Result<Self, Self::Error> {
         let value_mut_ref = &mut value;
@@ -307,7 +303,7 @@ impl TryFrom<Bytes> for Socks5Address {
 }
 
 impl TryFrom<&mut BytesMut> for Socks5Address {
-    type Error = PpaassError;
+    type Error = Error;
 
     fn try_from(value: &mut BytesMut) -> Result<Self, Self::Error> {
         let value = value.copy_to_bytes(value.len());
@@ -432,25 +428,36 @@ pub(crate) struct Socks5UdpDataPacket {
 }
 
 impl TryFrom<Bytes> for Socks5UdpDataPacket {
-    type Error = PpaassError;
+    type Error = Error;
     fn try_from(mut src: Bytes) -> Result<Self, Self::Error> {
         // Check the buffer
         if !src.has_remaining() {
-            return Err(PpaassError::CodecError);
+            error!("Fail to decode socks5 udp data packet.");
+            return Err(Error::InvalidSocks5UdpDataPacket {
+                backtrace: Backtrace::generate(),
+            });
         }
         // Check and skip the revision
         if src.remaining() < size_of::<u16>() {
-            return Err(PpaassError::CodecError);
+            error!("Fail to decode socks5 udp data packet.");
+            return Err(Error::InvalidSocks5UdpDataPacket {
+                backtrace: Backtrace::generate(),
+            });
         }
         src.get_u16();
         if src.remaining() < size_of::<u8>() {
-            return Err(PpaassError::CodecError);
+            error!("Fail to decode socks5 udp data packet.");
+            return Err(Error::InvalidSocks5UdpDataPacket {
+                backtrace: Backtrace::generate(),
+            });
         }
         let frag = src.get_u8();
         let address: Socks5Address = match (&mut src).try_into() {
             Err(e) => {
-                error!("Fail to decode socks5 udp data request because of error: {:#?}", e);
-                return Err(PpaassError::CodecError);
+                error!("Fail to decode socks5 udp data packet because of error: {:#?}", e);
+                return Err(Error::InvalidSocks5UdpDataPacket {
+                    backtrace: Backtrace::generate(),
+                });
             },
             Ok(v) => v,
         };

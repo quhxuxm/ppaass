@@ -7,4 +7,6 @@ pub enum Error {
     InvalidSocks5InitCommand { message: String, backtrace: Backtrace },
     #[snafu(display("Fail to parse socks5 address: {message}"))]
     Socks5AddressParse { message: String, backtrace: Backtrace },
+    #[snafu(display("Fail to parse socks5 udp data packet."))]
+    InvalidSocks5UdpDataPacket { backtrace: Backtrace },
 }
