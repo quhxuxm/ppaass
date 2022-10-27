@@ -129,21 +129,8 @@ impl AgentEdge {
                             },
                         }
                     },
-                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpDestory) => {
-                        let target_address = match target_address {
-                            None => {
-                                error!("Fail to send agent to target data.");
-                                return;
-                            },
-                            Some(v) => v,
-                        };
-                        AgentToTargetData {
-                            data_type: AgentToTargetDataType::TcpDestory {
-                                source_address,
-                                target_address,
-                                user_token,
-                            },
-                        }
+                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpDestory) => AgentToTargetData {
+                        data_type: AgentToTargetDataType::TcpDestory,
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpInitialize) => {
                         let target_address = match target_address {
@@ -178,21 +165,8 @@ impl AgentEdge {
                             },
                         }
                     },
-                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpDestory) => {
-                        let target_address = match target_address {
-                            None => {
-                                error!("Fail to send agent to target data.");
-                                return;
-                            },
-                            Some(v) => v,
-                        };
-                        AgentToTargetData {
-                            data_type: AgentToTargetDataType::UdpDestory {
-                                source_address,
-                                target_address,
-                                user_token,
-                            },
-                        }
+                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpDestory) => AgentToTargetData {
+                        data_type: AgentToTargetDataType::UdpDestory,
                     },
                     invalid_type => {
                         error!("Fail to parse agent payload type because of receove invalid data: {invalid_type:?}");

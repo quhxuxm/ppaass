@@ -304,6 +304,19 @@ impl TargetEdge {
                         Ok(v) => Some(Arc::new(v)),
                         Err(e) => {
                             error!("Transport [{transport_id}] fail to initialize udp socket becacuse of error: {e:?}");
+
+                            if let Err(e) = target_to_agent_data_sender
+                                .send(TargetToAgentData {
+                                    data_type: TargetToAgentDataType::UdpInitializeFail {
+                                        source_address,
+                                        target_address,
+                                        user_token,
+                                    },
+                                })
+                                .await
+                            {
+                                error!("Transport [{transport_id}] fail to send udp initialize success message to agent becacuse of error: {e:?}");
+                            };
                             continue;
                         },
                     };

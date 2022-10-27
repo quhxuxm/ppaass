@@ -37,16 +37,8 @@ enum AgentToTargetDataType {
         target_address: PpaassProtocolAddress,
         user_token: String,
     },
-    TcpDestory {
-        source_address: Option<PpaassProtocolAddress>,
-        target_address: PpaassProtocolAddress,
-        user_token: String,
-    },
-    UdpDestory {
-        source_address: Option<PpaassProtocolAddress>,
-        target_address: PpaassProtocolAddress,
-        user_token: String,
-    },
+    TcpDestory,
+    UdpDestory,
     ConnectionKeepAlive {
         user_token: String,
     },
