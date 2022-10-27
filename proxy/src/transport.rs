@@ -137,10 +137,6 @@ impl Transport {
         Self { id, agent_edge, target_edge }
     }
 
-    pub(crate) fn get_id(&self) -> &str {
-        &self.id
-    }
-
     pub(crate) async fn exec(self) {
         debug!("Begin to execute transport [{}]", self.id);
         let agent_edge = self.agent_edge;

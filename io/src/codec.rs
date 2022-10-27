@@ -6,14 +6,14 @@ use std::{
 
 use crate::error::{
     CodecError, DecryptAesDataFailError, DecryptAesTokenFailError, DecryptBloofishDataFailError, DecryptBloofishTokenFailError, EncryptAesTokenFailError,
-    EncryptBloofishTokenFailError, Error, FetchRsaCryptoFailError, RsaCryptoNotExistError,
+    EncryptBloofishTokenFailError, Error, FetchRsaCryptoFailError, InnerError, RsaCryptoNotExistError,
 };
 use bytes::{Buf, BufMut, BytesMut};
 use lz4::block::{compress, decompress};
 use ppaass_common::{decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_with_blowfish, RsaCryptoFetcher};
 use ppaass_protocol::{PpaassMessage, PpaassMessageParts, PpaassMessagePayloadEncryption};
 use pretty_hex::*;
-use snafu::{OptionExt, ResultExt};
+use snafu::{Backtrace, GenerateImplicitData, OptionExt, ResultExt};
 use tokio_util::codec::{Decoder, Encoder};
 use tracing::{debug, trace};
 
@@ -71,10 +71,11 @@ where
                 }
                 let ppaass_flag = src.split_to(PPAASS_FLAG.len());
                 if !PPAASS_FLAG.eq(&ppaass_flag) {
-                    return Err(Error::from(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        "Fail to decode input ppaass message because of it dose not begin with ppaass flag",
-                    )));
+                    return Err(InnerError::Codec {
+                        message: "Fail to decode input ppaass message because of it dose not begin with ppaass flag".to_string(),
+                        backtrace: Backtrace::generate(),
+                        source: std::io::Error::new(std::io::ErrorKind::InvalidData, ""),
+                    });
                 }
 
                 let compressed = src.get_u8() == 1;

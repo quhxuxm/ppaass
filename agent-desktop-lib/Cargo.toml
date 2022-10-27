@@ -10,5 +10,7 @@ bytes = {workspace = true}
 ppaass-common = {path = "../common"}
 ppaass-io = {path = "../io"}
 ppaass-protocol = {path = "../protocol"}
+snafu = {workspace = true, features = ["backtraces"]}
+socksv5 = {workspace = true}
 tokio = {workspace = true}
 tracing = {workspace = true}
