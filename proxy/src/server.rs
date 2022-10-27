@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use crate::error::IoError;
 use crate::{common::AgentMessageFramed, config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher, error::Error, transport::Transport};
-use snafu::ResultExt;
+use snafu::{Backtrace, GenerateImplicitData, ResultExt};
 use tokio::{io::AsyncWriteExt, net::TcpListener, sync::Semaphore};
 use tracing::{error, info};
 
@@ -36,7 +36,8 @@ impl ProxyServer {
             let (mut agent_tcp_stream, agent_socket_address) = match tcp_listener.accept().await {
                 Ok(v) => v,
                 Err(e) => {
-                    error!("Fail to accept agent tcp connection because of error: {e:?}");
+                    error!("Fail to accept agent tcp connection because of error.");
+                    error!("{}", Backtrace::generate_with_source(&e));
                     continue;
                 },
             };
@@ -49,16 +50,22 @@ impl ProxyServer {
             {
                 Ok(Ok(v)) => v,
                 Ok(Err(e)) => {
-                    error!("Fail to accept agent tcp connection [{agent_socket_address:?}] because of error happen when acquire agent tcp connection accept permit: {e:?}");
+                    error!("Fail to accept agent tcp connection [{agent_socket_address:?}] because of error happen when acquire agent tcp connection accept permit.");
+                    error!("{}", Backtrace::generate_with_source(&e));
                     if let Err(e) = agent_tcp_stream.shutdown().await {
-                        error!("Fail to shutdown agent tcp stream because of error: {e:?}");
+                        error!("Fail to shutdown agent tcp stream because of error.");
+                        error!("{}", Backtrace::generate_with_source(&e));
                     }
                     continue;
                 },
                 Err(e) => {
-                    error!("Fail to accept agent tcp connection [{agent_socket_address:?}] because of timeout when acquire agent tcp connection accept permit: {e:?}");
+                    error!(
+                        "Fail to accept agent tcp connection [{agent_socket_address:?}] because of timeout when acquire agent tcp connection accept permit."
+                    );
+                    error!("{}", Backtrace::generate_with_source(&e));
                     if let Err(e) = agent_tcp_stream.shutdown().await {
-                        error!("Fail to shutdown agent tcp stream because of error: {e:?}");
+                        error!("Fail to shutdown agent tcp stream because of error.");
+                        error!("{}", Backtrace::generate_with_source(&e));
                     }
                     continue;
                 },
@@ -73,7 +80,8 @@ impl ProxyServer {
             ) {
                 Ok(v) => v,
                 Err(e) => {
-                    error!("Fail to handle agent tcp connection because of error: {e:?}");
+                    error!("Fail to handle agent tcp connection because of error.");
+                    error!("{}", Backtrace::generate_with_source(&e));
                     drop(agent_tcp_connection_accept_permit);
                     continue;
                 },

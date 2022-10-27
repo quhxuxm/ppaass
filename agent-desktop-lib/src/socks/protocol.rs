@@ -1,5 +1,5 @@
 use std::{
-    fmt::Debug,
+    fmt::{format, Debug},
     io::Cursor,
     mem::size_of,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs},
@@ -7,9 +7,12 @@ use std::{
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use ppaass_protocol::PpaassProtocolAddress;
+use snafu::{Backtrace, GenerateImplicitData, OptionExt};
 use tracing::error;
 
 use crate::error::Error;
+use crate::error::Socks5AddressParseError;
+
 #[derive(Debug)]
 pub(crate) enum Socks5AuthMethod {
     NoAuthenticationRequired,
@@ -56,6 +59,7 @@ pub(crate) enum Socks5InitCommandType {
 
 impl TryFrom<u8> for Socks5InitCommandType {
     type Error = Error;
+
     fn try_from(v: u8) -> Result<Self, Self::Error> {
         match v {
             1 => Ok(Socks5InitCommandType::Connect),
@@ -63,7 +67,10 @@ impl TryFrom<u8> for Socks5InitCommandType {
             3 => Ok(Socks5InitCommandType::UdpAssociate),
             unknown_type => {
                 error!("Fail to decode socks 5 connect request type: {}", unknown_type);
-                Err(Error::)
+                Err(Error::InvalidSocks5InitCommand {
+                    message: format!("{unknown_type}"),
+                    backtrace: Backtrace::generate(),
+                })
             },
         }
     }
@@ -98,6 +105,7 @@ impl From<u8> for Socks5InitCommandResultStatus {
             9 => Socks5InitCommandResultStatus::Unassigned,
             unknown_status => {
                 error!("Fail to decode socks 5 connect response status: {}", unknown_status);
+                error!("{}", Backtrace::generate());
                 Socks5InitCommandResultStatus::Failure
             },
         }
@@ -129,8 +137,9 @@ pub(crate) enum Socks5Address {
 }
 
 impl TryFrom<Socks5Address> for SocketAddr {
-    type Error = PpaassError;
-    fn try_from(socks5_addr: Socks5Address) -> Result<Self, PpaassError> {
+    type Error = Error;
+
+    fn try_from(socks5_addr: Socks5Address) -> Result<Self, Self::Error> {
         match socks5_addr {
             Socks5Address::IpV4(ip, port) => Ok(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(ip[0], ip[1], ip[2], ip[3]), port))),
             Socks5Address::IpV6(ip, port) => {
@@ -153,7 +162,9 @@ impl TryFrom<Socks5Address> for SocketAddr {
             },
             Socks5Address::Domain(host, port) => {
                 let addresses = format!("{}:{}", host, port).to_socket_addrs()?.collect::<Vec<_>>();
-                let result = addresses.get(0).ok_or(PpaassError::CodecError)?;
+                let result = addresses.get(0).context(Socks5AddressParseError {
+                    message: format!("{host}:{port}"),
+                })?;
                 Ok(*result)
             },
         }
@@ -197,18 +208,24 @@ impl ToString for Socks5Address {
 }
 
 impl TryFrom<&mut Bytes> for Socks5Address {
-    type Error = PpaassError;
+    type Error = Error;
     fn try_from(value: &mut Bytes) -> Result<Self, Self::Error> {
         if !value.has_remaining() {
             error!("Fail to parse socks5 address because of no remaining in bytes buffer.");
-            return Err(PpaassError::CodecError);
+            return Err(Error::Socks5AddressParse {
+                message: format!("Fail to parse socks5 address because of no remaining in bytes buffer."),
+                backtrace: Backtrace::generate(),
+            });
         }
         let address_type = value.get_u8();
         let address = match address_type {
             1 => {
                 if value.remaining() < 6 {
                     error!("Fail to parse socks5 address (IpV4) because of not enough remaining in bytes buffer.");
-                    return Err(PpaassError::CodecError);
+                    return Err(Error::Socks5AddressParse {
+                        message: format!("Fail to parse socks5 address (IpV4) because of not enough remaining in bytes buffer."),
+                        backtrace: Backtrace::generate(),
+                    });
                 }
                 let mut addr_content = [0u8; 4];
                 addr_content.iter_mut().for_each(|item| {
@@ -220,7 +237,10 @@ impl TryFrom<&mut Bytes> for Socks5Address {
             4 => {
                 if value.remaining() < 18 {
                     error!("Fail to parse socks5 address (IpV6) because of not enough remaining in bytes buffer.");
-                    return Err(PpaassError::CodecError);
+                    return Err(Error::Socks5AddressParse {
+                        message: format!("Fail to parse socks5 address (IpV6) because of not enough remaining in bytes buffer."),
+                        backtrace: Backtrace::generate(),
+                    });
                 }
                 let mut addr_content = [0u8; 16];
                 addr_content.iter_mut().for_each(|item| {
@@ -231,16 +251,25 @@ impl TryFrom<&mut Bytes> for Socks5Address {
             },
             3 => {
                 if value.remaining() < 1 {
-                    error!("Fail to parse socks5 address(Domain) because of not enough remaining in bytes buffer.");
-                    return Err(PpaassError::CodecError);
+                    error!("Fail to parse socks5 address (Domain) because of not enough remaining in bytes buffer.");
+                    return Err(Error::Socks5AddressParse {
+                        message: format!("Fail to parse socks5 address (Domain) because of not enough remaining in bytes buffer."),
+                        backtrace: Backtrace::generate(),
+                    });
                 }
                 let domain_name_length = value.get_u8() as usize;
                 if value.remaining() < domain_name_length + 2 {
                     error!(
-                        "Fail to parse socks5 address(Domain) because of not enough remaining in bytes buffer, require: {}.",
+                        "Fail to parse socks5 address (Domain) because of not enough remaining in bytes buffer, require: {}.",
                         domain_name_length + 2
                     );
-                    return Err(PpaassError::CodecError);
+                    return Err(Error::Socks5AddressParse {
+                        message: format!(
+                            "Fail to parse socks5 address (Domain) because of not enough remaining in bytes buffer, require: {}.",
+                            domain_name_length + 2
+                        ),
+                        backtrace: Backtrace::generate(),
+                    });
                 }
                 let domain_name_bytes = value.copy_to_bytes(domain_name_length);
                 let domain_name = match String::from_utf8(domain_name_bytes.to_vec()) {
