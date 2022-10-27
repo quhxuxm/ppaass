@@ -6,7 +6,7 @@ use std::{
 
 use crate::error::{
     CodecError, DecryptAesDataFailError, DecryptAesTokenFailError, DecryptBloofishDataFailError, DecryptBloofishTokenFailError, EncryptAesTokenFailError,
-    EncryptBloofishTokenFailError, Error, FetchRsaCryptoFailError, InnerError, RsaCryptoNotExistError,
+    EncryptBloofishTokenFailError, Error, FetchRsaCryptoFailError, RsaCryptoNotExistError,
 };
 use bytes::{Buf, BufMut, BytesMut};
 use lz4::block::{compress, decompress};
@@ -71,13 +71,14 @@ where
                 }
                 let ppaass_flag = src.split_to(PPAASS_FLAG.len());
                 if !PPAASS_FLAG.eq(&ppaass_flag) {
-                    return Err(InnerError::Codec {
+                    return Err(Error::Codec {
                         message: "Fail to decode input ppaass message because of it dose not begin with ppaass flag".to_string(),
                         backtrace: Backtrace::generate(),
-                        source: std::io::Error::new(std::io::ErrorKind::InvalidData, ""),
+                        source: ppaass_protocol::error::Error::Other {
+                            message: "Fail to decode input ppaass message because of it dose not begin with ppaass flag".to_string(),
+                        },
                     });
                 }
-
                 let compressed = src.get_u8() == 1;
                 let body_length = src.get_u64();
                 src.reserve(body_length as usize);

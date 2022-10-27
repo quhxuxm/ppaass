@@ -3,21 +3,8 @@ use std::fmt::Debug;
 use std::io::Error as StdIoError;
 
 #[derive(Debug, Snafu)]
-pub struct Error(InnerError);
-
-impl From<StdIoError> for Error {
-    fn from(io_error: StdIoError) -> Self {
-        Error(InnerError::Io {
-            message: format!("Io error happen: {io_error:?}"),
-            backtrace: Backtrace::generate_with_source(&io_error),
-            source: io_error,
-        })
-    }
-}
-
-#[derive(Debug, Snafu)]
 #[snafu(visibility(pub(crate)), context(suffix(Error)))]
-pub(crate) enum InnerError {
+pub enum Error {
     #[snafu(display("Io error happen: {message}"))]
     Io {
         message: String,
@@ -74,4 +61,14 @@ pub(crate) enum InnerError {
         #[snafu(source(from(Box<dyn std::error::Error>, Some)))]
         source: Option<Box<dyn std::error::Error>>,
     },
+}
+
+impl From<StdIoError> for Error {
+    fn from(io_error: StdIoError) -> Self {
+        Error::Io {
+            message: format!("Io error happen: {io_error:?}"),
+            backtrace: Backtrace::generate_with_source(&io_error),
+            source: io_error,
+        }
+    }
 }

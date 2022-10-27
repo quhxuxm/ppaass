@@ -1,11 +1,8 @@
 use snafu::{Backtrace, Snafu};
 use std::fmt::Debug;
 #[derive(Debug, Snafu)]
-pub struct Error(InnerError);
-
-#[derive(Debug, Snafu)]
 #[snafu(visibility(pub(crate)), context(suffix(Error)))]
-pub(crate) enum InnerError {
+pub enum Error {
     #[snafu(display("I/O error happen: {message}"))]
     Io {
         message: String,
@@ -24,4 +21,6 @@ pub(crate) enum InnerError {
         backtrace: Backtrace,
         source: serde_json::error::Error,
     },
+    #[snafu(display("Other error happen: {message}"))]
+    Other { message: String },
 }
