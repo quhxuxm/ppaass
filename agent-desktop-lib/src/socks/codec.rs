@@ -1,21 +1,21 @@
 use bytes::{Buf, BufMut, Bytes, BytesMut};
+use snafu::{Backtrace, GenerateImplicitData};
 use tokio_util::codec::{Decoder, Encoder};
 use tracing::error;
 
-use ppaass_common::PpaassError;
+use crate::error::Error;
 
-use crate::message::socks5::{
-    Socks5Addr, Socks5AuthCommandContent, Socks5AuthCommandResultContent, Socks5AuthMethod, Socks5InitCommandContent, Socks5InitCommandResultContent,
-    Socks5InitCommandType,
+use super::message::{
+    auth::{Socks5AuthCommandContent, Socks5AuthCommandResultContent, Socks5AuthMethod},
+    init::{Socks5InitCommandContent, Socks5InitCommandResultContent, Socks5InitCommandType},
+    Socks5Address,
 };
-
-use super::SOCKS5_FLAG;
 
 pub(crate) struct Socks5AuthCommandContentCodec;
 
 impl Decoder for Socks5AuthCommandContentCodec {
     type Item = Socks5AuthCommandContent;
-    type Error = PpaassError;
+    type Error = Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         if src.len() < 2 {
@@ -23,8 +23,11 @@ impl Decoder for Socks5AuthCommandContentCodec {
         }
         let version = src.get_u8();
         if version != 5 {
-            error!("The incoming protocol is not for socks 5.");
-            return Err(PpaassError::CodecError);
+            error!("The incoming protocol is not for socks 5: {version}.");
+            return Err(Error::Socks5Codec {
+                message: format!("The incoming protocol is not for socks 5: {version}"),
+                backtrace: Backtrace::generate(),
+            });
         }
         let methods_number = src.get_u8();
         let mut methods = Vec::<Socks5AuthMethod>::new();
@@ -36,7 +39,7 @@ impl Decoder for Socks5AuthCommandContentCodec {
 }
 
 impl Encoder<Socks5AuthCommandResultContent> for Socks5AuthCommandContentCodec {
-    type Error = PpaassError;
+    type Error = Error;
 
     fn encode(&mut self, item: Socks5AuthCommandResultContent, dst: &mut BytesMut) -> Result<(), Self::Error> {
         dst.put_u8(item.version);
@@ -48,38 +51,29 @@ pub(crate) struct Socks5InitCommandContentCodec;
 
 impl Decoder for Socks5InitCommandContentCodec {
     type Item = Socks5InitCommandContent;
-    type Error = PpaassError;
+    type Error = Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         if src.len() < 4 {
             return Ok(None);
         }
         let version = src.get_u8();
-        if version != SOCKS5_FLAG {
-            error!("The incoming protocol is not for socks 5.");
-            return Err(PpaassError::CodecError);
+        if version != 5 {
+            error!("The incoming protocol is not for socks 5: {version}.");
+            return Err(Error::Socks5Codec {
+                message: format!("The incoming protocol is not for socks 5: {version}"),
+                backtrace: Backtrace::generate(),
+            });
         }
-        let request_type: Socks5InitCommandType = match src.get_u8().try_into() {
-            Err(e) => {
-                error!("Fail to parse socks5 connect request type because of error: {:#?}", e);
-                return Err(PpaassError::CodecError);
-            },
-            Ok(v) => v,
-        };
+        let request_type: Socks5InitCommandType = src.get_u8().try_into()?;
         src.get_u8();
-        let dest_address: Socks5Addr = match src.try_into() {
-            Err(e) => {
-                error!("Fail to parse socks5 connect request destination address because of error: {:#?}", e);
-                return Err(PpaassError::CodecError);
-            },
-            Ok(v) => v,
-        };
+        let dest_address: Socks5Address = src.try_into()?;
         Ok(Some(Socks5InitCommandContent::new(request_type, dest_address)))
     }
 }
 
 impl Encoder<Socks5InitCommandResultContent> for Socks5InitCommandContentCodec {
-    type Error = PpaassError;
+    type Error = Error;
 
     fn encode(&mut self, item: Socks5InitCommandResultContent, dst: &mut BytesMut) -> Result<(), Self::Error> {
         dst.put_u8(item.version);
