@@ -10,6 +10,7 @@ aes = {workspace = true}
 blowfish = {workspace = true}
 cipher = {workspace = true}
 ecb = {workspace = true}
+pretty-hex = {workspace = true}
 rand = {workspace = true}
 rsa = {workspace = true}
 serde_json = {workspace = true}

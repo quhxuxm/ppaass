@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{fmt::Debug, path::Path};
 use std::{fs, io::Read};
 
 use crate::error::IoError;
@@ -6,6 +6,7 @@ use crate::error::RsaPrivateKeyError;
 use crate::error::RsaPublicKeyError;
 use crate::error::{Error, RsaCryptoError};
 
+use pretty_hex::pretty_hex;
 use rand::rngs::OsRng;
 use rsa::pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding};
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
@@ -36,23 +37,19 @@ pub struct RsaCrypto {
 impl RsaCrypto {
     pub fn new<A, B>(mut public_key_read: A, mut private_key_read: B) -> Result<Self, Error>
     where
-        A: Read,
-        B: Read,
+        A: Read + Debug,
+        B: Read + Debug,
     {
         let mut public_key_string = String::new();
         public_key_read.read_to_string(&mut public_key_string).context(IoError {
-            message: "Fail to read rsa public key",
+            message: format!("{public_key_read:?}"),
         })?;
-        let public_key = RsaPublicKey::from_public_key_pem(&public_key_string).context(RsaPublicKeyError {
-            message: "Fail to parse rsa public key file content.",
-        })?;
+        let public_key = RsaPublicKey::from_public_key_pem(&public_key_string).context(RsaPublicKeyError { message: public_key_string })?;
         let mut private_key_string = String::new();
         private_key_read.read_to_string(&mut private_key_string).context(IoError {
-            message: "Fail to read rsa private key",
+            message: format!("{private_key_read:?}"),
         })?;
-        let private_key = RsaPrivateKey::from_pkcs8_pem(&private_key_string).context(RsaPrivateKeyError {
-            message: "Fail to parse rsa private key file content",
-        })?;
+        let private_key = RsaPrivateKey::from_pkcs8_pem(&private_key_string).context(RsaPrivateKeyError { message: private_key_string })?;
         Ok(Self { public_key, private_key })
     }
 
@@ -60,18 +57,14 @@ impl RsaCrypto {
         Ok(self
             .public_key
             .encrypt(&mut OsRng, PaddingScheme::PKCS1v15Encrypt, target.as_ref())
-            .context(RsaCryptoError {
-                message: "Fail to encrypt rsa data.",
-            })?)
+            .context(RsaCryptoError { message: pretty_hex(&target) })?)
     }
 
     pub fn decrypt(&self, target: &[u8]) -> Result<Vec<u8>, Error> {
         Ok(self
             .private_key
             .decrypt(PaddingScheme::PKCS1v15Encrypt, target.as_ref())
-            .context(RsaCryptoError {
-                message: "Fail to decrypt rsa data.",
-            })?)
+            .context(RsaCryptoError { message: pretty_hex(&target) })?)
     }
 }
 

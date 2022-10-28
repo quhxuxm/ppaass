@@ -93,7 +93,7 @@ impl TryFrom<PpaassMessage> for Vec<u8> {
 
     fn try_from(value: PpaassMessage) -> Result<Self, Self::Error> {
         let result = serde_json::to_vec(&value).context(JsonSerializeError {
-            message: "Fail to serialize PpaassMessage object to bytes",
+            message: "fail to serialize PpaassMessage object to bytes",
         })?;
         Ok(result)
     }

@@ -19,6 +19,6 @@ pub fn encrypt_with_aes(encryption_token: &[u8], target: &[u8]) -> Vec<u8> {
 pub fn decrypt_with_aes(encryption_token: &[u8], target: &[u8]) -> Result<Vec<u8>, Error> {
     let decryptor = AesDecryptor::new(encryption_token.into());
     Ok(decryptor.decrypt_padded_vec_mut::<PaddingMode>(target).context(CryptoUnpadError {
-        message: "Fail to decrypt aes bytes because of unpad.",
+        message: "padding error happen.",
     })?)
 }

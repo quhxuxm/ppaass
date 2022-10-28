@@ -23,7 +23,7 @@ pub enum Error {
 impl From<StdIoError> for Error {
     fn from(io_error: StdIoError) -> Self {
         Error::Io {
-            message: format!("Io error happen: {io_error:?}"),
+            message: format!("{io_error}"),
             backtrace: Backtrace::generate_with_source(&io_error),
             source: io_error,
         }

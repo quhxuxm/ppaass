@@ -89,9 +89,7 @@ impl TryFrom<&PpaassProtocolAddress> for Vec<SocketAddr> {
                 let address_string = format!("{}:{}", host, port);
                 let addresses = address_string
                     .to_socket_addrs()
-                    .context(IoError {
-                        message: "Fail to convert domain adddress to socket address",
-                    })?
+                    .context(IoError { message: address_string })?
                     .collect::<Vec<_>>();
                 Ok(addresses)
             },
