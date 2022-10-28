@@ -6,6 +6,7 @@ pub const DEFAULT_PROXY_LOG_CONFIG_FILE: &str = "./ppaass-proxy-log.toml";
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub(crate) struct ProxyServerConfig {
+    /// Whehter use ip v6
     ipv6: Option<bool>,
     /// Port of the ppaass proxy
     port: Option<u16>,
