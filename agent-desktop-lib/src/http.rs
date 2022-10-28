@@ -1,1 +1,1 @@
-mod codec;
+pub(crate) mod codec;
