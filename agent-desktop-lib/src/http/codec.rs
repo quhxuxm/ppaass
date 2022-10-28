@@ -31,7 +31,7 @@ impl Decoder for HttpCodec {
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         let decode_result = self.request_decoder.decode_exact(src.chunk()).context(HttpCodecError {
-            message: "Fail to decode http protocol because of error",
+            message: "base level http codec decode error",
         })?;
         Ok(Some(decode_result))
     }
@@ -42,7 +42,7 @@ impl Encoder<Response<Vec<u8>>> for HttpCodec {
 
     fn encode(&mut self, item: Response<Vec<u8>>, dst: &mut BytesMut) -> Result<(), Self::Error> {
         let encode_result = self.response_encoder.encode_into_bytes(item).context(HttpCodecError {
-            message: "Fail to encode http protocol because of error",
+            message: "base level http codec encode error",
         })?;
         dst.put_slice(encode_result.as_slice());
         Ok(())

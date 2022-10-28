@@ -1,12 +1,8 @@
-use std::mem::size_of;
-
-use bytes::{Buf, BufMut, Bytes, BytesMut};
-use snafu::{Backtrace, GenerateImplicitData};
-use tracing::error;
-
-use crate::error::Error;
-
 use super::Socks5Address;
+use crate::error::Error;
+use crate::error::Socks5CodecError;
+use bytes::{Buf, BufMut, Bytes, BytesMut};
+use std::mem::size_of;
 
 /// Socks5 udp data request
 #[derive(Debug)]
@@ -21,35 +17,27 @@ impl TryFrom<Bytes> for Socks5UdpDataPacket {
     fn try_from(mut src: Bytes) -> Result<Self, Self::Error> {
         // Check the buffer
         if !src.has_remaining() {
-            error!("Fail to decode socks5 udp data packet.");
-            return Err(Error::InvalidSocks5UdpDataPacket {
-                backtrace: Backtrace::generate(),
-            });
+            return Socks5CodecError {
+                message: "incoming bytes has no remaining",
+            }
+            .fail();
         }
         // Check and skip the revision
         if src.remaining() < size_of::<u16>() {
-            error!("Fail to decode socks5 udp data packet.");
-            return Err(Error::InvalidSocks5UdpDataPacket {
-                backtrace: Backtrace::generate(),
-            });
+            return Socks5CodecError {
+                message: format!("incoming bytes remaing < {}", size_of::<u16>()),
+            }
+            .fail();
         }
         src.get_u16();
         if src.remaining() < size_of::<u8>() {
-            error!("Fail to decode socks5 udp data packet.");
-            return Err(Error::InvalidSocks5UdpDataPacket {
-                backtrace: Backtrace::generate(),
-            });
+            return Socks5CodecError {
+                message: format!("incoming bytes remaing < {}", size_of::<u8>()),
+            }
+            .fail();
         }
         let frag = src.get_u8();
-        let address: Socks5Address = match (&mut src).try_into() {
-            Err(e) => {
-                error!("Fail to decode socks5 udp data packet because of error: {:#?}", e);
-                return Err(Error::InvalidSocks5UdpDataPacket {
-                    backtrace: Backtrace::generate(),
-                });
-            },
-            Ok(v) => v,
-        };
+        let address: Socks5Address = (&mut src).try_into()?;
         let data = src.copy_to_bytes(src.remaining());
         Ok(Socks5UdpDataPacket {
             frag,

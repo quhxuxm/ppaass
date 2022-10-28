@@ -1,9 +1,7 @@
-use snafu::{Backtrace, GenerateImplicitData};
-use tracing::error;
-
 use crate::error::Error;
 
 use super::Socks5Address;
+use crate::error::Socks5CodecError;
 
 #[derive(Debug)]
 pub(crate) enum Socks5InitCommandType {
@@ -20,13 +18,10 @@ impl TryFrom<u8> for Socks5InitCommandType {
             1 => Ok(Socks5InitCommandType::Connect),
             2 => Ok(Socks5InitCommandType::Bind),
             3 => Ok(Socks5InitCommandType::UdpAssociate),
-            unknown_type => {
-                error!("Fail to decode socks 5 connect request type: {}", unknown_type);
-                Err(Error::InvalidSocks5InitCommand {
-                    message: format!("{unknown_type}"),
-                    backtrace: Backtrace::generate(),
-                })
-            },
+            unknown_type => Socks5CodecError {
+                message: format!("unknown init command type: {unknown_type}"),
+            }
+            .fail(),
         }
     }
 }
@@ -45,24 +40,24 @@ pub(crate) enum Socks5InitCommandResultStatus {
     Unassigned,
 }
 
-impl From<u8> for Socks5InitCommandResultStatus {
-    fn from(v: u8) -> Self {
+impl TryFrom<u8> for Socks5InitCommandResultStatus {
+    type Error = Error;
+    fn try_from(v: u8) -> Result<Self, Self::Error> {
         match v {
-            0 => Socks5InitCommandResultStatus::Succeeded,
-            1 => Socks5InitCommandResultStatus::Failure,
-            2 => Socks5InitCommandResultStatus::ConnectionNotAllowedByRuleSet,
-            3 => Socks5InitCommandResultStatus::NetworkUnReachable,
-            4 => Socks5InitCommandResultStatus::HostUnReachable,
-            5 => Socks5InitCommandResultStatus::ConnectionRefused,
-            6 => Socks5InitCommandResultStatus::TtlExpired,
-            7 => Socks5InitCommandResultStatus::CommandNotSupported,
-            8 => Socks5InitCommandResultStatus::AddressTypeNotSupported,
-            9 => Socks5InitCommandResultStatus::Unassigned,
-            unknown_status => {
-                error!("Fail to decode socks 5 connect response status: {}", unknown_status);
-                error!("{}", Backtrace::generate());
-                Socks5InitCommandResultStatus::Failure
-            },
+            0 => Ok(Socks5InitCommandResultStatus::Succeeded),
+            1 => Ok(Socks5InitCommandResultStatus::Failure),
+            2 => Ok(Socks5InitCommandResultStatus::ConnectionNotAllowedByRuleSet),
+            3 => Ok(Socks5InitCommandResultStatus::NetworkUnReachable),
+            4 => Ok(Socks5InitCommandResultStatus::HostUnReachable),
+            5 => Ok(Socks5InitCommandResultStatus::ConnectionRefused),
+            6 => Ok(Socks5InitCommandResultStatus::TtlExpired),
+            7 => Ok(Socks5InitCommandResultStatus::CommandNotSupported),
+            8 => Ok(Socks5InitCommandResultStatus::AddressTypeNotSupported),
+            9 => Ok(Socks5InitCommandResultStatus::Unassigned),
+            unknown_status => Socks5CodecError {
+                message: format!("unknown init command status: {unknown_status}"),
+            }
+            .fail(),
         }
     }
 }

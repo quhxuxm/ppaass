@@ -6,12 +6,11 @@ use std::{
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use ppaass_protocol::PpaassProtocolAddress;
-use snafu::{Backtrace, GenerateImplicitData, OptionExt, ResultExt};
-use tracing::error;
+use snafu::{OptionExt, ResultExt};
 
 use crate::error::Error;
-use crate::error::Socks5AddressParseError;
-use crate::error::Socks5AddressParseToSocketAddrError;
+use crate::error::IoError;
+use crate::error::Socks5CodecError;
 
 pub(crate) mod auth;
 pub(crate) mod init;
@@ -51,12 +50,12 @@ impl TryFrom<Socks5Address> for SocketAddr {
             Socks5Address::Domain(host, port) => {
                 let addresses = format!("{host}:{port}")
                     .to_socket_addrs()
-                    .context(Socks5AddressParseToSocketAddrError {
+                    .context(IoError {
                         message: format!("{host}:{port}"),
                     })?
                     .collect::<Vec<_>>();
-                let result = addresses.get(0).context(Socks5AddressParseError {
-                    message: format!("{host}:{port}"),
+                let result = addresses.get(0).context(Socks5CodecError {
+                    message: format!("none socket address parsed from {host}:{port}"),
                 })?;
                 Ok(*result)
             },
@@ -104,21 +103,22 @@ impl TryFrom<&mut Bytes> for Socks5Address {
     type Error = Error;
     fn try_from(value: &mut Bytes) -> Result<Self, Self::Error> {
         if !value.has_remaining() {
-            error!("Fail to parse socks5 address because of no remaining in bytes buffer.");
-            return Err(Error::Socks5AddressParse {
-                message: format!("Fail to parse socks5 address because of no remaining in bytes buffer."),
-                backtrace: Backtrace::generate(),
-            });
+            return Socks5CodecError {
+                message: "no remaing bytes to parse socks5 address",
+            }
+            .fail();
         }
         let address_type = value.get_u8();
         let address = match address_type {
             1 => {
                 if value.remaining() < 6 {
-                    error!("Fail to parse socks5 address (IpV4) because of not enough remaining in bytes buffer.");
-                    return Err(Error::Socks5AddressParse {
-                        message: format!("Fail to parse socks5 address (IpV4) because of not enough remaining in bytes buffer."),
-                        backtrace: Backtrace::generate(),
-                    });
+                    return Socks5CodecError {
+                        message: format!(
+                            "no enough remaing bytes to parse socks5 IPV4 address, remaining is {}, require 6",
+                            value.remaining()
+                        ),
+                    }
+                    .fail();
                 }
                 let mut addr_content = [0u8; 4];
                 addr_content.iter_mut().for_each(|item| {
@@ -129,11 +129,13 @@ impl TryFrom<&mut Bytes> for Socks5Address {
             },
             4 => {
                 if value.remaining() < 18 {
-                    error!("Fail to parse socks5 address (IpV6) because of not enough remaining in bytes buffer.");
-                    return Err(Error::Socks5AddressParse {
-                        message: format!("Fail to parse socks5 address (IpV6) because of not enough remaining in bytes buffer."),
-                        backtrace: Backtrace::generate(),
-                    });
+                    return Socks5CodecError {
+                        message: format!(
+                            "no enough remaing bytes to parse socks5 IPV6 address, remaining is {}, require 18",
+                            value.remaining()
+                        ),
+                    }
+                    .fail();
                 }
                 let mut addr_content = [0u8; 16];
                 addr_content.iter_mut().for_each(|item| {
@@ -144,25 +146,24 @@ impl TryFrom<&mut Bytes> for Socks5Address {
             },
             3 => {
                 if value.remaining() < 1 {
-                    error!("Fail to parse socks5 address (Domain) because of not enough remaining in bytes buffer.");
-                    return Err(Error::Socks5AddressParse {
-                        message: format!("Fail to parse socks5 address (Domain) because of not enough remaining in bytes buffer."),
-                        backtrace: Backtrace::generate(),
-                    });
+                    return Socks5CodecError {
+                        message: format!(
+                            "no enough remaing bytes to parse socks5 Domain address, remaining is {}, require 1",
+                            value.remaining()
+                        ),
+                    }
+                    .fail();
                 }
                 let domain_name_length = value.get_u8() as usize;
                 if value.remaining() < domain_name_length + 2 {
-                    error!(
-                        "Fail to parse socks5 address (Domain) because of not enough remaining in bytes buffer, require: {}.",
-                        domain_name_length + 2
-                    );
-                    return Err(Error::Socks5AddressParse {
+                    return Socks5CodecError {
                         message: format!(
-                            "Fail to parse socks5 address (Domain) because of not enough remaining in bytes buffer, require: {}.",
+                            "no enough remaing bytes to parse socks5 Domain address, remaining is {}, require {}",
+                            value.remaining(),
                             domain_name_length + 2
                         ),
-                        backtrace: Backtrace::generate(),
-                    });
+                    }
+                    .fail();
                 }
                 let domain_name_bytes = value.copy_to_bytes(domain_name_length);
                 let domain_name = match String::from_utf8_lossy(domain_name_bytes.chunk()).to_string().as_str() {
@@ -173,11 +174,10 @@ impl TryFrom<&mut Bytes> for Socks5Address {
                 Socks5Address::Domain(domain_name, port)
             },
             unknown_addr_type => {
-                error!("Fail to decode socks 5 address type: {}", unknown_addr_type);
-                return Err(Error::Socks5AddressParse {
-                    message: format!("Fail to decode socks 5 address type: {}", unknown_addr_type),
-                    backtrace: Backtrace::generate(),
-                });
+                return Socks5CodecError {
+                    message: format!("unknown address type: {unknown_addr_type}"),
+                }
+                .fail();
             },
         };
         Ok(address)
