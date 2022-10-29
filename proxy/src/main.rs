@@ -8,8 +8,8 @@ use snafu::ResultExt;
 use tracing::{metadata::LevelFilter, subscriber};
 use tracing_subscriber::{fmt::Layer, prelude::__tracing_subscriber_SubscriberExt, Registry};
 
-use error::ConfigurtionFileParseFailError;
 use error::IoError;
+use error::ParseConfigurtionFileError;
 mod arguments;
 mod common;
 mod config;
@@ -25,7 +25,7 @@ async fn main() -> Result<(), Error> {
     let log_configuration_file_content = tokio::fs::read_to_string(config::DEFAULT_PROXY_LOG_CONFIG_FILE).await.context(IoError {
         message: "Fail to read proxy log configuration file",
     })?;
-    let proxy_server_log_config: ProxyServerLogConfig = toml::from_str(&log_configuration_file_content).context(ConfigurtionFileParseFailError {
+    let proxy_server_log_config: ProxyServerLogConfig = toml::from_str(&log_configuration_file_content).context(ParseConfigurtionFileError {
         file_name: config::DEFAULT_PROXY_LOG_CONFIG_FILE,
     })?;
     let log_dir = proxy_server_log_config

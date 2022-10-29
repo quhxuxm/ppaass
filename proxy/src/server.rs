@@ -1,11 +1,11 @@
 use std::{sync::Arc, time::Duration};
 
+use crate::error::AcceptAgentTcpConnectionError;
 use crate::error::IoError;
 use crate::{common::AgentMessageFramed, config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher, error::Error, transport::Transport};
-use snafu::{Backtrace, GenerateImplicitData, ResultExt};
-use tokio::{io::AsyncWriteExt, net::TcpListener, sync::Semaphore};
-use tracing::{error, info};
-
+use snafu::ResultExt;
+use tokio::{net::TcpListener, sync::Semaphore};
+use tracing::{debug, error, info};
 pub(crate) struct ProxyServer {
     configuration: Arc<ProxyServerConfig>,
     agent_connection_number: Arc<Semaphore>,
@@ -26,21 +26,13 @@ impl ProxyServer {
         } else {
             format!("0.0.0.0:{}", self.configuration.get_port())
         };
-        let proxy_server_rsa_crypto_fetcher = Arc::new(ProxyServerRsaCryptoFetcher::new(self.configuration.clone())?);
+        let rsa_crypto_fetcher = Arc::new(ProxyServerRsaCryptoFetcher::new(self.configuration.clone())?);
         let agent_connection_buffer_size = self.configuration.get_agent_connection_buffer_size();
         info!("Proxy server start to serve request on address: {server_bind_addr}.");
         let tcp_listener = TcpListener::bind(&server_bind_addr).await.context(IoError {
             message: "Fail to bind tcp listener for proxy server",
         })?;
         loop {
-            let (mut agent_tcp_stream, agent_socket_address) = match tcp_listener.accept().await {
-                Ok(v) => v,
-                Err(e) => {
-                    error!("Fail to accept agent tcp connection because of error.");
-                    error!("{}", Backtrace::generate_with_source(&e));
-                    continue;
-                },
-            };
             let agent_connection_number = self.agent_connection_number.clone();
             let agent_tcp_connection_accept_permit = match tokio::time::timeout(
                 Duration::from_secs(self.configuration.get_agent_tcp_connection_accept_timout_seconds()),
@@ -50,27 +42,23 @@ impl ProxyServer {
             {
                 Ok(Ok(v)) => v,
                 Ok(Err(e)) => {
-                    error!("Fail to accept agent tcp connection [{agent_socket_address:?}] because of error happen when acquire agent tcp connection accept permit.");
-                    error!("{}", Backtrace::generate_with_source(&e));
-                    if let Err(e) = agent_tcp_stream.shutdown().await {
-                        error!("Fail to shutdown agent tcp stream because of error.");
-                        error!("{}", Backtrace::generate_with_source(&e));
-                    }
+                    error!("{}", AcceptAgentTcpConnectionError { message: e.to_string() }.build());
                     continue;
                 },
                 Err(e) => {
-                    error!(
-                        "Fail to accept agent tcp connection [{agent_socket_address:?}] because of timeout when acquire agent tcp connection accept permit."
-                    );
-                    error!("{}", Backtrace::generate_with_source(&e));
-                    if let Err(e) = agent_tcp_stream.shutdown().await {
-                        error!("Fail to shutdown agent tcp stream because of error.");
-                        error!("{}", Backtrace::generate_with_source(&e));
-                    }
+                    error!("{}", AcceptAgentTcpConnectionError { message: e.to_string() }.build());
                     continue;
                 },
             };
-            let proxy_server_rsa_crypto_fetcher = proxy_server_rsa_crypto_fetcher.clone();
+            let (agent_tcp_stream, agent_socket_address) = match tcp_listener.accept().await {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("{}", AcceptAgentTcpConnectionError { message: e.to_string() }.build());
+                    continue;
+                },
+            };
+            debug!("Accept agent tcp connection on address: {}", agent_socket_address);
+            let proxy_server_rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();
             let agent_message_framed = match AgentMessageFramed::new(
                 agent_tcp_stream,
@@ -80,8 +68,7 @@ impl ProxyServer {
             ) {
                 Ok(v) => v,
                 Err(e) => {
-                    error!("Fail to handle agent tcp connection because of error.");
-                    error!("{}", Backtrace::generate_with_source(&e));
+                    error!("{e}");
                     drop(agent_tcp_connection_accept_permit);
                     continue;
                 },

@@ -8,7 +8,10 @@ version = "0.1.0"
 [dependencies]
 bytecodec = {workspace = true}
 bytes = {workspace = true}
+futures = {workspace = true}
+futures-util = {workspace = true, features = ["std"]}
 httpcodec = {workspace = true}
+pin-project = {workspace = true}
 ppaass-common = {path = "../common"}
 ppaass-io = {path = "../io"}
 ppaass-protocol = {path = "../protocol"}

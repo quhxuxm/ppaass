@@ -11,7 +11,8 @@ use super::message::{
     Socks5Address,
 };
 
-pub(crate) struct Socks5AuthCommandContentCodec;
+#[derive(Debug)]
+pub(super) struct Socks5AuthCommandContentCodec;
 
 impl Decoder for Socks5AuthCommandContentCodec {
     type Item = Socks5AuthCommandContent;
@@ -47,7 +48,9 @@ impl Encoder<Socks5AuthCommandResultContent> for Socks5AuthCommandContentCodec {
         Ok(())
     }
 }
-pub(crate) struct Socks5InitCommandContentCodec;
+
+#[derive(Debug)]
+pub(super) struct Socks5InitCommandContentCodec;
 
 impl Decoder for Socks5InitCommandContentCodec {
     type Item = Socks5InitCommandContent;

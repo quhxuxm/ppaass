@@ -13,15 +13,17 @@ pub(crate) enum InnerError {
         source: std::io::Error,
     },
     #[snafu(display("Fail to parse configuration file: {file_name}"))]
-    ConfigurtionFileParseFail {
+    ParseConfigurtionFile {
         file_name: String,
         backtrace: Backtrace,
         source: toml::de::Error,
     },
+    #[snafu(display("Fail to accept agent tcp connection: {message}."))]
+    AcceptAgentTcpConnection { message: String, backtrace: Backtrace },
     #[snafu(whatever, display("{message}"))]
     Other {
         message: String,
         #[snafu(source(from(Box<dyn std::error::Error>, Some)))]
         source: Option<Box<dyn std::error::Error>>,
-    }
+    },
 }

@@ -1,1 +1,2 @@
-pub(crate) mod codec;
+mod codec;
+pub(crate) mod framed;

@@ -21,6 +21,7 @@ pub(crate) struct ProxyServerConfig {
     agent_connection_buffer_size: Option<usize>,
     /// The agent connection pool size.
     agent_max_connection_number: Option<usize>,
+    /// The timeout to accept agent connection pool size.
     agent_tcp_connection_accept_timout_seconds: Option<u64>,
 }
 

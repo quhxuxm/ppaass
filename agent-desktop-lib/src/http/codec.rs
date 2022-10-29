@@ -9,6 +9,7 @@ use tokio_util::codec::{Decoder, Encoder};
 use crate::error::Error;
 use crate::error::HttpCodecError;
 
+#[derive(Debug)]
 pub(crate) struct HttpCodec {
     request_decoder: RequestDecoder<BodyDecoder<RemainingBytesDecoder>>,
     response_encoder: ResponseEncoder<BodyEncoder<BytesEncoder>>,

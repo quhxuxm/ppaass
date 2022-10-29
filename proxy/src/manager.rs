@@ -3,8 +3,8 @@ use std::{sync::Arc, time::Duration};
 use clap::Parser;
 use snafu::ResultExt;
 
-use crate::error::ConfigurtionFileParseFailError;
 use crate::error::IoError;
+use crate::error::ParseConfigurtionFileError;
 use crate::{arguments::ProxyServerArguments, config::ProxyServerConfig, constant::DEFAULT_CONFIG_FILE_PATH, error::Error, server::ProxyServer};
 use tokio::{runtime::Builder, sync::mpsc::channel as tokio_mpsc_channel};
 use tokio::{
@@ -38,7 +38,7 @@ impl ProxyServerManager {
         let config_file_content = tokio::fs::read_to_string(config_file_path).await.context(IoError {
             message: "Fail to read configuration file content.",
         })?;
-        let mut result = toml::from_str::<ProxyServerConfig>(&config_file_content).context(ConfigurtionFileParseFailError { file_name: config_file_path })?;
+        let mut result = toml::from_str::<ProxyServerConfig>(&config_file_content).context(ParseConfigurtionFileError { file_name: config_file_path })?;
         if let Some(port) = arguments.port {
             result.set_port(port);
         }
