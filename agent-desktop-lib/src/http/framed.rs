@@ -3,6 +3,7 @@ use std::{
     task::{Context, Poll},
 };
 
+use bytes::BytesMut;
 use futures::{ready, Sink, Stream};
 use httpcodec::{Request, Response};
 use pin_project::pin_project;
@@ -28,8 +29,10 @@ impl<T> HttpFramed<T>
 where
     T: AsyncRead + AsyncWrite,
 {
-    pub(crate) fn new(stream: T) -> Self {
-        let concrete_framed = Framed::new(stream, Default::default());
+    pub(crate) fn new(stream: T, initial_read_buf: BytesMut) -> Self {
+        let framed_parts = FramedParts::new(stream, Default::default());
+        framed_parts.read_buf = initial_read_buf;
+        let concrete_framed = Framed::from_parts(framed_parts);
         Self { concrete_framed }
     }
 

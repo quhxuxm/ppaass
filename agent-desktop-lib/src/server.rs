@@ -7,16 +7,17 @@ use tracing::{debug, error, info};
 use crate::error::AcceptClientTcpConnectionError;
 use crate::error::IoError;
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, error::Error};
+
 pub(crate) struct AgentServer {
     configuration: Arc<AgentServerConfig>,
-    client_connection_accept_semaphore: Arc<Semaphore>,
+    client_tcp_connection_accept_semaphore: Arc<Semaphore>,
 }
 
 impl AgentServer {
     pub(crate) fn new(configuration: Arc<AgentServerConfig>) -> Self {
         Self {
             configuration,
-            client_connection_accept_semaphore: Arc::new(Semaphore::new(configuration.get_client_max_connection_number())),
+            client_tcp_connection_accept_semaphore: Arc::new(Semaphore::new(configuration.get_client_max_connection_number())),
         }
     }
 
@@ -33,10 +34,10 @@ impl AgentServer {
             message: "Fail to bind tcp listener for agent server",
         })?;
         loop {
-            // let client_connection_accept_semaphore = self.client_connection_accept_semaphore.clone();
+            let client_tcp_connection_accept_semaphore = self.client_tcp_connection_accept_semaphore.clone();
             let client_tcp_connection_accept_permit = match tokio::time::timeout(
                 Duration::from_secs(self.configuration.get_client_tcp_connection_accept_timout_seconds()),
-                self.client_connection_accept_semaphore.acquire_owned(),
+                client_tcp_connection_accept_semaphore.acquire_owned(),
             )
             .await
             {
@@ -57,6 +58,7 @@ impl AgentServer {
                     continue;
                 },
             };
+            client_tcp_stream.set_nodelay(true).context(IoError { message: "set no delay fail" })?;
             debug!("Accept client tcp connection on address: {}", client_socket_address);
             let rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();

@@ -6,9 +6,10 @@ use crate::{common::AgentMessageFramed, config::ProxyServerConfig, crypto::Proxy
 use snafu::ResultExt;
 use tokio::{net::TcpListener, sync::Semaphore};
 use tracing::{debug, error, info};
+
 pub(crate) struct ProxyServer {
     configuration: Arc<ProxyServerConfig>,
-    agent_connection_number: Arc<Semaphore>,
+    agent_tcp_connection_accept_semaphore: Arc<Semaphore>,
 }
 
 impl ProxyServer {
@@ -16,7 +17,7 @@ impl ProxyServer {
         let agent_max_connection_number = configuration.get_agent_max_connection_number();
         Self {
             configuration,
-            agent_connection_number: Arc::new(Semaphore::new(agent_max_connection_number)),
+            agent_tcp_connection_accept_semaphore: Arc::new(Semaphore::new(agent_max_connection_number)),
         }
     }
 
@@ -33,10 +34,10 @@ impl ProxyServer {
             message: "Fail to bind tcp listener for proxy server",
         })?;
         loop {
-            let agent_connection_number = self.agent_connection_number.clone();
+            let agent_tcp_connection_accept_semaphore = self.agent_tcp_connection_accept_semaphore.clone();
             let agent_tcp_connection_accept_permit = match tokio::time::timeout(
                 Duration::from_secs(self.configuration.get_agent_tcp_connection_accept_timout_seconds()),
-                agent_connection_number.clone().acquire_owned(),
+                agent_tcp_connection_accept_semaphore.acquire_owned(),
             )
             .await
             {
@@ -57,6 +58,7 @@ impl ProxyServer {
                     continue;
                 },
             };
+            agent_tcp_stream.set_nodelay(true).context(IoError { message: "set no delay fail" })?;
             debug!("Accept agent tcp connection on address: {}", agent_socket_address);
             let proxy_server_rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();

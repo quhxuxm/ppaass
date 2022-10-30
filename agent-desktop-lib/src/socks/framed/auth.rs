@@ -3,6 +3,7 @@ use std::{
     task::{Context, Poll},
 };
 
+use bytes::BytesMut;
 use futures::{ready, Sink, Stream};
 use pin_project::pin_project;
 
@@ -31,8 +32,10 @@ impl<T> Socks5AuthFramed<T>
 where
     T: AsyncRead + AsyncWrite,
 {
-    pub(crate) fn new(stream: T) -> Self {
-        let concrete_framed = Framed::new(stream, Socks5AuthCommandContentCodec);
+    pub(crate) fn new(stream: T, initial_read_buf: BytesMut) -> Self {
+        let framed_parts = FramedParts::new(stream, Socks5AuthCommandContentCodec);
+        framed_parts.read_buf = initial_read_buf;
+        let concrete_framed = Framed::from_parts(framed_parts);
         Self { concrete_framed }
     }
 
