@@ -103,7 +103,8 @@ where
                         // For socks5 protocol
                         let mut initial_read_buf = BytesMut::new();
                         initial_read_buf.put_u8(5);
-                        *this.next_status = ClientTcpConnectionStatus::Socks5Auth(Box::pin(Socks5AuthFramed::new(this.stream.get_mut(), initial_read_buf)));
+                        *this.next_status = ClientTcpConnectionStatus::Socks5Auth(Box::pin(
+                                Socks5AuthFramed::new(this.stream.get_mut(), initial_read_buf)));
                         return Poll::Pending;
                     },
                     4 => {
