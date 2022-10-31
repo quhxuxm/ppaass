@@ -6,12 +6,22 @@ use std::io::Error as StdIoError;
 pub enum Error {
     #[snafu(display("Socks5 codec error: {message}"))]
     Socks5Codec { message: String, backtrace: Backtrace },
-    #[snafu(display("Http codec error: {message}"))]
-    HttpCodec {
+    #[snafu(display("Http codec general error: {message}"))]
+    HttpCodecGeneralFail {
         message: String,
         backtrace: Backtrace,
         source: bytecodec::Error,
     },
+    #[snafu(display("Http codec fail to parse url: {url}"))]
+    HttpCodecParseUrlFail {
+        url: String,
+        backtrace: Backtrace,
+        source: url::ParseError,
+    },
+    #[snafu(display("Http codec fail to parse target host: {url}"))]
+    HttpCodecParseTargetHostFail { url: String, backtrace: Backtrace },
+    #[snafu(display("Http codec wrong method: {method}"))]
+    HttpCodecWrongMethod { method: String, backtrace: Backtrace },
     #[snafu(display("I/O error: {message}"))]
     Io {
         message: String,

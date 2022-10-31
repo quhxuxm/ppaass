@@ -1,10 +1,11 @@
 use std::{sync::Arc, time::Duration};
 
-use snafu::ResultExt;
+use snafu::{OptionExt, ResultExt};
 use tokio::{net::TcpListener, sync::Semaphore};
 use tracing::{debug, error, info};
 
 use crate::error::AcceptClientTcpConnectionError;
+use crate::error::ConfigurationItemMissedError;
 use crate::error::IoError;
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, error::Error};
 
@@ -15,17 +16,24 @@ pub(crate) struct AgentServer {
 
 impl AgentServer {
     pub(crate) fn new(configuration: Arc<AgentServerConfig>) -> Self {
+        let client_max_connection_number = configuration.get_client_max_connection_number();
         Self {
             configuration,
-            client_tcp_connection_accept_semaphore: Arc::new(Semaphore::new(configuration.get_client_max_connection_number())),
+            client_tcp_connection_accept_semaphore: Arc::new(Semaphore::new(client_max_connection_number)),
         }
     }
 
     pub(crate) async fn start(&mut self) -> Result<(), Error> {
         let server_bind_addr = if self.configuration.get_ipv6() {
-            format!("::1:{}", self.configuration.get_port()?)
+            format!(
+                "::1:{}",
+                self.configuration.get_port().context(ConfigurationItemMissedError { message: "port(ip v6)" })?
+            )
         } else {
-            format!("0.0.0.0:{}", self.configuration.get_port()?)
+            format!(
+                "0.0.0.0:{}",
+                self.configuration.get_port().context(ConfigurationItemMissedError { message: "port(ip v4)" })?
+            )
         };
         let rsa_crypto_fetcher = Arc::new(AgentServerRsaCryptoFetcher::new(self.configuration.clone())?);
 
@@ -62,21 +70,21 @@ impl AgentServer {
             debug!("Accept client tcp connection on address: {}", client_socket_address);
             let rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();
-            let agent_message_framed = match AgentMessageFramed::new(
-                agent_tcp_stream,
-                self.configuration.get_compress(),
-                client_connection_buffer_size,
-                proxy_server_rsa_crypto_fetcher.clone(),
-            ) {
-                Ok(v) => v,
-                Err(e) => {
-                    error!("{e}");
-                    drop(agent_tcp_connection_accept_permit);
-                    continue;
-                },
-            };
-            let transport = Transport::new(agent_message_framed, configuration, agent_tcp_connection_accept_permit);
-            transport.exec().await;
+            // let agent_message_framed = match AgentMessageFramed::new(
+            //     agent_tcp_stream,
+            //     self.configuration.get_compress(),
+            //     client_connection_buffer_size,
+            //     proxy_server_rsa_crypto_fetcher.clone(),
+            // ) {
+            //     Ok(v) => v,
+            //     Err(e) => {
+            //         error!("{e}");
+            //         drop(agent_tcp_connection_accept_permit);
+            //         continue;
+            //     },
+            // };
+            // let transport = Transport::new(agent_message_framed, configuration, agent_tcp_connection_accept_permit);
+            // transport.exec().await;
         }
     }
 }

@@ -33,7 +33,7 @@ where
     T: AsyncRead + AsyncWrite,
 {
     pub(crate) fn new(stream: T, initial_read_buf: BytesMut) -> Self {
-        let framed_parts = FramedParts::new(stream, Socks5AuthCommandContentCodec);
+        let mut framed_parts = FramedParts::new(stream, Socks5AuthCommandContentCodec);
         framed_parts.read_buf = initial_read_buf;
         let concrete_framed = Framed::from_parts(framed_parts);
         Self { concrete_framed }

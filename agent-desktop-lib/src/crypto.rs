@@ -1,9 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
+use crate::error::ConfigurationItemMissedError;
 use crate::error::IoError;
 use crate::{config::AgentServerConfig, error::Error};
 use ppaass_common::{RsaCrypto, RsaCryptoFetcher};
-use snafu::ResultExt;
+use snafu::{OptionExt, ResultExt};
 use tracing::error;
 
 #[derive(Debug)]
@@ -14,7 +15,7 @@ pub(crate) struct AgentServerRsaCryptoFetcher {
 impl AgentServerRsaCryptoFetcher {
     pub(crate) fn new(configuration: Arc<AgentServerConfig>) -> Result<Self, Error> {
         let mut result = Self { cache: HashMap::new() };
-        let rsa_dir_path = configuration.get_rsa_dir()?;
+        let rsa_dir_path = configuration.get_rsa_dir().context(ConfigurationItemMissedError { message: "rsa dir" })?;
         let rsa_dir = std::fs::read_dir(&rsa_dir_path).context(IoError {
             message: "Fail to read rsa directory.",
         })?;

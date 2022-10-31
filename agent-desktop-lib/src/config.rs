@@ -1,6 +1,5 @@
-use crate::error::{ConfigurationItemMissedError, Error};
 use serde_derive::{Deserialize, Serialize};
-use snafu::OptionExt;
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub(crate) struct AgentServerConfig {
     /// Whehter use ip v6
@@ -33,16 +32,16 @@ impl AgentServerConfig {
         self.port = Some(port)
     }
 
-    pub(crate) fn get_port(&self) -> Result<u16, Error> {
-        self.port.context(ConfigurationItemMissedError { message: "port number" })
+    pub(crate) fn get_port(&self) -> &Option<u16> {
+        &self.port
     }
 
     pub(crate) fn set_rsa_dir(&mut self, rsa_dir: &str) {
         self.rsa_dir = Some(rsa_dir.to_string())
     }
 
-    pub(crate) fn get_rsa_dir(&self) -> Result<String, Error> {
-        self.rsa_dir.context(ConfigurationItemMissedError { message: "rsa directory" })
+    pub(crate) fn get_rsa_dir(&self) -> Option<&String> {
+        self.rsa_dir.as_ref()
     }
 
     pub(crate) fn set_thread_number(&mut self, thread_number: usize) {
