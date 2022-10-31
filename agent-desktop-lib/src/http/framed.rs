@@ -17,19 +17,23 @@ use super::codec::HttpCodec;
 
 #[pin_project]
 #[derive(Debug)]
-pub(crate) struct HttpFramed<T>
+pub(crate) struct HttpFramed<'a, T>
 where
     T: AsyncRead + AsyncWrite,
+    &'a mut T: AsyncRead + AsyncWrite,
+    &'a T: AsyncRead + AsyncWrite,
 {
     #[pin]
-    concrete_framed: Framed<T, HttpCodec>,
+    concrete_framed: Framed<&'a T, HttpCodec>,
 }
 
-impl<T> HttpFramed<T>
+impl<'a, T> HttpFramed<'a, T>
 where
     T: AsyncRead + AsyncWrite,
+    &'a mut T: AsyncRead + AsyncWrite,
+    &'a T: AsyncRead + AsyncWrite,
 {
-    pub(crate) fn new(stream: T, initial_read_buf: BytesMut) -> Self {
+    pub(crate) fn new(stream: &'a T, initial_read_buf: BytesMut) -> Self {
         let mut framed_parts = FramedParts::new(stream, Default::default());
         framed_parts.read_buf = initial_read_buf;
         let concrete_framed = Framed::from_parts(framed_parts);
@@ -41,9 +45,11 @@ where
     }
 }
 
-impl<T> Stream for HttpFramed<T>
+impl<'a, T> Stream for HttpFramed<'a, T>
 where
     T: AsyncRead + AsyncWrite,
+    &'a mut T: AsyncRead + AsyncWrite,
+    &'a T: AsyncRead + AsyncWrite,
 {
     type Item = Result<Request<Vec<u8>>, Error>;
 
@@ -58,9 +64,11 @@ where
     }
 }
 
-impl<T> Sink<Response<Vec<u8>>> for HttpFramed<T>
+impl<'a, T> Sink<Response<Vec<u8>>> for HttpFramed<'a, T>
 where
     T: AsyncRead + AsyncWrite,
+    &'a mut T: AsyncRead + AsyncWrite,
+    &'a T: AsyncRead + AsyncWrite,
 {
     type Error = Error;
 

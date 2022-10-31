@@ -42,30 +42,36 @@ const CONNECT_METHOD: &str = "connect";
 const HTTPS_DEFAULT_PORT: u16 = 443;
 const HTTP_DEFAULT_PORT: u16 = 80;
 
-enum ClientTcpConnectionStatus<T>
+enum ClientTcpConnectionStatus<'a, T>
 where
-    T: AsyncRead + AsyncWrite,
+    T: AsyncRead + AsyncWrite + 'static + Unpin,
+    &'a mut T: AsyncRead + AsyncWrite,
+    &'a T: AsyncRead + AsyncWrite,
 {
     New,
     Relay,
-    Http(Pin<Box<HttpFramed<T>>>),
-    Socks5Auth(Pin<Box<Socks5AuthFramed<T>>>),
-    Socks5Init(Pin<Box<Socks5InitFramed<T>>>),
+    Http(Pin<Box<HttpFramed<'a, T>>>),
+    Socks5Auth(Pin<Box<Socks5AuthFramed<'a, T>>>),
+    Socks5Init(Pin<Box<Socks5InitFramed<'a, T>>>),
 }
 
 #[pin_project]
-pub(crate) struct ClientTcpConnectionFramed<T>
+pub(crate) struct ClientTcpConnectionFramed<'a, T>
 where
-    T: AsyncRead + AsyncWrite,
+    T: AsyncRead + AsyncWrite + 'static + Unpin,
+    &'a mut T: AsyncRead + AsyncWrite,
+    &'a T: AsyncRead + AsyncWrite,
 {
-    next_status: ClientTcpConnectionStatus<T>,
+    next_status: ClientTcpConnectionStatus<'a, T>,
     #[pin]
     stream: T,
 }
 
-impl<T> ClientTcpConnectionFramed<T>
+impl<'a, T> ClientTcpConnectionFramed<'a, T>
 where
-    T: AsyncRead + AsyncWrite,
+    T: AsyncRead + AsyncWrite + 'static + Unpin,
+    &'a mut T: AsyncRead + AsyncWrite,
+    &'a T: AsyncRead + AsyncWrite,
 {
     fn new(stream: T) -> Self {
         ClientTcpConnectionFramed {
@@ -75,28 +81,29 @@ where
     }
 }
 
-impl<T> Stream for ClientTcpConnectionFramed<T>
+impl<'a, T> Stream for ClientTcpConnectionFramed<'a, T>
 where
-    T: AsyncRead + AsyncWrite,
+    T: AsyncRead + AsyncWrite + 'static + Unpin,
+    &'a mut T: AsyncRead + AsyncWrite,
+    &'a T: AsyncRead + AsyncWrite,
 {
     type Item = Result<ClientInputMessage, Error>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
-        let stream = this.stream;
         match this.next_status {
             ClientTcpConnectionStatus::New => {
                 let mut protocol_buf = [0u8; 1];
                 let mut protocol_read_buf = ReadBuf::new(&mut protocol_buf);
                 if let Err(e) = ready!(this.stream.poll_read(cx, &mut protocol_read_buf)) {
-                    return Poll::Ready(Some(Err(e).context(IoError { message: format!("{e}") })));
+                    return Poll::Ready(Some(Err(e).context(IoError { message: format!("io error") })));
                 }
                 match protocol_buf[0] {
                     5 => {
                         // For socks5 protocol
                         let mut initial_read_buf = BytesMut::new();
                         initial_read_buf.put_u8(5);
-                        this.next_status = &mut ClientTcpConnectionStatus::Socks5Auth(Box::pin(Socks5AuthFramed::new(stream, initial_read_buf)));
+                        *this.next_status = ClientTcpConnectionStatus::Socks5Auth(Box::pin(Socks5AuthFramed::new(this.stream.get_mut(), initial_read_buf)));
                         return Poll::Pending;
                     },
                     4 => {
@@ -112,7 +119,7 @@ where
                         // For http protocol
                         let mut initial_read_buf = BytesMut::new();
                         initial_read_buf.put_u8(v);
-                        this.next_status = &mut ClientTcpConnectionStatus::Http(Box::pin(HttpFramed::new(stream, initial_read_buf)));
+                        this.next_status = &mut ClientTcpConnectionStatus::Http(Box::pin(HttpFramed::new(this.stream.get_mut(), initial_read_buf)));
                         return Poll::Pending;
                     },
                 }
@@ -163,7 +170,7 @@ where
                     Some(Err(e)) => return Poll::Ready(Some(Err(e))),
                     Some(Ok(auth_message)) => {
                         let Socks5AuthCommandContent { method_number, methods, .. } = auth_message;
-                        this.next_status = &mut ClientTcpConnectionStatus::Socks5Init(Box::pin(Socks5InitFramed::new(stream)));
+                        this.next_status = &mut ClientTcpConnectionStatus::Socks5Init(Box::pin(Socks5InitFramed::new(this.stream.get_mut())));
                         return Poll::Ready(Some(Ok(ClientInputMessage::Socks5Auth { method_number, methods })));
                     },
                 }
@@ -193,7 +200,7 @@ where
                 let mut relay_buf = [0u8; 1024 * 64];
                 let mut relay_read_buf = ReadBuf::new(&mut relay_buf);
                 let initial_fill_length = relay_read_buf.filled().len();
-                let relay_read_result = ready!(stream.poll_read(cx, &mut relay_read_buf)).context(IoError {
+                let relay_read_result = ready!(this.stream.poll_read(cx, &mut relay_read_buf)).context(IoError {
                     message: "fail to poll data from stream",
                 })?;
                 let current_fill_length = relay_read_buf.filled().len();

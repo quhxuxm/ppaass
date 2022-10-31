@@ -3,7 +3,6 @@ use std::{
     task::{Context, Poll},
 };
 
-use bytes::BytesMut;
 use futures::{ready, Sink, Stream};
 use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -19,19 +18,23 @@ use crate::{
 
 #[pin_project]
 #[derive(Debug)]
-pub(crate) struct Socks5InitFramed<T>
+pub(crate) struct Socks5InitFramed<'a, T>
 where
     T: AsyncRead + AsyncWrite,
+    &'a mut T: AsyncRead + AsyncWrite,
+    &'a T: AsyncRead + AsyncWrite,
 {
     #[pin]
-    concrete_framed: Framed<T, Socks5InitCommandContentCodec>,
+    concrete_framed: Framed<&'a T, Socks5InitCommandContentCodec>,
 }
 
-impl<T> Socks5InitFramed<T>
+impl<'a, T> Socks5InitFramed<'a, T>
 where
     T: AsyncRead + AsyncWrite,
+    &'a mut T: AsyncRead + AsyncWrite,
+    &'a T: AsyncRead + AsyncWrite,
 {
-    pub(crate) fn new(stream: T) -> Self {
+    pub(crate) fn new(stream: &'a T) -> Self {
         let framed_parts = FramedParts::new(stream, Socks5InitCommandContentCodec);
         let concrete_framed = Framed::from_parts(framed_parts);
         Self { concrete_framed }
@@ -42,9 +45,11 @@ where
     }
 }
 
-impl<T> Stream for Socks5InitFramed<T>
+impl<'a, T> Stream for Socks5InitFramed<'a, T>
 where
     T: AsyncRead + AsyncWrite,
+    &'a mut T: AsyncRead + AsyncWrite,
+    &'a T: AsyncRead + AsyncWrite,
 {
     type Item = Result<Socks5InitCommandContent, Error>;
 
@@ -59,9 +64,11 @@ where
     }
 }
 
-impl<T> Sink<Socks5InitCommandResultContent> for Socks5InitFramed<T>
+impl<'a, T> Sink<Socks5InitCommandResultContent> for Socks5InitFramed<'a, T>
 where
     T: AsyncRead + AsyncWrite,
+    &'a T: AsyncRead + AsyncWrite,
+    &'a mut T: AsyncRead + AsyncWrite,
 {
     type Error = Error;
 

@@ -20,19 +20,23 @@ use crate::{
 
 #[pin_project]
 #[derive(Debug)]
-pub(crate) struct Socks5AuthFramed<T>
+pub(crate) struct Socks5AuthFramed<'a, T>
 where
     T: AsyncRead + AsyncWrite,
+    &'a mut T: AsyncRead + AsyncWrite,
+    &'a T: AsyncRead + AsyncWrite,
 {
     #[pin]
-    concrete_framed: Framed<T, Socks5AuthCommandContentCodec>,
+    concrete_framed: Framed<&'a mut T, Socks5AuthCommandContentCodec>,
 }
 
-impl<T> Socks5AuthFramed<T>
+impl<'a, T> Socks5AuthFramed<'a, T>
 where
     T: AsyncRead + AsyncWrite,
+    &'a mut T: AsyncRead + AsyncWrite,
+    &'a T: AsyncRead + AsyncWrite,
 {
-    pub(crate) fn new(stream: T, initial_read_buf: BytesMut) -> Self {
+    pub(crate) fn new(stream: &'a mut T, initial_read_buf: BytesMut) -> Self {
         let mut framed_parts = FramedParts::new(stream, Socks5AuthCommandContentCodec);
         framed_parts.read_buf = initial_read_buf;
         let concrete_framed = Framed::from_parts(framed_parts);
@@ -44,9 +48,11 @@ where
     }
 }
 
-impl<T> Stream for Socks5AuthFramed<T>
+impl<'a, T> Stream for Socks5AuthFramed<'a, T>
 where
     T: AsyncRead + AsyncWrite,
+    &'a mut T: AsyncRead + AsyncWrite,
+    &'a T: AsyncRead + AsyncWrite,
 {
     type Item = Result<Socks5AuthCommandContent, Error>;
 
@@ -61,9 +67,11 @@ where
     }
 }
 
-impl<T> Sink<Socks5AuthCommandResultContent> for Socks5AuthFramed<T>
+impl<'a, T> Sink<Socks5AuthCommandResultContent> for Socks5AuthFramed<'a, T>
 where
     T: AsyncRead + AsyncWrite,
+    &'a mut T: AsyncRead + AsyncWrite,
+    &'a T: AsyncRead + AsyncWrite,
 {
     type Error = Error;
 
