@@ -10,7 +10,6 @@ bytes = {workspace = true}
 futures = {workspace = true}
 futures-util = {workspace = true, features = ["alloc"]}
 lz4 = {workspace = true}
-pin-project = {workspace = true}
 ppaass-common = {path = "../common"}
 ppaass-protocol = {path = "../protocol"}
 pretty-hex = {workspace = true}

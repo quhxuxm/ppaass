@@ -1,4 +1,4 @@
-mod client;
+pub(crate) mod client;
 pub(crate) mod config;
 pub(crate) mod crypto;
 pub(crate) mod error;
