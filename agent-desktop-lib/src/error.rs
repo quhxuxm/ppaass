@@ -4,6 +4,8 @@ use std::io::Error as StdIoError;
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub(crate)), context(suffix(Error)))]
 pub enum Error {
+    #[snafu(display("No base tcp stream error."))]
+    CodecNoBaseTcpStream { backtrace: Backtrace },
     #[snafu(display("Socks5 codec error: {message}"))]
     Socks5Codec { message: String, backtrace: Backtrace },
     #[snafu(display("Http codec general error: {message}"))]
