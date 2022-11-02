@@ -11,6 +11,7 @@ use error::CodecNoBaseTcpStreamError;
 use error::HttpCodecGeneralFailError;
 use error::HttpCodecParseTargetHostFailError;
 use error::HttpCodecParseUrlFailError;
+use error::InvalidStatusError;
 use error::IoError;
 use error::Socks5CodecError;
 use futures::{ready, Sink, Stream};
@@ -19,10 +20,6 @@ use httpcodec::{BodyEncoder, RequestEncoder};
 
 use ppaass_protocol::PpaassProtocolAddress;
 use snafu::{OptionExt, ResultExt};
-
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio_util::codec::{Framed, FramedParts};
-use url::Url;
 
 use crate::{
     error,
@@ -35,6 +32,10 @@ use crate::{
         },
     },
 };
+use core::fmt::Debug;
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio_util::codec::{Framed, FramedParts};
+use url::Url;
 
 use super::message::{ClientInputMessage, ClientOutputMessage};
 
@@ -44,45 +45,60 @@ const HTTPS_DEFAULT_PORT: u16 = 443;
 const HTTP_DEFAULT_PORT: u16 = 80;
 const SOCKS_V5: u8 = 5;
 const SOCKS_V4: u8 = 4;
-
-enum ClientTcpConnectionInboundStatus<T>
+const CONNECTION_ESTABLISHED: &str = "Connection Established";
+enum ClientInboundStatus<T>
 where
     T: AsyncRead + AsyncWrite + Unpin,
 {
     New(Option<T>),
     Relay(T),
-    Http(Option<Framed<T, HttpCodec>>),
-    Socks5Auth(Option<Framed<T, Socks5AuthCommandContentCodec>>),
-    Socks5Init(Option<Framed<T, Socks5InitCommandContentCodec>>),
+    HttpInitialize(Option<Framed<T, HttpCodec>>),
+    Socks5Authenticate(Option<Framed<T, Socks5AuthCommandContentCodec>>),
+    Socks5Initialize(Option<Framed<T, Socks5InitCommandContentCodec>>),
 }
 
-pub(crate) struct ClientTcpConnectionFramed<T>
+impl<T> Debug for ClientInboundStatus<T>
 where
     T: AsyncRead + AsyncWrite + Unpin,
 {
-    next_status: ClientTcpConnectionInboundStatus<T>,
-}
-
-impl<T> ClientTcpConnectionFramed<T>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
-{
-    pub(crate) fn new(stream: T) -> Self {
-        ClientTcpConnectionFramed {
-            next_status: ClientTcpConnectionInboundStatus::New(Some(stream)),
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::New(_) => f.debug_tuple("New").finish(),
+            Self::Relay(_) => f.debug_tuple("Relay").finish(),
+            Self::HttpInitialize(_) => f.debug_tuple("HttpInitialize").finish(),
+            Self::Socks5Authenticate(_) => f.debug_tuple("Socks5Authenticate").finish(),
+            Self::Socks5Initialize(_) => f.debug_tuple("Socks5Initialize").finish(),
         }
     }
 }
 
-impl<T> Stream for ClientTcpConnectionFramed<T>
+pub(crate) struct ClientInboundStream<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    current_status: ClientInboundStatus<T>,
+}
+
+impl<T> ClientInboundStream<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    pub(crate) fn new(stream: T) -> Self {
+        ClientInboundStream {
+            current_status: ClientInboundStatus::New(Some(stream)),
+        }
+    }
+}
+
+impl<T> Stream for ClientInboundStream<T>
 where
     T: AsyncRead + AsyncWrite + Unpin,
 {
     type Item = Result<ClientInputMessage, Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.next_status {
-            ClientTcpConnectionInboundStatus::New(ref mut stream) => {
+        match self.current_status {
+            ClientInboundStatus::New(ref mut stream) => {
                 let mut stream = match stream.take() {
                     None => {
                         return Poll::Ready(Some(CodecNoBaseTcpStreamError {}.fail()));
@@ -103,7 +119,7 @@ where
                         let mut socks5_framed_parts = FramedParts::new(stream, Socks5AuthCommandContentCodec);
                         socks5_framed_parts.read_buf = initial_read_buf;
                         let socks5_framed = Framed::from_parts(socks5_framed_parts);
-                        self.next_status = ClientTcpConnectionInboundStatus::Socks5Auth(Some(socks5_framed));
+                        self.current_status = ClientInboundStatus::Socks5Authenticate(Some(socks5_framed));
                         return Poll::Pending;
                     },
                     SOCKS_V4 => {
@@ -122,12 +138,12 @@ where
                         let mut http_framed_parts = FramedParts::new(stream, HttpCodec::default());
                         http_framed_parts.read_buf = initial_read_buf;
                         let http_framed = Framed::from_parts(http_framed_parts);
-                        self.next_status = ClientTcpConnectionInboundStatus::Http(Some(http_framed));
+                        self.current_status = ClientInboundStatus::HttpInitialize(Some(http_framed));
                         return Poll::Pending;
                     },
                 }
             },
-            ClientTcpConnectionInboundStatus::Http(ref mut http_framed) => {
+            ClientInboundStatus::HttpInitialize(ref mut http_framed) => {
                 let mut http_framed = match http_framed.take() {
                     None => {
                         return Poll::Ready(Some(CodecNoBaseTcpStreamError {}.fail()));
@@ -157,7 +173,7 @@ where
                         let FramedParts { io, .. } = http_framed.into_parts();
                         if CONNECT_METHOD.eq_ignore_ascii_case(http_method.as_str()) {
                             // Handle https connect method.
-                            self.next_status = ClientTcpConnectionInboundStatus::Relay(io);
+                            self.current_status = ClientInboundStatus::Relay(io);
                             return Poll::Ready(Some(Ok(ClientInputMessage::HttpsConnect { dest_address })));
                         }
                         // Handle http request.
@@ -165,15 +181,16 @@ where
                         let http_initial_body_data = http_body_data_encoder.encode_into_bytes(http_message).context(HttpCodecGeneralFailError {
                             message: "parse http request body fail",
                         })?;
-                        self.next_status = ClientTcpConnectionInboundStatus::Relay(io);
-                        return Poll::Ready(Some(Ok(ClientInputMessage::HttpInitial {
+
+                        self.current_status = ClientInboundStatus::Relay(io);
+                        return Poll::Ready(Some(Ok(ClientInputMessage::HttpConnect {
                             dest_address,
                             initial_data: http_initial_body_data,
                         })));
                     },
                 }
             },
-            ClientTcpConnectionInboundStatus::Socks5Auth(ref mut socks5_auth_framed) => {
+            ClientInboundStatus::Socks5Authenticate(ref mut socks5_auth_framed) => {
                 let mut socks5_auth_framed = match socks5_auth_framed.take() {
                     None => {
                         return Poll::Ready(Some(CodecNoBaseTcpStreamError {}.fail()));
@@ -188,12 +205,12 @@ where
                         let Socks5AuthCommandContent { method_number, methods, .. } = auth_message;
                         let FramedParts { io, .. } = socks5_auth_framed.into_parts();
                         let socks5_init_framed = Framed::new(io, Socks5InitCommandContentCodec);
-                        self.next_status = ClientTcpConnectionInboundStatus::Socks5Init(Some(socks5_init_framed));
-                        return Poll::Ready(Some(Ok(ClientInputMessage::Socks5Auth { method_number, methods })));
+                        self.current_status = ClientInboundStatus::Socks5Initialize(Some(socks5_init_framed));
+                        return Poll::Ready(Some(Ok(ClientInputMessage::Socks5Authenticate { method_number, methods })));
                     },
                 }
             },
-            ClientTcpConnectionInboundStatus::Socks5Init(ref mut socks5_init_framed) => {
+            ClientInboundStatus::Socks5Initialize(ref mut socks5_init_framed) => {
                 let mut socks5_init_framed = match socks5_init_framed.take() {
                     None => {
                         return Poll::Ready(Some(CodecNoBaseTcpStreamError {}.fail()));
@@ -211,17 +228,17 @@ where
                             ..
                         } = init_message;
                         let client_input_message = match socks5_init_request_type {
-                            Socks5InitCommandType::Connect => ClientInputMessage::Socks5InitConnect { dest_address },
-                            Socks5InitCommandType::Bind => ClientInputMessage::Socks5InitBind { dest_address },
-                            Socks5InitCommandType::UdpAssociate => ClientInputMessage::Socks5InitUdpAssociate { dest_address },
+                            Socks5InitCommandType::Connect => ClientInputMessage::Socks5Connect { dest_address },
+                            Socks5InitCommandType::Bind => ClientInputMessage::Socks5Bind { dest_address },
+                            Socks5InitCommandType::UdpAssociate => ClientInputMessage::Socks5UdpAssociate { dest_address },
                         };
                         let FramedParts { io, .. } = socks5_init_framed.into_parts();
-                        self.next_status = ClientTcpConnectionInboundStatus::<T>::Relay(io);
+                        self.current_status = ClientInboundStatus::<T>::Relay(io);
                         return Poll::Ready(Some(Ok(client_input_message)));
                     },
                 }
             },
-            ClientTcpConnectionInboundStatus::Relay(ref mut stream) => {
+            ClientInboundStatus::Relay(ref mut stream) => {
                 let mut relay_buf = [0u8; 1024 * 64];
                 let mut relay_read_buf = ReadBuf::new(&mut relay_buf);
                 let initial_fill_length = relay_read_buf.filled().len();
@@ -232,13 +249,45 @@ where
                 if current_fill_length <= initial_fill_length {
                     return Poll::Ready(None);
                 }
-                return Poll::Ready(Some(Ok(ClientInputMessage::Raw(relay_buf.into()))));
+                return Poll::Ready(Some(Ok(ClientInputMessage::Relay(relay_buf.into()))));
+            },
+            ref invalid_status => {
+                return Poll::Ready(Some(
+                    InvalidStatusError {
+                        message: format!("{invalid_status:?}"),
+                    }
+                    .fail(),
+                ))
             },
         }
     }
 }
 
-impl<T> Sink<ClientOutputMessage> for ClientTcpConnectionFramed<T>
+pub(crate) struct ClientOutboundSink<'a, T>
+where
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    base_stream: T,
+    http_framed: Framed<&'a T, HttpCodec>,
+    socks5_auth_framed: Framed<&'a T, Socks5AuthCommandContentCodec>,
+    socks5_init_framed: Framed<&'a T, Socks5InitCommandContentCodec>,
+}
+
+impl<'a, T> ClientOutboundSink<'a, T>
+where
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    pub(crate) fn new(stream: T) -> Self {
+        Self {
+            base_stream: stream,
+            http_framed: Framed::new(&mut stream, HttpCodec::default()),
+            socks5_auth_framed: Framed::new(&stream, Socks5AuthCommandContentCodec),
+            socks5_init_framed: Framed::new(&stream, Socks5InitCommandContentCodec),
+        }
+    }
+}
+
+impl<T> Sink<ClientOutputMessage> for ClientOutboundSink<T>
 where
     T: AsyncRead + AsyncWrite + Unpin,
 {
@@ -252,9 +301,7 @@ where
         todo!()
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        todo!()
-    }
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {}
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         todo!()

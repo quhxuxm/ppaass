@@ -30,6 +30,8 @@ pub enum Error {
         backtrace: Backtrace,
         source: std::io::Error,
     },
+    #[snafu(display("Invalid status: {message}"))]
+    InvalidStatus { message: String, backtrace: Backtrace },
     #[snafu(display("Confiugration item missed: {message}"))]
     ConfigurationItemMissed { message: String, backtrace: Backtrace },
     #[snafu(display("Fail to accept agent tcp connection: {message}."))]

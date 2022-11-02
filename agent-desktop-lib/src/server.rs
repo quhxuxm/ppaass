@@ -7,7 +7,7 @@ use tracing::{debug, error, info};
 
 use crate::error::ConfigurationItemMissedError;
 use crate::error::IoError;
-use crate::{client::framed::ClientTcpConnectionFramed, error::AcceptClientTcpConnectionError};
+use crate::{client::framed::ClientInboundStream, error::AcceptClientTcpConnectionError};
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, error::Error};
 
 pub(crate) struct AgentServer {
@@ -71,7 +71,7 @@ impl AgentServer {
             debug!("Accept client tcp connection on address: {}", client_socket_address);
             let rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();
-            let mut client_tcp_connection_framed = ClientTcpConnectionFramed::new(client_tcp_stream);
+            let mut client_tcp_connection_framed = ClientInboundStream::new(client_tcp_stream);
 
             // let agent_message_framed = match AgentMessageFramed::new(
             //     agent_tcp_stream,
