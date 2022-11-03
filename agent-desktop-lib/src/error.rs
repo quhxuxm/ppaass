@@ -36,6 +36,8 @@ pub enum Error {
     ConfigurationItemMissed { message: String, backtrace: Backtrace },
     #[snafu(display("Fail to accept agent tcp connection: {message}."))]
     AcceptClientTcpConnection { message: String, backtrace: Backtrace },
+    #[snafu(display("Unsupported protocol: {message}."))]
+    UsupportedProtocol { message: String, backtrace: Backtrace },
 }
 
 impl From<StdIoError> for Error {

@@ -1,14 +1,13 @@
 use std::{sync::Arc, time::Duration};
 
-use futures::StreamExt;
-use snafu::{OptionExt, ResultExt};
+use snafu::{ErrorCompat, OptionExt, ResultExt};
 use tokio::{net::TcpListener, sync::Semaphore};
 use tracing::{debug, error, info};
 
-use crate::error::ConfigurationItemMissedError;
 use crate::error::IoError;
-use crate::{client::framed::ClientInboundStream, error::AcceptClientTcpConnectionError};
+
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, error::Error};
+use crate::{error::ConfigurationItemMissedError, flow::dispatcher::FlowDispatcher};
 
 pub(crate) struct AgentServer {
     configuration: Arc<AgentServerConfig>,
@@ -52,42 +51,41 @@ impl AgentServer {
             {
                 Ok(Ok(v)) => v,
                 Ok(Err(e)) => {
-                    error!("{}", AcceptClientTcpConnectionError { message: e.to_string() }.build());
+                    error!("Fail to accept client tcp connection because of error: {e:?}");
                     continue;
                 },
                 Err(e) => {
-                    error!("{}", AcceptClientTcpConnectionError { message: e.to_string() }.build());
+                    error!("Fail to accept client tcp connection because of error: {e:?}");
                     continue;
                 },
             };
             let (client_tcp_stream, client_socket_address) = match tcp_listener.accept().await {
                 Ok(v) => v,
                 Err(e) => {
-                    error!("{}", AcceptClientTcpConnectionError { message: e.to_string() }.build());
+                    error!("Fail to accept client tcp connection because of error: {e:?}");
                     continue;
                 },
             };
-            client_tcp_stream.set_nodelay(true).context(IoError { message: "set no delay fail" })?;
+            if let Err(e) = client_tcp_stream.set_nodelay(true) {
+                error!("Fail to accept client tcp connection because of error: {e:?}");
+                continue;
+            }
             debug!("Accept client tcp connection on address: {}", client_socket_address);
             let rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();
-            let mut client_tcp_connection_framed = ClientInboundStream::new(client_tcp_stream);
-
-            // let agent_message_framed = match AgentMessageFramed::new(
-            //     agent_tcp_stream,
-            //     self.configuration.get_compress(),
-            //     client_connection_buffer_size,
-            //     proxy_server_rsa_crypto_fetcher.clone(),
-            // ) {
-            //     Ok(v) => v,
-            //     Err(e) => {
-            //         error!("{e}");
-            //         drop(agent_tcp_connection_accept_permit);
-            //         continue;
-            //     },
-            // };
-            // let transport = Transport::new(agent_message_framed, configuration, agent_tcp_connection_accept_permit);
-            // transport.exec().await;
+            let mut flow = match FlowDispatcher::dispatch(client_tcp_stream, configuration, rsa_crypto_fetcher).await {
+                Err(e) => {
+                    error!("Fail to dispatch client tcp connection to concrete flow because of error");
+                    if let Some(error_backtrace) = ErrorCompat::backtrace(&e) {
+                        error!("{}", error_backtrace);
+                    }
+                    continue;
+                },
+                Ok(v) => v,
+            };
+            if let Err(e) = flow.as_mut().exec().await {
+                error!("Fail to execute client flow because of error: {e:?}");
+            };
         }
     }
 }

@@ -12,9 +12,11 @@ use crate::error::Error;
 use crate::error::IoError;
 use crate::error::Socks5CodecError;
 
-pub(crate) mod auth;
-pub(crate) mod init;
-pub(crate) mod udp;
+mod auth;
+mod init;
+mod udp;
+
+pub(crate) use auth::*;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Socks5Address {
