@@ -10,7 +10,7 @@ use super::ClientFlow;
 
 pub(crate) struct HttpClientFlow<T>
 where
-    T: AsyncRead + AsyncWrite,
+    T: AsyncRead + AsyncWrite + Send + 'static,
 {
     stream: T,
     configuration: Arc<AgentServerConfig>,
@@ -19,7 +19,7 @@ where
 
 impl<T> HttpClientFlow<T>
 where
-    T: AsyncRead + AsyncWrite,
+    T: AsyncRead + AsyncWrite + Send + 'static,
 {
     pub(crate) fn new(stream: T, configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>) -> Self {
         Self {
@@ -33,7 +33,7 @@ where
 #[async_trait]
 impl<T> ClientFlow for HttpClientFlow<T>
 where
-    T: AsyncRead + AsyncWrite,
+    T: AsyncRead + AsyncWrite + Send + 'static,
 {
     async fn exec(&mut self) -> Result<(), Error> {
         todo!();

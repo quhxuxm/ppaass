@@ -6,9 +6,8 @@ use tracing::error;
 use crate::error::Error;
 
 use super::message::{
-    auth::{Socks5AuthCommandContent, Socks5AuthCommandResultContent, Socks5AuthMethod},
-    init::{Socks5InitCommandContent, Socks5InitCommandResultContent, Socks5InitCommandType},
-    Socks5Address,
+    Socks5Address, Socks5AuthCommandContent, Socks5AuthCommandResultContent, Socks5AuthCommandResultContentParts, Socks5AuthMethod, Socks5InitCommandContent,
+    Socks5InitCommandResultContent, Socks5InitCommandResultContentParts, Socks5InitCommandType,
 };
 
 #[derive(Debug)]
@@ -35,7 +34,7 @@ impl Decoder for Socks5AuthCommandContentCodec {
         (0..methods_number).for_each(|_| {
             methods.push(Socks5AuthMethod::from(src.get_u8()));
         });
-        Ok(Some(Socks5AuthCommandContent::new(methods_number, methods)))
+        Ok(Some(Socks5AuthCommandContent::new(methods)))
     }
 }
 
@@ -43,8 +42,9 @@ impl Encoder<Socks5AuthCommandResultContent> for Socks5AuthCommandContentCodec {
     type Error = Error;
 
     fn encode(&mut self, item: Socks5AuthCommandResultContent, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        dst.put_u8(item.version);
-        dst.put_u8(item.method.into());
+        let Socks5AuthCommandResultContentParts { method } = item.split();
+        dst.put_u8(5);
+        dst.put_u8(method.into());
         Ok(())
     }
 }
@@ -79,10 +79,11 @@ impl Encoder<Socks5InitCommandResultContent> for Socks5InitCommandContentCodec {
     type Error = Error;
 
     fn encode(&mut self, item: Socks5InitCommandResultContent, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        dst.put_u8(item.version);
-        dst.put_u8(item.status.into());
+        let Socks5InitCommandResultContentParts { status, bind_address } = item.split();
+        dst.put_u8(5);
+        dst.put_u8(status.into());
         dst.put_u8(0);
-        if let Some(bind_address) = item.bind_address {
+        if let Some(bind_address) = bind_address {
             dst.put::<Bytes>(bind_address.into());
         }
         Ok(())

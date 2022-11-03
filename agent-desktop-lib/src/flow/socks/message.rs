@@ -17,6 +17,8 @@ mod init;
 mod udp;
 
 pub(crate) use auth::*;
+pub(crate) use init::*;
+pub(crate) use udp::*;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Socks5Address {

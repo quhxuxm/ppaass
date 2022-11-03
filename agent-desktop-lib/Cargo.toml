@@ -9,6 +9,7 @@ version = "0.1.0"
 async-trait = {workspace = true}
 bytecodec = {workspace = true}
 bytes = {workspace = true}
+deadpool = {workspace = true}
 futures = {workspace = true}
 futures-util = {workspace = true, features = ["std"]}
 httpcodec = {workspace = true}

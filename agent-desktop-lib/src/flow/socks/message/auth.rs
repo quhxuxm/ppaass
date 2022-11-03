@@ -35,31 +35,38 @@ impl From<Socks5AuthMethod> for u8 {
     }
 }
 
+pub(crate) struct Socks5AuthCommandContentParts {
+    pub methods: Vec<Socks5AuthMethod>,
+}
 #[derive(Debug)]
 pub(crate) struct Socks5AuthCommandContent {
-    pub version: u8,
-    pub method_number: u8,
-    pub methods: Vec<Socks5AuthMethod>,
+    methods: Vec<Socks5AuthMethod>,
 }
 
 impl Socks5AuthCommandContent {
-    pub fn new(method_number: u8, methods: Vec<Socks5AuthMethod>) -> Self {
-        Socks5AuthCommandContent {
-            version: 5,
-            method_number,
-            methods,
-        }
+    pub fn new(methods: Vec<Socks5AuthMethod>) -> Self {
+        Socks5AuthCommandContent { methods }
+    }
+
+    pub(crate) fn split(self) -> Socks5AuthCommandContentParts {
+        Socks5AuthCommandContentParts { methods: self.methods }
     }
 }
 
+pub(crate) struct Socks5AuthCommandResultContentParts {
+    pub(crate) method: Socks5AuthMethod,
+}
 #[derive(Debug)]
 pub(crate) struct Socks5AuthCommandResultContent {
-    pub version: u8,
-    pub method: Socks5AuthMethod,
+    method: Socks5AuthMethod,
 }
 
 impl Socks5AuthCommandResultContent {
-    pub fn new(method: Socks5AuthMethod) -> Self {
-        Socks5AuthCommandResultContent { version: 5u8, method }
+    pub(crate) fn new(method: Socks5AuthMethod) -> Self {
+        Socks5AuthCommandResultContent { method }
+    }
+
+    pub(crate) fn split(self) -> Socks5AuthCommandResultContentParts {
+        Socks5AuthCommandResultContentParts { method: self.method }
     }
 }

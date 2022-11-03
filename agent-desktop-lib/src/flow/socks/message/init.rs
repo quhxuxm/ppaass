@@ -79,36 +79,50 @@ impl From<Socks5InitCommandResultStatus> for u8 {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct Socks5InitCommandContent {
-    pub version: u8,
+pub(crate) struct Socks5InitCommandContentParts {
     pub request_type: Socks5InitCommandType,
     pub dest_address: Socks5Address,
 }
 
+#[derive(Debug)]
+pub(crate) struct Socks5InitCommandContent {
+    request_type: Socks5InitCommandType,
+    dest_address: Socks5Address,
+}
+
 impl Socks5InitCommandContent {
     pub fn new(request_type: Socks5InitCommandType, dest_address: Socks5Address) -> Self {
-        Socks5InitCommandContent {
-            version: 5,
-            request_type,
-            dest_address,
+        Socks5InitCommandContent { request_type, dest_address }
+    }
+
+    pub(crate) fn split(self) -> Socks5InitCommandContentParts {
+        Socks5InitCommandContentParts {
+            request_type: self.request_type,
+            dest_address: self.dest_address,
         }
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct Socks5InitCommandResultContent {
-    pub version: u8,
+pub(crate) struct Socks5InitCommandResultContentParts {
     pub status: Socks5InitCommandResultStatus,
     pub bind_address: Option<Socks5Address>,
 }
 
+#[derive(Debug)]
+pub(crate) struct Socks5InitCommandResultContent {
+    status: Socks5InitCommandResultStatus,
+    bind_address: Option<Socks5Address>,
+}
+
 impl Socks5InitCommandResultContent {
     pub fn new(status: Socks5InitCommandResultStatus, bind_address: Option<Socks5Address>) -> Self {
-        Socks5InitCommandResultContent {
-            version: 5,
-            status,
-            bind_address,
+        Socks5InitCommandResultContent { status, bind_address }
+    }
+
+    pub fn split(self) -> Socks5InitCommandResultContentParts {
+        Socks5InitCommandResultContentParts {
+            status: self.status,
+            bind_address: self.bind_address,
         }
     }
 }

@@ -15,6 +15,7 @@ bytes = "*"
 chrono = "*"
 cipher = "*"
 clap = "*"
+deadpool = "*"
 dns-lookup = "*"
 ecb = {version = "*", features = ["std"]}
 futures = "*"
