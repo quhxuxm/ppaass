@@ -19,7 +19,7 @@ impl FlowDispatcher {
         mut stream: T, configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
     ) -> Result<Box<dyn ClientFlow>, Error>
     where
-        T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     {
         let protocol = stream.read_u8().await?;
         match protocol {

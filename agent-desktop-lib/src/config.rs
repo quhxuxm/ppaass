@@ -17,9 +17,18 @@ pub(crate) struct AgentServerConfig {
     client_max_connection_number: Option<usize>,
     /// The timeout to accept client connection pool size.
     client_tcp_connection_accept_timout_seconds: Option<u64>,
+    /// The proxy addresses
+    proxy_addresses: Option<Vec<String>>,
 }
 
 impl AgentServerConfig {
+    pub(crate) fn set_proxy_addresses(&mut self, proxy_addresses: Vec<String>) {
+        self.proxy_addresses = Some(proxy_addresses)
+    }
+
+    pub(crate) fn get_proxy_addresses(&self) -> &Option<Vec<String>> {
+        &self.proxy_addresses
+    }
     pub(crate) fn set_ipv6(&mut self, ipv6: bool) {
         self.ipv6 = Some(ipv6)
     }
