@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
-use crate::error::UsupportedProtocolError;
-use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, error::Error, flow::socks::Socks5ClientFlow};
-use bytes::BytesMut;
-use ppaass_common::RsaCryptoFetcher;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, ReadBuf};
+use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, flow::socks::Socks5ClientFlow};
+use anyhow::Result;
+
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tracing::error;
 
 use super::{http::HttpClientFlow, ClientFlow};
@@ -17,7 +16,7 @@ pub(crate) struct FlowDispatcher;
 impl FlowDispatcher {
     pub(crate) async fn dispatch<T>(
         mut stream: T, configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
-    ) -> Result<Box<dyn ClientFlow>, Error>
+    ) -> Result<Box<dyn ClientFlow>>
     where
         T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     {
@@ -30,7 +29,7 @@ impl FlowDispatcher {
             SOCKS_V4 => {
                 // For socks4 protocol
                 error!("Do not support socks v4 protocol");
-                return UsupportedProtocolError { message: "socks v4" }.fail();
+                return Err(anyhow::anyhow!("do not support socks v4"));
             },
             _ => {
                 // For http protocol

@@ -1,22 +1,17 @@
+use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::{marker::PhantomData, net::SocketAddr};
 
+use anyhow::Context;
 use async_trait::async_trait;
 use deadpool::managed::{self, Manager};
-use futures::StreamExt;
+
 use ppaass_io::PpaassMessageFramed;
-use snafu::ResultExt;
-use tokio::{
-    io::{AsyncRead, AsyncWrite},
-    net::TcpStream,
-};
+
+use tokio::net::TcpStream;
 use tracing::error;
 
-use crate::error::ConfigurationItemMissedError;
-use crate::error::InvalidStatusError;
-use crate::error::PpaassIoError;
-use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, error::Error};
+use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher};
 pub(crate) struct ProxyServerConnectionPool {
     configuration: Arc<AgentServerConfig>,
     rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
@@ -33,13 +28,13 @@ impl ProxyServerConnectionPool {
 #[async_trait]
 impl Manager for ProxyServerConnectionPool {
     type Type = PpaassMessageFramed<TcpStream, AgentServerRsaCryptoFetcher>;
-    type Error = Error;
+    type Error = anyhow::Error;
 
-    async fn create(&self) -> Result<Self::Type, Error> {
+    async fn create(&self) -> Result<Self::Type, Self::Error> {
         let proxy_addresses_configuration = self
             .configuration
             .get_proxy_addresses()
-            .ok_or(ConfigurationItemMissedError { message: "proxy addresses" }.build())?;
+            .ok_or(anyhow::anyhow!(format!("fail to parse proxy addresses from configuration file")))?;
         let mut proxy_addresses: Vec<SocketAddr> = Vec::new();
         for address in proxy_addresses_configuration {
             match SocketAddr::from_str(&address) {
@@ -53,19 +48,15 @@ impl Manager for ProxyServerConnectionPool {
             }
         }
         if proxy_addresses.is_empty() {
-            error!("No available proxy address for runtime to use.");
-            return InvalidStatusError {
-                message: "no available proxy addresses",
-            }
-            .fail();
+            error!("no available proxy address for runtime to use.");
+            return Err(anyhow::anyhow!("no available proxy address for runtime to use."));
         }
         let proxy_tcp_stream = TcpStream::connect(&proxy_addresses.as_slice()).await?;
-        PpaassMessageFramed::new(proxy_tcp_stream, self.configuration.get_compress(), 1024 * 64, self.rsa_crypto_fetcher.clone()).context(PpaassIoError {
-            message: "fail to create ppaass message framed",
-        })
+        PpaassMessageFramed::new(proxy_tcp_stream, self.configuration.get_compress(), 1024 * 64, self.rsa_crypto_fetcher.clone())
+            .context("fail to create ppaass message framed")
     }
 
-    async fn recycle(&self, _: &mut Self::Type) -> managed::RecycleResult<Error> {
+    async fn recycle(&self, _: &mut Self::Type) -> managed::RecycleResult<Self::Error> {
         Ok(())
     }
 }

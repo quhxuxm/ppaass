@@ -4,9 +4,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, error::Error};
-
 use super::ClientFlow;
+use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher};
+use anyhow::Result;
 
 pub(crate) struct HttpClientFlow<T>
 where
@@ -35,7 +35,7 @@ impl<T> ClientFlow for HttpClientFlow<T>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
-    async fn exec(&mut self) -> Result<(), Error> {
+    async fn exec(&mut self) -> Result<()> {
         todo!();
     }
 }

@@ -1,9 +1,7 @@
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use snafu::{Backtrace, GenerateImplicitData};
+
 use tokio_util::codec::{Decoder, Encoder};
 use tracing::error;
-
-use crate::error::Error;
 
 use super::message::{
     Socks5Address, Socks5AuthCommandContent, Socks5AuthCommandResultContent, Socks5AuthCommandResultContentParts, Socks5AuthMethod, Socks5InitCommandContent,
@@ -15,7 +13,7 @@ pub(crate) struct Socks5AuthCommandContentCodec;
 
 impl Decoder for Socks5AuthCommandContentCodec {
     type Item = Socks5AuthCommandContent;
-    type Error = Error;
+    type Error = anyhow::Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         if src.len() < 2 {
@@ -24,10 +22,7 @@ impl Decoder for Socks5AuthCommandContentCodec {
         let version = src.get_u8();
         if version != 5 {
             error!("The incoming protocol is not for socks 5: {version}.");
-            return Err(Error::Socks5Codec {
-                message: format!("The incoming protocol is not for socks 5: {version}"),
-                backtrace: Backtrace::generate(),
-            });
+            return Err(anyhow::anyhow!(format!("The incoming protocol is not for socks 5: {version}")));
         }
         let methods_number = src.get_u8();
         let mut methods = Vec::<Socks5AuthMethod>::new();
@@ -39,7 +34,7 @@ impl Decoder for Socks5AuthCommandContentCodec {
 }
 
 impl Encoder<Socks5AuthCommandResultContent> for Socks5AuthCommandContentCodec {
-    type Error = Error;
+    type Error = anyhow::Error;
 
     fn encode(&mut self, item: Socks5AuthCommandResultContent, dst: &mut BytesMut) -> Result<(), Self::Error> {
         let Socks5AuthCommandResultContentParts { method } = item.split();
@@ -54,7 +49,7 @@ pub(crate) struct Socks5InitCommandContentCodec;
 
 impl Decoder for Socks5InitCommandContentCodec {
     type Item = Socks5InitCommandContent;
-    type Error = Error;
+    type Error = anyhow::Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         if src.len() < 4 {
@@ -63,10 +58,7 @@ impl Decoder for Socks5InitCommandContentCodec {
         let version = src.get_u8();
         if version != 5 {
             error!("The incoming protocol is not for socks 5: {version}.");
-            return Err(Error::Socks5Codec {
-                message: format!("The incoming protocol is not for socks 5: {version}"),
-                backtrace: Backtrace::generate(),
-            });
+            return Err(anyhow::anyhow!(format!("The incoming protocol is not for socks 5: {version}")));
         }
         let request_type: Socks5InitCommandType = src.get_u8().try_into()?;
         src.get_u8();
@@ -76,7 +68,7 @@ impl Decoder for Socks5InitCommandContentCodec {
 }
 
 impl Encoder<Socks5InitCommandResultContent> for Socks5InitCommandContentCodec {
-    type Error = Error;
+    type Error = anyhow::Error;
 
     fn encode(&mut self, item: Socks5InitCommandResultContent, dst: &mut BytesMut) -> Result<(), Self::Error> {
         let Socks5InitCommandResultContentParts { status, bind_address } = item.split();

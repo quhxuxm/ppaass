@@ -77,10 +77,7 @@ impl AgentServer {
             let configuration = self.configuration.clone();
             let mut flow = match FlowDispatcher::dispatch(client_tcp_stream, configuration, rsa_crypto_fetcher).await {
                 Err(e) => {
-                    error!("Fail to dispatch client tcp connection to concrete flow because of error");
-                    if let Some(error_backtrace) = ErrorCompat::backtrace(&e) {
-                        error!("{}", error_backtrace);
-                    }
+                    error!("fail to dispatch client tcp connection to concrete flow because of error: {e:?}");
                     continue;
                 },
                 Ok(v) => v,

@@ -4,18 +4,14 @@ use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use futures::{SinkExt, StreamExt};
 use ppaass_io::PpaassMessageFramed;
-use snafu::ResultExt;
-use tokio::{
-    io::{AsyncRead, AsyncWrite},
-    net::TcpStream,
-};
+
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::{Framed, FramedParts};
 use tracing::debug;
 
 use crate::{
     config::AgentServerConfig,
     crypto::AgentServerRsaCryptoFetcher,
-    error::Error,
     flow::socks::{
         codec::Socks5InitCommandContentCodec,
         message::{Socks5AuthCommandContentParts, Socks5AuthCommandResultContent, Socks5InitCommandContentParts},
@@ -24,10 +20,9 @@ use crate::{
 };
 
 use self::{codec::Socks5AuthCommandContentCodec, message::Socks5AuthCommandContent};
-
 use super::ClientFlow;
-use crate::error::CreateConnectionPoolError;
-
+use anyhow::Context;
+use anyhow::Result;
 mod codec;
 mod message;
 
@@ -58,7 +53,7 @@ impl<T> ClientFlow for Socks5ClientFlow<T>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
-    async fn exec(&mut self) -> Result<(), Error> {
+    async fn exec(&mut self) -> Result<()> {
         let mut auth_framed_parts = FramedParts::new(&mut self.stream, Socks5AuthCommandContentCodec);
         let mut auth_initial_buf = BytesMut::new();
         auth_initial_buf.put_u8(5);
@@ -85,7 +80,7 @@ where
             self.configuration.clone(),
             self.rsa_crypto_fetcher.clone(),
         ));
-        let proxy_connection_pool = proxy_coneection_pool_builder.build().context(CreateConnectionPoolError { message: "" })?;
+        let proxy_connection_pool = proxy_coneection_pool_builder.build();
         todo!()
     }
 }

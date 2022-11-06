@@ -4,13 +4,9 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs},
 };
 
+use anyhow::Context;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use ppaass_protocol::PpaassProtocolAddress;
-use snafu::{OptionExt, ResultExt};
-
-use crate::error::Error;
-use crate::error::IoError;
-use crate::error::Socks5CodecError;
 
 mod auth;
 mod init;
@@ -28,7 +24,7 @@ pub(crate) enum Socks5Address {
 }
 
 impl TryFrom<Socks5Address> for SocketAddr {
-    type Error = Error;
+    type Error = anyhow::Error;
 
     fn try_from(socks5_addr: Socks5Address) -> Result<Self, Self::Error> {
         match socks5_addr {
@@ -54,13 +50,9 @@ impl TryFrom<Socks5Address> for SocketAddr {
             Socks5Address::Domain(host, port) => {
                 let addresses = format!("{host}:{port}")
                     .to_socket_addrs()
-                    .context(IoError {
-                        message: format!("{host}:{port}"),
-                    })?
+                    .context(format!("fail to parse domain address to socket address: {host}:{port}"))?
                     .collect::<Vec<_>>();
-                let result = addresses.get(0).context(Socks5CodecError {
-                    message: format!("none socket address parsed from {host}:{port}"),
-                })?;
+                let result = addresses.get(0).context(format!("none socket address parsed from {host}:{port}"))?;
                 Ok(*result)
             },
         }
@@ -104,25 +96,19 @@ impl ToString for Socks5Address {
 }
 
 impl TryFrom<&mut Bytes> for Socks5Address {
-    type Error = Error;
+    type Error = anyhow::Error;
     fn try_from(value: &mut Bytes) -> Result<Self, Self::Error> {
         if !value.has_remaining() {
-            return Socks5CodecError {
-                message: "no remaing bytes to parse socks5 address",
-            }
-            .fail();
+            return Err(anyhow::anyhow!("no remaing bytes to parse socks5 address"));
         }
         let address_type = value.get_u8();
         let address = match address_type {
             1 => {
                 if value.remaining() < 6 {
-                    return Socks5CodecError {
-                        message: format!(
-                            "no enough remaing bytes to parse socks5 IPV4 address, remaining is {}, require 6",
-                            value.remaining()
-                        ),
-                    }
-                    .fail();
+                    return Err(anyhow::anyhow!(format!(
+                        "no enough remaing bytes to parse socks5 IPV4 address, remaining is {}, require 6",
+                        value.remaining()
+                    )));
                 }
                 let mut addr_content = [0u8; 4];
                 addr_content.iter_mut().for_each(|item| {
@@ -133,13 +119,10 @@ impl TryFrom<&mut Bytes> for Socks5Address {
             },
             4 => {
                 if value.remaining() < 18 {
-                    return Socks5CodecError {
-                        message: format!(
-                            "no enough remaing bytes to parse socks5 IPV6 address, remaining is {}, require 18",
-                            value.remaining()
-                        ),
-                    }
-                    .fail();
+                    return Err(anyhow::anyhow!(format!(
+                        "no enough remaing bytes to parse socks5 IPV6 address, remaining is {}, require 18",
+                        value.remaining()
+                    ),));
                 }
                 let mut addr_content = [0u8; 16];
                 addr_content.iter_mut().for_each(|item| {
@@ -150,24 +133,18 @@ impl TryFrom<&mut Bytes> for Socks5Address {
             },
             3 => {
                 if value.remaining() < 1 {
-                    return Socks5CodecError {
-                        message: format!(
-                            "no enough remaing bytes to parse socks5 Domain address, remaining is {}, require 1",
-                            value.remaining()
-                        ),
-                    }
-                    .fail();
+                    return Err(anyhow::anyhow!(format!(
+                        "no enough remaing bytes to parse socks5 Domain address, remaining is {}, require 1",
+                        value.remaining()
+                    )));
                 }
                 let domain_name_length = value.get_u8() as usize;
                 if value.remaining() < domain_name_length + 2 {
-                    return Socks5CodecError {
-                        message: format!(
-                            "no enough remaing bytes to parse socks5 Domain address, remaining is {}, require {}",
-                            value.remaining(),
-                            domain_name_length + 2
-                        ),
-                    }
-                    .fail();
+                    return Err(anyhow::anyhow!(format!(
+                        "no enough remaing bytes to parse socks5 Domain address, remaining is {}, require {}",
+                        value.remaining(),
+                        domain_name_length + 2
+                    )));
                 }
                 let domain_name_bytes = value.copy_to_bytes(domain_name_length);
                 let domain_name = match String::from_utf8_lossy(domain_name_bytes.chunk()).to_string().as_str() {
@@ -178,10 +155,7 @@ impl TryFrom<&mut Bytes> for Socks5Address {
                 Socks5Address::Domain(domain_name, port)
             },
             unknown_addr_type => {
-                return Socks5CodecError {
-                    message: format!("unknown address type: {unknown_addr_type}"),
-                }
-                .fail();
+                return Err(anyhow::anyhow!(format!("unknown address type: {unknown_addr_type}")));
             },
         };
         Ok(address)
@@ -189,7 +163,7 @@ impl TryFrom<&mut Bytes> for Socks5Address {
 }
 
 impl TryFrom<Bytes> for Socks5Address {
-    type Error = Error;
+    type Error = anyhow::Error;
 
     fn try_from(mut value: Bytes) -> Result<Self, Self::Error> {
         let value_mut_ref = &mut value;
@@ -198,7 +172,7 @@ impl TryFrom<Bytes> for Socks5Address {
 }
 
 impl TryFrom<&mut BytesMut> for Socks5Address {
-    type Error = Error;
+    type Error = anyhow::Error;
 
     fn try_from(value: &mut BytesMut) -> Result<Self, Self::Error> {
         let value = value.copy_to_bytes(value.len());
