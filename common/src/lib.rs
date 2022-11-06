@@ -1,6 +1,4 @@
 mod crypto;
-pub mod error;
-
 pub use crypto::*;
 
 use uuid::Uuid;

@@ -1,10 +1,8 @@
+use anyhow::Context;
+use anyhow::Result;
 use blowfish::Blowfish;
-
 use cipher::{block_padding::Pkcs7, BlockEncryptMut};
 use cipher::{BlockDecryptMut, KeyInit};
-use snafu::ResultExt;
-
-use crate::error::{CryptoUnpadError, Error};
 
 type PaddingMode = Pkcs7;
 
@@ -16,9 +14,9 @@ pub fn encrypt_with_blowfish(encryption_token: &[u8], target: &[u8]) -> Vec<u8> 
     encryptor.encrypt_padded_vec_mut::<PaddingMode>(target)
 }
 
-pub fn decrypt_with_blowfish(encryption_token: &[u8], target: &[u8]) -> Result<Vec<u8>, Error> {
+pub fn decrypt_with_blowfish(encryption_token: &[u8], target: &[u8]) -> Result<Vec<u8>> {
     let decryptor = BlowfishDecryptor::new(encryption_token.into());
-    Ok(decryptor.decrypt_padded_vec_mut::<PaddingMode>(target).context(CryptoUnpadError {
-        message: "padding error happen.",
-    })?)
+    Ok(decryptor
+        .decrypt_padded_vec_mut::<PaddingMode>(target)
+        .context("padding error happen when decrypt blowfish data")?)
 }

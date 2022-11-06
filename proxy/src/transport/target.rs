@@ -5,7 +5,7 @@ use std::{
 
 use bytes::BytesMut;
 use ppaass_protocol::{DomainResolveRequest, DomainResolveResponse};
-use snafu::{Backtrace, GenerateImplicitData};
+
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{tcp::OwnedWriteHalf, TcpStream, UdpSocket},
@@ -49,11 +49,8 @@ impl TargetEdge {
         let mut target_to_agent_tcp_relay_guard = None::<JoinHandle<()>>;
         let mut target_to_agent_udp_relay_guard = None::<JoinHandle<()>>;
         loop {
-            let AgentToTargetData { data_type: request_type } = match agent_to_target_data_receiver.recv().await {
-                None => {
-                    return;
-                },
-                Some(v) => v,
+            let Some(AgentToTargetData { data_type: request_type }) = agent_to_target_data_receiver.recv().await else{
+              return;
             };
             match request_type {
                 AgentToTargetDataType::TcpInitialize {
@@ -63,8 +60,7 @@ impl TargetEdge {
                 } => {
                     if let Some(mut write) = target_tcp_write {
                         if let Err(e) = write.shutdown().await {
-                            error!("Fail to shudown target tcp stream because of error.");
-                            error!("{}", Backtrace::generate_with_source(&e));
+                            error!("fail to shudown target tcp stream because of error: {e:?}.");
                         };
                         target_tcp_write = None;
                     }
@@ -74,17 +70,16 @@ impl TargetEdge {
                     }
                     let target_socket_addrs = match target_address.to_socket_addrs() {
                         Err(e) => {
-                            error!("Transport [{transport_id}] fail connect to target becacuse of error when convert target address.");
-                            error!("{}", Backtrace::generate_with_source(&e));
+                            error!("transport [{transport_id}] fail connect to target becacuse of error when convert target address: {e:?}");
                             continue;
                         },
                         Ok(v) => v,
                     };
                     let target_socket_addrs = target_socket_addrs.collect::<Vec<SocketAddr>>();
                     let new_target_tcp_stream = match TcpStream::connect(target_socket_addrs.as_slice()).await {
+                        Ok(v) => v,
                         Err(e) => {
-                            error!("Transport [{transport_id}] fail connect to target becacuse of error.");
-                            error!("{}", Backtrace::generate_with_source(&e));
+                            error!("transport [{transport_id}] fail connect to target becacuse of error: {e:?}");
                             if let Err(e) = target_to_agent_data_sender
                                 .send(TargetToAgentData {
                                     data_type: TargetToAgentDataType::TcpInitializeFail {
@@ -95,13 +90,11 @@ impl TargetEdge {
                                 })
                                 .await
                             {
-                                error!("Transport [{transport_id}] fail to send target connect fail message to agent becacuse of error.");
-                                error!("{}", Backtrace::generate_with_source(&e));
+                                error!("transport [{transport_id}] fail to send target connect fail message to agent becacuse of error: {e:?}");
                             };
                             drop(target_to_agent_data_sender);
                             return;
                         },
-                        Ok(v) => v,
                     };
 
                     let (mut target_tcp_read, new_target_tcp_write) = new_target_tcp_stream.into_split();
@@ -133,17 +126,15 @@ impl TargetEdge {
                                         .await
                                     {
                                         error!(
-                                            "Transport [{transport_id_for_target_to_agent}] fail to send tcp relay success message to agent becacuse of error."
+                                            "transport [{transport_id_for_target_to_agent}] fail to send tcp relay success message to agent becacuse of error: {e:?}"
                                         );
-                                        error!("{}", Backtrace::generate_with_source(&e));
                                         return;
                                     };
                                     debug!("Transport [{transport_id_for_target_to_agent}] success to read data from target, data size = {n}.");
                                     return;
                                 },
                                 Err(e) => {
-                                    error!("Transport [{transport_id_for_target_to_agent}] fail read data from target becacuse of error.");
-                                    error!("{}", Backtrace::generate_with_source(&e));
+                                    error!("transport [{transport_id_for_target_to_agent}] fail read data from target becacuse of error: {e:?}");
                                     drop(target_to_agent_data_sender_clone);
                                     return;
                                 },
@@ -161,13 +152,12 @@ impl TargetEdge {
                         })
                         .await
                     {
-                        error!("Transport [{transport_id}] fail to send target connect success message to agent becacuse of error.");
-                        error!("{}", Backtrace::generate_with_source(&e));
+                        error!("transport [{transport_id}] fail to send target connect success message to agent becacuse of error: {e:?}");
+
                         drop(target_to_agent_data_sender);
                         if let Some(ref mut write) = target_tcp_write {
                             if let Err(e) = write.shutdown().await {
-                                error!("Transport [{transport_id}] fail to shutdown write of the target becacuse of error.");
-                                error!("{}", Backtrace::generate_with_source(&e));
+                                error!("transport [{transport_id}] fail to shutdown write of the target becacuse of error: {e:?}");
                             };
                         }
                         if let Some(guard) = target_to_agent_tcp_relay_guard {
@@ -182,16 +172,13 @@ impl TargetEdge {
                     target_address,
                     user_token,
                 } => {
-                    let current_target_tcp_write = match &mut target_tcp_write {
-                        None => {
-                            drop(target_to_agent_data_sender);
-                            return;
-                        },
-                        Some(v) => v,
+                    let Some(current_target_tcp_write) =  &mut target_tcp_write else {
+                        drop(target_to_agent_data_sender);
+                        return;
                     };
                     if let Err(e) = current_target_tcp_write.write(&data).await {
-                        error!("Transport [{transport_id}] fail to write data to target becacuse of error.");
-                        error!("{}", Backtrace::generate_with_source(&e));
+                        error!("transport [{transport_id}] fail to write data to target becacuse of error: {e:?}");
+
                         if let Err(e) = target_to_agent_data_sender
                             .send(TargetToAgentData {
                                 data_type: TargetToAgentDataType::TcpReplayFail {
@@ -202,14 +189,12 @@ impl TargetEdge {
                             })
                             .await
                         {
-                            error!("Transport [{transport_id}] fail to send relay fail message to agent becacuse of error.");
-                            error!("{}", Backtrace::generate_with_source(&e));
+                            error!("transport [{transport_id}] fail to send relay fail message to agent becacuse of error: {e:?}");
                         };
                         drop(target_to_agent_data_sender);
                         if let Some(ref mut write) = target_tcp_write {
                             if let Err(e) = write.shutdown().await {
-                                error!("Transport [{transport_id}] fail to shutdown write of the target becacuse of error.");
-                                error!("{}", Backtrace::generate_with_source(&e));
+                                error!("transport [{transport_id}] fail to shutdown write of the target becacuse of error: {e:?}");
                             };
                         }
                         if let Some(guard) = target_to_agent_tcp_relay_guard {
@@ -219,16 +204,12 @@ impl TargetEdge {
                     }
                 },
                 AgentToTargetDataType::TcpDestory { .. } => {
-                    let mut target_tcp_write = match target_tcp_write {
-                        None => {
-                            drop(target_to_agent_data_sender);
-                            return;
-                        },
-                        Some(v) => v,
+                    let Some(target_tcp_write) =  &mut target_tcp_write else {
+                        drop(target_to_agent_data_sender);
+                        return;
                     };
                     if let Err(e) = target_tcp_write.shutdown().await {
-                        error!("Transport [{transport_id}] fail to shutdown target tcp stream becacuse of error.");
-                        error!("{}", Backtrace::generate_with_source(&e));
+                        error!("Transport [{transport_id}] fail to shutdown target tcp stream becacuse of error: {e:?}");
                     };
                     drop(target_to_agent_data_sender);
                     return;
@@ -240,44 +221,40 @@ impl TargetEdge {
                         })
                         .await
                     {
-                        error!("Transport [{transport_id}] fail to send keep alive success message to agent becacuse of error.");
-                        error!("{}", Backtrace::generate_with_source(&e));
+                        error!("transport [{transport_id}] fail to send keep alive success message to agent becacuse of error: {e:?}");
                     };
                 },
                 AgentToTargetDataType::DomainNameResolve { data, user_token } => {
                     let DomainResolveRequest { id, name } = match serde_json::from_slice(&data) {
                         Err(e) => {
-                            error!("Transport [{transport_id}] fail to do domain name resolve because of fail to parse request body.");
-                            error!("{}", Backtrace::generate_with_source(&e));
+                            error!("transport [{transport_id}] fail to do domain name resolve because of fail to parse request body: {e:?}");
+
                             if let Err(e) = target_to_agent_data_sender
                                 .send(TargetToAgentData {
                                     data_type: TargetToAgentDataType::DomainNameResolveFail { user_token },
                                 })
                                 .await
                             {
-                                error!("Transport [{transport_id}] fail to send domain name resolve fail message to agent becacuse of error.");
-                                error!("{}", Backtrace::generate_with_source(&e));
+                                error!("transport [{transport_id}] fail to send domain name resolve fail message to agent becacuse of error: {e:?}");
                             };
                             continue;
                         },
                         Ok(v) => v,
                     };
                     let ip_addresses = match dns_lookup::lookup_host(name.as_str()) {
+                        Ok(v) => v,
                         Err(e) => {
-                            error!("Transport [{transport_id}] fail to do dns lookup host because of error.");
-                            error!("{}", Backtrace::generate_with_source(&e));
+                            error!("transport [{transport_id}] fail to do dns lookup host because of error: {e:?}");
                             if let Err(e) = target_to_agent_data_sender
                                 .send(TargetToAgentData {
                                     data_type: TargetToAgentDataType::DomainNameResolveFail { user_token },
                                 })
                                 .await
                             {
-                                error!("Transport [{transport_id}] fail to send domain name resolve fail message to agent becacuse of error.");
-                                error!("{}", Backtrace::generate_with_source(&e));
+                                error!("transport [{transport_id}] fail to send domain name resolve fail message to agent becacuse of error: {e:?}");
                             };
                             continue;
                         },
-                        Ok(v) => v,
                     };
                     let mut addresses = Vec::new();
                     ip_addresses.iter().for_each(|addr| {
@@ -294,8 +271,8 @@ impl TargetEdge {
                     };
                     let data = match serde_json::to_vec(&domain_resolve_response) {
                         Err(e) => {
-                            error!("Transport [{transport_id}] fail to do domain name resolve because of fail to parse request body.");
-                            error!("{}", Backtrace::generate_with_source(&e));
+                            error!("transport [{transport_id}] fail to do domain name resolve because of fail to parse request body: {e:?}");
+
                             continue;
                         },
                         Ok(v) => v,
@@ -306,8 +283,7 @@ impl TargetEdge {
                         })
                         .await
                     {
-                        error!("Transport [{transport_id}] fail to send domain name resolve success message to agent becacuse of error.");
-                        error!("{}", Backtrace::generate_with_source(&e));
+                        error!("transport [{transport_id}] fail to send domain name resolve success message to agent becacuse of error: {e:?}");
                     };
                 },
                 AgentToTargetDataType::UdpInitialize {
@@ -325,7 +301,6 @@ impl TargetEdge {
                         Ok(v) => Some(Arc::new(v)),
                         Err(e) => {
                             error!("Transport [{transport_id}] fail to initialize udp socket becacuse of error: {e:?}");
-
                             if let Err(e) = target_to_agent_data_sender
                                 .send(TargetToAgentData {
                                     data_type: TargetToAgentDataType::UdpInitializeFail {
@@ -336,8 +311,7 @@ impl TargetEdge {
                                 })
                                 .await
                             {
-                                error!("Transport [{transport_id}] fail to send udp initialize success message to agent becacuse of error.");
-                                error!("{}", Backtrace::generate_with_source(&e));
+                                error!("transport [{transport_id}] fail to send udp initialize success message to agent becacuse of error: {e:?}");
                             };
                             continue;
                         },
@@ -365,12 +339,10 @@ impl TargetEdge {
                                     })
                                     .await
                                 {
-                                    error!("Transport [{transport_id_clone}] fail to send udp relay success message to agent becacuse of error.");
-                                    error!("{}", Backtrace::generate_with_source(&e));
+                                    error!("transport [{transport_id_clone}] fail to send udp relay success message to agent becacuse of error: {e:?}");
                                 };
                             } else {
                                 error!("Fail to receive udp data from target because of error.");
-                                error!("{}", Backtrace::generate());
                             };
                         }
                     });
@@ -385,8 +357,7 @@ impl TargetEdge {
                         })
                         .await
                     {
-                        error!("Transport [{transport_id}] fail to send udp initialize success message to agent becacuse of error.");
-                        error!("{}", Backtrace::generate_with_source(&e));
+                        error!("transport [{transport_id}] fail to send udp initialize success message to agent becacuse of error: {e:?}");
                     };
                 },
                 AgentToTargetDataType::UdpReplay {
@@ -395,17 +366,13 @@ impl TargetEdge {
                     user_token,
                     data,
                 } => {
-                    let current_target_udp_socket = match &mut target_udp_socket {
-                        None => {
-                            drop(target_to_agent_data_sender);
-                            return;
-                        },
-                        Some(v) => v,
+                    let Some(current_target_udp_socket) = &mut target_udp_socket else{
+                        drop(target_to_agent_data_sender);
+                        return;
                     };
                     let target_socket_addrs = match target_address.to_socket_addrs() {
                         Err(e) => {
-                            error!("Transport [{transport_id}] fail connect to target becacuse of error when convert target address.");
-                            error!("{}", Backtrace::generate_with_source(&e));
+                            error!("transport [{transport_id}] fail connect to target becacuse of error when convert target address: {e:?}");
                             continue;
                         },
                         Ok(v) => v,
@@ -423,8 +390,7 @@ impl TargetEdge {
                             })
                             .await
                         {
-                            error!("Transport [{transport_id}] fail to relay udp data fail message to agent becacuse of error.");
-                            error!("{}", Backtrace::generate_with_source(&e));
+                            error!("transport [{transport_id}] fail to relay udp data fail message to agent becacuse of error: {e:?}");
                         };
                         continue;
                     };

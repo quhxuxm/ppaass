@@ -8,7 +8,6 @@ use ppaass_protocol::{
     PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassMessageProxyPayloadTypeValue,
 };
 
-use snafu::{Backtrace, ErrorCompat, GenerateImplicitData};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tracing::{debug, error, info};
 
@@ -50,10 +49,7 @@ impl AgentEdge {
             loop {
                 let agent_message = match agent_message_stream.try_next().await {
                     Err(e) => {
-                        error!("Fail to send agent to target data because of error.");
-                        if let Some(stack_trace) = ErrorCompat::backtrace(&e) {
-                            error!("{}", stack_trace);
-                        }
+                        error!("fail to send agent to target data because of error:{e:?}");
                         return;
                     },
                     Ok(v) => v,
@@ -71,15 +67,9 @@ impl AgentEdge {
                     },
                     Some(v) => v.split(),
                 };
-                let agent_message_payload: PpaassMessagePayload = match payload_bytes.try_into() {
-                    Err(e) => {
-                        error!("Fail to send agent to target data because of error.");
-                        if let Some(stack_trace) = ErrorCompat::backtrace(&e) {
-                            error!("{}", stack_trace);
-                        }
-                        return;
-                    },
-                    Ok(v) => v,
+                let Result::<PpaassMessagePayload, anyhow::Error>::Ok(agent_message_payload) = payload_bytes.try_into() else {
+                    error!("fail to send agent to target data because of error.");
+                    return;
                 };
                 let PpaassMessagePayloadParts {
                     payload_type,
@@ -104,13 +94,9 @@ impl AgentEdge {
                         data_type: AgentToTargetDataType::ConnectionKeepAlive { user_token },
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpInitialize) => {
-                        let target_address = match target_address {
-                            None => {
-                                error!("Fail to send agent to target data.");
-                                error!("{}", Backtrace::generate());
-                                return;
-                            },
-                            Some(v) => v,
+                        let Some(target_address) =  target_address else{
+                            error!("Fail to send agent to target data.");
+                            return;
                         };
                         AgentToTargetData {
                             data_type: AgentToTargetDataType::TcpInitialize {
@@ -121,13 +107,9 @@ impl AgentEdge {
                         }
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpRelay) => {
-                        let target_address = match target_address {
-                            None => {
-                                error!("Fail to send agent to target data.");
-                                error!("{}", Backtrace::generate());
-                                return;
-                            },
-                            Some(v) => v,
+                        let Some(target_address) = target_address else {
+                            error!("Fail to send agent to target data.");
+                            return;
                         };
                         AgentToTargetData {
                             data_type: AgentToTargetDataType::TcpReplay {
@@ -142,13 +124,9 @@ impl AgentEdge {
                         data_type: AgentToTargetDataType::TcpDestory,
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpInitialize) => {
-                        let target_address = match target_address {
-                            None => {
-                                error!("Fail to send agent to target data.");
-                                error!("{}", Backtrace::generate());
+                        let Some(target_address) = target_address else{
+                           error!("Fail to send agent to target data.");
                                 return;
-                            },
-                            Some(v) => v,
                         };
                         AgentToTargetData {
                             data_type: AgentToTargetDataType::UdpInitialize {
@@ -159,13 +137,9 @@ impl AgentEdge {
                         }
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpRelay) => {
-                        let target_address = match target_address {
-                            None => {
-                                error!("Fail to send agent to target data.");
-                                error!("{}", Backtrace::generate());
+                        let Some(target_address) = target_address else{
+                           error!("Fail to send agent to target data.");
                                 return;
-                            },
-                            Some(v) => v,
                         };
                         AgentToTargetData {
                             data_type: AgentToTargetDataType::UdpReplay {
@@ -181,13 +155,11 @@ impl AgentEdge {
                     },
                     invalid_type => {
                         error!("Fail to parse agent payload type because of receove invalid data: {invalid_type:?}");
-                        error!("{}", Backtrace::generate());
                         return;
                     },
                 };
                 if let Err(e) = agent_to_target_data_sender.send(agent_to_target_data).await {
                     error!("Fail to send agent to target data because of sender error: {e:?}");
-                    error!("{}", Backtrace::generate());
                     return;
                 };
             }
@@ -195,12 +167,9 @@ impl AgentEdge {
         let transport_id = self.transport_id.clone();
         tokio::spawn(async move {
             loop {
-                let TargetToAgentData { data_type } = match target_to_agent_data_receiver.recv().await {
-                    None => {
-                        info!("Transport [{transport_id}] target edge disconnected.");
+                let Some(TargetToAgentData { data_type }) = target_to_agent_data_receiver.recv().await else{
+                      info!("Transport [{transport_id}] target edge disconnected.");
                         return;
-                    },
-                    Some(v) => v,
                 };
                 let (message_payload, user_token) = match data_type {
                     TargetToAgentDataType::TcpInitializeSuccess {
@@ -340,9 +309,6 @@ impl AgentEdge {
                 let message_payload_bytes = match message_payload.try_into() {
                     Err(e) => {
                         error!("Transport [{transport_id}] fail to initialize tcp connection because of error: {e:?}.");
-                        if let Some(stack_trace) = ErrorCompat::backtrace(&e) {
-                            error!("{}", stack_trace);
-                        }
                         return;
                     },
                     Ok(v) => v,
@@ -354,9 +320,6 @@ impl AgentEdge {
                 );
                 if let Err(e) = agent_message_sink.send(message).await {
                     error!("Transport [{transport_id}] fail to send message to agent because of error: {e:?}.");
-                    if let Some(stack_trace) = ErrorCompat::backtrace(&e) {
-                        error!("{}", stack_trace);
-                    }
                     return;
                 };
             }

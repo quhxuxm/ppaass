@@ -1,8 +1,6 @@
-use crate::error::JsonDeserializeError;
-use crate::error::JsonSerializeError;
+use anyhow::Context;
 use ppaass_common::generate_uuid;
 use serde_derive::{Deserialize, Serialize};
-use snafu::ResultExt;
 
 mod address;
 mod dns;
@@ -15,7 +13,7 @@ pub use encryption::*;
 pub use payload::*;
 pub use types::*;
 
-use crate::{error::Error, serializer::vec_u8_to_base64};
+use crate::serializer::vec_u8_to_base64;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -78,23 +76,19 @@ impl From<PpaassMessageParts> for PpaassMessage {
 }
 
 impl TryFrom<Vec<u8>> for PpaassMessage {
-    type Error = Error;
+    type Error = anyhow::Error;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        let result = serde_json::from_slice(&value).context(JsonDeserializeError {
-            message: "Fail to deserialize bytes to PpaassMessage object",
-        })?;
+        let result = serde_json::from_slice(&value).context("fail to deserialize bytes to PpaassMessage object")?;
         Ok(result)
     }
 }
 
 impl TryFrom<PpaassMessage> for Vec<u8> {
-    type Error = Error;
+    type Error = anyhow::Error;
 
     fn try_from(value: PpaassMessage) -> Result<Self, Self::Error> {
-        let result = serde_json::to_vec(&value).context(JsonSerializeError {
-            message: "fail to serialize PpaassMessage object to bytes",
-        })?;
+        let result = serde_json::to_vec(&value).context("fail to serialize PpaassMessage object to bytes")?;
         Ok(result)
     }
 }

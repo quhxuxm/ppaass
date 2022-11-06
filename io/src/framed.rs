@@ -4,14 +4,14 @@ use std::{
     task::{Context, Poll},
 };
 
+use crate::codec::PpaassMessageCodec;
+use anyhow::Result;
 use futures::{ready, Sink, Stream};
 use ppaass_common::RsaCryptoFetcher;
 use ppaass_protocol::PpaassMessage;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncWrite;
 use tokio_util::codec::Framed;
-
-use crate::{codec::PpaassMessageCodec, error::Error};
 
 #[derive(Debug)]
 pub struct PpaassMessageFramed<T, R>
@@ -27,7 +27,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
     R: RsaCryptoFetcher,
 {
-    pub fn new(stream: T, compress: bool, buffer_size: usize, rsa_crypto_fetcher: Arc<R>) -> Result<Self, Error> {
+    pub fn new(stream: T, compress: bool, buffer_size: usize, rsa_crypto_fetcher: Arc<R>) -> Result<Self> {
         let framed = Framed::with_capacity(stream, PpaassMessageCodec::new(compress, rsa_crypto_fetcher), buffer_size);
         Ok(Self { inner: framed })
     }
@@ -38,7 +38,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
     R: RsaCryptoFetcher,
 {
-    type Item = Result<PpaassMessage, Error>;
+    type Item = Result<PpaassMessage>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let framed_poll_next_result = ready!(Pin::new(&mut self.inner).poll_next(cx));
@@ -55,21 +55,21 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
     R: RsaCryptoFetcher,
 {
-    type Error = Error;
+    type Error = anyhow::Error;
 
-    fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+    fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         Pin::new(&mut self.inner).poll_ready(cx)
     }
 
-    fn start_send(mut self: Pin<&mut Self>, item: PpaassMessage) -> Result<(), Error> {
+    fn start_send(mut self: Pin<&mut Self>, item: PpaassMessage) -> Result<()> {
         Pin::new(&mut self.inner).start_send(item)
     }
 
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         Pin::new(&mut self.inner).poll_flush(cx)
     }
 
-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         Pin::new(&mut self.inner).poll_close(cx)
     }
 }

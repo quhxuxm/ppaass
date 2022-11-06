@@ -6,7 +6,7 @@ use serde_derive::{Deserialize, Serialize};
 pub enum PpaassMessagePayloadEncryption {
     Plain,
     Aes(#[serde(with = "vec_u8_to_base64")] Vec<u8>),
-    Bloofish(#[serde(with = "vec_u8_to_base64")] Vec<u8>),
+    Blowfish(#[serde(with = "vec_u8_to_base64")] Vec<u8>),
 }
 
 pub trait PpaassMessagePayloadEncryptionSelector {

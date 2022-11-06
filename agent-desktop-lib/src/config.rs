@@ -26,8 +26,8 @@ impl AgentServerConfig {
         self.proxy_addresses = Some(proxy_addresses)
     }
 
-    pub(crate) fn get_proxy_addresses(&self) -> &Option<Vec<String>> {
-        &self.proxy_addresses
+    pub(crate) fn get_proxy_addresses(&self) -> Option<&Vec<String>> {
+        self.proxy_addresses.as_ref()
     }
     pub(crate) fn set_ipv6(&mut self, ipv6: bool) {
         self.ipv6 = Some(ipv6)

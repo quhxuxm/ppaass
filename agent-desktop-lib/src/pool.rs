@@ -1,18 +1,33 @@
-use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::{marker::PhantomData, net::SocketAddr};
 
 use async_trait::async_trait;
 use deadpool::managed::{self, Manager};
+use futures::StreamExt;
 use ppaass_io::PpaassMessageFramed;
-use tokio::net::TcpStream;
+use snafu::ResultExt;
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    net::TcpStream,
+};
 use tracing::error;
 
 use crate::error::ConfigurationItemMissedError;
+use crate::error::InvalidStatusError;
+use crate::error::PpaassIoError;
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, error::Error};
 pub(crate) struct ProxyServerConnectionPool {
     configuration: Arc<AgentServerConfig>,
     rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
+}
+impl ProxyServerConnectionPool {
+    pub(crate) fn new(configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>) -> Self {
+        Self {
+            configuration,
+            rsa_crypto_fetcher,
+        }
+    }
 }
 
 #[async_trait]
@@ -20,7 +35,7 @@ impl Manager for ProxyServerConnectionPool {
     type Type = PpaassMessageFramed<TcpStream, AgentServerRsaCryptoFetcher>;
     type Error = Error;
 
-    async fn create(&self) -> Result<PpaassMessageFramed<TcpStream, AgentServerRsaCryptoFetcher>, Error> {
+    async fn create(&self) -> Result<Self::Type, Error> {
         let proxy_addresses_configuration = self
             .configuration
             .get_proxy_addresses()
@@ -39,18 +54,18 @@ impl Manager for ProxyServerConnectionPool {
         }
         if proxy_addresses.is_empty() {
             error!("No available proxy address for runtime to use.");
-            if let Err(e) = command_result_sender.send(Err(anyhow!("No available proxy address for runtime to use."))) {
-                error!("Fail to send command result because of error:{:#?}", e)
-            };
-            return;
+            return InvalidStatusError {
+                message: "no available proxy addresses",
+            }
+            .fail();
         }
-        let proxy_addresses = Arc::new(proxy_addresses);
         let proxy_tcp_stream = TcpStream::connect(&proxy_addresses.as_slice()).await?;
-        PpaassMessageFramed::new(proxy_tcp_stream, compress, buffer_size, rsa_crypto_fetcher);
-        Ok(Computer {})
+        PpaassMessageFramed::new(proxy_tcp_stream, self.configuration.get_compress(), 1024 * 64, self.rsa_crypto_fetcher.clone()).context(PpaassIoError {
+            message: "fail to create ppaass message framed",
+        })
     }
 
-    async fn recycle(&self, _: &mut TcpStream) -> managed::RecycleResult<Error> {
+    async fn recycle(&self, _: &mut Self::Type) -> managed::RecycleResult<Error> {
         Ok(())
     }
 }

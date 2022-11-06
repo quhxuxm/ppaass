@@ -3,8 +3,12 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use futures::{SinkExt, StreamExt};
+use ppaass_io::PpaassMessageFramed;
 use snafu::ResultExt;
-use tokio::{io::{AsyncRead, AsyncWrite}, net::TcpStream};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    net::TcpStream,
+};
 use tokio_util::codec::{Framed, FramedParts};
 use tracing::debug;
 
@@ -16,12 +20,13 @@ use crate::{
         codec::Socks5InitCommandContentCodec,
         message::{Socks5AuthCommandContentParts, Socks5AuthCommandResultContent, Socks5InitCommandContentParts},
     },
+    pool::ProxyServerConnectionPool,
 };
 
 use self::{codec::Socks5AuthCommandContentCodec, message::Socks5AuthCommandContent};
 
 use super::ClientFlow;
-use crate::error::IoError;
+use crate::error::CreateConnectionPoolError;
 
 mod codec;
 mod message;
@@ -76,7 +81,11 @@ where
         let Socks5InitCommandContentParts { request_type, dest_address } = init_message.split();
         debug!("Socks5 connection in init process, request type: {request_type:?}, destination address: {dest_address:?}");
 
-        deadpool::managed::Pool::<TcpStream>::builder(manager)
+        let proxy_coneection_pool_builder = deadpool::managed::Pool::<ProxyServerConnectionPool>::builder(ProxyServerConnectionPool::new(
+            self.configuration.clone(),
+            self.rsa_crypto_fetcher.clone(),
+        ));
+        let proxy_connection_pool = proxy_coneection_pool_builder.build().context(CreateConnectionPoolError { message: "" })?;
         todo!()
     }
 }

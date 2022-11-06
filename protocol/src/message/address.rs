@@ -1,9 +1,9 @@
-use crate::error::IoError;
+use crate::serializer::array_u8_l16_to_base64;
 use crate::serializer::array_u8_l4_to_base64;
-use crate::{error::Error, serializer::array_u8_l16_to_base64};
+use anyhow::Context;
 use bytes::Buf;
 use serde_derive::{Deserialize, Serialize};
-use snafu::ResultExt;
+
 use std::net::{IpAddr, SocketAddr};
 use std::{
     io::Cursor,
@@ -58,7 +58,7 @@ impl ToSocketAddrs for PpaassProtocolAddress {
 }
 
 impl TryFrom<&PpaassProtocolAddress> for Vec<SocketAddr> {
-    type Error = Error;
+    type Error = anyhow::Error;
 
     fn try_from(value: &PpaassProtocolAddress) -> Result<Self, Self::Error> {
         match value {
@@ -89,7 +89,7 @@ impl TryFrom<&PpaassProtocolAddress> for Vec<SocketAddr> {
                 let address_string = format!("{}:{}", host, port);
                 let addresses = address_string
                     .to_socket_addrs()
-                    .context(IoError { message: address_string })?
+                    .context(format!("fail to parse domain name, host: {host}, port: {port}"))?
                     .collect::<Vec<_>>();
                 Ok(addresses)
             },
@@ -98,7 +98,7 @@ impl TryFrom<&PpaassProtocolAddress> for Vec<SocketAddr> {
 }
 
 impl TryFrom<PpaassProtocolAddress> for Vec<SocketAddr> {
-    type Error = Error;
+    type Error = anyhow::Error;
     fn try_from(value: PpaassProtocolAddress) -> Result<Self, Self::Error> {
         (&value).try_into()
     }

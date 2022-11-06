@@ -6,6 +6,7 @@ version = "0.1.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = {workspace = true, features = ["backtrace"]}
 bytes = {workspace = true}
 futures = {workspace = true}
 futures-util = {workspace = true, features = ["alloc"]}
@@ -14,7 +15,6 @@ ppaass-common = {path = "../common"}
 ppaass-protocol = {path = "../protocol"}
 pretty-hex = {workspace = true}
 serde = {workspace = true}
-snafu = {workspace = true}
 tokio = {workspace = true, features = ["macros", "time", "net", "io-util", "rt-multi-thread"]}
 tokio-util = {workspace = true, features = ["codec"]}
 tracing = {workspace = true}

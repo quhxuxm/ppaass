@@ -1,13 +1,11 @@
 use std::{sync::Arc, time::Duration};
 
-use snafu::{ErrorCompat, OptionExt, ResultExt};
 use tokio::{net::TcpListener, sync::Semaphore};
 use tracing::{debug, error, info};
 
-use crate::error::IoError;
-
-use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, error::Error};
-use crate::{error::ConfigurationItemMissedError, flow::dispatcher::FlowDispatcher};
+use crate::flow::dispatcher::FlowDispatcher;
+use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher};
+use anyhow::{Context, Result};
 
 pub(crate) struct AgentServer {
     configuration: Arc<AgentServerConfig>,
@@ -23,24 +21,28 @@ impl AgentServer {
         }
     }
 
-    pub(crate) async fn start(&mut self) -> Result<(), Error> {
+    pub(crate) async fn start(&mut self) -> Result<()> {
         let server_bind_addr = if self.configuration.get_ipv6() {
             format!(
                 "::1:{}",
-                self.configuration.get_port().context(ConfigurationItemMissedError { message: "port(ip v6)" })?
+                self.configuration
+                    .get_port()
+                    .context("can not get port from agent configuration file (ip v6)")?
             )
         } else {
             format!(
                 "0.0.0.0:{}",
-                self.configuration.get_port().context(ConfigurationItemMissedError { message: "port(ip v4)" })?
+                self.configuration
+                    .get_port()
+                    .context("can not get port from agent configuration file (ip v4)")?
             )
         };
         let rsa_crypto_fetcher = Arc::new(AgentServerRsaCryptoFetcher::new(self.configuration.clone())?);
 
         info!("Agent server start to serve request on address: {server_bind_addr}.");
-        let tcp_listener = TcpListener::bind(&server_bind_addr).await.context(IoError {
-            message: "Fail to bind tcp listener for agent server",
-        })?;
+        let tcp_listener = TcpListener::bind(&server_bind_addr)
+            .await
+            .context("fail to bind tcp listener for agent server")?;
         loop {
             let client_tcp_connection_accept_semaphore = self.client_tcp_connection_accept_semaphore.clone();
             let client_tcp_connection_accept_permit = match tokio::time::timeout(
@@ -51,23 +53,23 @@ impl AgentServer {
             {
                 Ok(Ok(v)) => v,
                 Ok(Err(e)) => {
-                    error!("Fail to accept client tcp connection because of error: {e:?}");
+                    error!("fail to accept client tcp connection because of error: {e:?}");
                     continue;
                 },
                 Err(e) => {
-                    error!("Fail to accept client tcp connection because of error: {e:?}");
+                    error!("fail to accept client tcp connection because of error: {e:?}");
                     continue;
                 },
             };
             let (client_tcp_stream, client_socket_address) = match tcp_listener.accept().await {
                 Ok(v) => v,
                 Err(e) => {
-                    error!("Fail to accept client tcp connection because of error: {e:?}");
+                    error!("fail to accept client tcp connection because of error: {e:?}");
                     continue;
                 },
             };
             if let Err(e) = client_tcp_stream.set_nodelay(true) {
-                error!("Fail to accept client tcp connection because of error: {e:?}");
+                error!("fail to set no delay on client tcp connection because of error: {e:?}");
                 continue;
             }
             debug!("Accept client tcp connection on address: {}", client_socket_address);
