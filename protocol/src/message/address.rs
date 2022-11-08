@@ -10,7 +10,7 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6, ToSocketAddrs},
 };
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum PpaassProtocolAddress {
+pub enum PpaassNetAddress {
     IpV4 {
         #[serde(with = "array_u8_l4_to_base64")]
         ip: [u8; 4],
@@ -48,7 +48,7 @@ impl Iterator for SocketAddrIter {
     }
 }
 
-impl ToSocketAddrs for PpaassProtocolAddress {
+impl ToSocketAddrs for PpaassNetAddress {
     type Iter = SocketAddrIter;
 
     fn to_socket_addrs(&self) -> std::io::Result<Self::Iter> {
@@ -57,16 +57,16 @@ impl ToSocketAddrs for PpaassProtocolAddress {
     }
 }
 
-impl TryFrom<&PpaassProtocolAddress> for Vec<SocketAddr> {
+impl TryFrom<&PpaassNetAddress> for Vec<SocketAddr> {
     type Error = anyhow::Error;
 
-    fn try_from(value: &PpaassProtocolAddress) -> Result<Self, Self::Error> {
+    fn try_from(value: &PpaassNetAddress) -> Result<Self, Self::Error> {
         match value {
-            PpaassProtocolAddress::IpV4 { ip, port } => {
+            PpaassNetAddress::IpV4 { ip, port } => {
                 let socket_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(ip[0], ip[1], ip[2], ip[3]), *port));
                 Ok(vec![socket_addr])
             },
-            PpaassProtocolAddress::IpV6 { ip, port } => {
+            PpaassNetAddress::IpV6 { ip, port } => {
                 let mut ip_cursor = Cursor::new(ip);
                 let socket_addr = SocketAddr::V6(SocketAddrV6::new(
                     Ipv6Addr::new(
@@ -85,7 +85,7 @@ impl TryFrom<&PpaassProtocolAddress> for Vec<SocketAddr> {
                 ));
                 Ok(vec![socket_addr])
             },
-            PpaassProtocolAddress::Domain { host, port } => {
+            PpaassNetAddress::Domain { host, port } => {
                 let address_string = format!("{}:{}", host, port);
                 let addresses = address_string
                     .to_socket_addrs()
@@ -97,14 +97,14 @@ impl TryFrom<&PpaassProtocolAddress> for Vec<SocketAddr> {
     }
 }
 
-impl TryFrom<PpaassProtocolAddress> for Vec<SocketAddr> {
+impl TryFrom<PpaassNetAddress> for Vec<SocketAddr> {
     type Error = anyhow::Error;
-    fn try_from(value: PpaassProtocolAddress) -> Result<Self, Self::Error> {
+    fn try_from(value: PpaassNetAddress) -> Result<Self, Self::Error> {
         (&value).try_into()
     }
 }
 
-impl From<&SocketAddr> for PpaassProtocolAddress {
+impl From<&SocketAddr> for PpaassNetAddress {
     fn from(value: &SocketAddr) -> Self {
         let ip_address = value.ip();
         match ip_address {
@@ -120,7 +120,7 @@ impl From<&SocketAddr> for PpaassProtocolAddress {
     }
 }
 
-impl From<SocketAddr> for PpaassProtocolAddress {
+impl From<SocketAddr> for PpaassNetAddress {
     fn from(value: SocketAddr) -> Self {
         (&value).into()
     }

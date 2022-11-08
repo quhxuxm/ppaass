@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::Context;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use ppaass_protocol::PpaassProtocolAddress;
+use ppaass_protocol::PpaassNetAddress;
 
 mod auth;
 mod init;
@@ -205,22 +205,22 @@ impl From<Socks5Address> for Bytes {
     }
 }
 
-impl From<Socks5Address> for PpaassProtocolAddress {
+impl From<Socks5Address> for PpaassNetAddress {
     fn from(value: Socks5Address) -> Self {
         match value {
-            Socks5Address::IpV4(host, port) => PpaassProtocolAddress::IpV4 { ip: host, port },
-            Socks5Address::IpV6(host, port) => PpaassProtocolAddress::IpV6 { ip: host, port },
-            Socks5Address::Domain(host, port) => PpaassProtocolAddress::Domain { host, port },
+            Socks5Address::IpV4(host, port) => PpaassNetAddress::IpV4 { ip: host, port },
+            Socks5Address::IpV6(host, port) => PpaassNetAddress::IpV6 { ip: host, port },
+            Socks5Address::Domain(host, port) => PpaassNetAddress::Domain { host, port },
         }
     }
 }
 
-impl From<PpaassProtocolAddress> for Socks5Address {
-    fn from(net_addr: PpaassProtocolAddress) -> Self {
+impl From<PpaassNetAddress> for Socks5Address {
+    fn from(net_addr: PpaassNetAddress) -> Self {
         match net_addr {
-            PpaassProtocolAddress::IpV4 { ip, port } => Socks5Address::IpV4(ip, port),
-            PpaassProtocolAddress::IpV6 { ip, port } => Socks5Address::IpV6(ip, port),
-            PpaassProtocolAddress::Domain { host, port } => Socks5Address::Domain(host, port),
+            PpaassNetAddress::IpV4 { ip, port } => Socks5Address::IpV4(ip, port),
+            PpaassNetAddress::IpV6 { ip, port } => Socks5Address::IpV6(ip, port),
+            PpaassNetAddress::Domain { host, port } => Socks5Address::Domain(host, port),
         }
     }
 }

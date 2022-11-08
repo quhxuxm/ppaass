@@ -1,8 +1,8 @@
 use std::error::Error;
 
 use ppaass_protocol::{
-    PayloadAdditionalInfoKey, PayloadAdditionalInfoValue, PpaassMessageAgentPayloadTypeValue, PpaassMessagePayload, PpaassMessagePayloadEncryption,
-    PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassProtocolAddress,
+    tcp_initialize::TcpInitializeRequestPayload, PpaassMessageAgentPayloadTypeValue, PpaassMessagePayload, PpaassMessagePayloadEncryption,
+    PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassNetAddress,
 };
 
 #[test]
@@ -14,25 +14,18 @@ fn test_serialize_message() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_serialize_message_payload() -> Result<(), Box<dyn Error>> {
-    let source_address = PpaassProtocolAddress::IpV4 { ip: [1, 2, 3, 4], port: 80 };
-    let target_address = PpaassProtocolAddress::IpV4 {
+    let src_address = PpaassNetAddress::IpV4 { ip: [1, 2, 3, 4], port: 80 };
+    let dest_address = PpaassNetAddress::IpV4 {
         ip: [10, 20, 30, 40],
         port: 800,
     };
-    let mut message_payload = PpaassMessagePayload::new(
-        Some(source_address),
-        Some(target_address),
+    let tcp_initialize_payload = TcpInitializeRequestPayload { src_address, dest_address };
+
+    let message_payload = PpaassMessagePayload::new(
         PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpInitialize),
-        vec![1; 100],
+        tcp_initialize_payload.try_into()?,
     );
-    message_payload.add_additional_info(
-        PayloadAdditionalInfoKey::ReferenceMessageId,
-        PayloadAdditionalInfoValue::ReferenceMessageIdValue("reference_message_id_01".to_string()),
-    );
-    message_payload.add_additional_info(
-        PayloadAdditionalInfoKey::ReferenceMessageId,
-        PayloadAdditionalInfoValue::ReferenceMessageIdValue("reference_message_id_02".to_string()),
-    );
+
     println!("{}", serde_json::to_string_pretty(&message_payload)?);
     let PpaassMessagePayloadParts { data, .. } = message_payload.split();
     println!("{:?}", data);

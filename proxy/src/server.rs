@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use crate::{common::AgentMessageFramed, config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher, transport::Transport};
+use crate::{common::AgentMessageFramed, config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher, tunnel::Tunnel};
 
 use anyhow::{Context, Result};
 use tokio::{net::TcpListener, sync::Semaphore};
@@ -8,16 +8,11 @@ use tracing::{debug, error, info};
 
 pub(crate) struct ProxyServer {
     configuration: Arc<ProxyServerConfig>,
-    agent_tcp_connection_accept_semaphore: Arc<Semaphore>,
 }
 
 impl ProxyServer {
     pub(crate) fn new(configuration: Arc<ProxyServerConfig>) -> Self {
-        let agent_max_connection_number = configuration.get_agent_max_connection_number();
-        Self {
-            configuration,
-            agent_tcp_connection_accept_semaphore: Arc::new(Semaphore::new(agent_max_connection_number)),
-        }
+        Self { configuration }
     }
 
     pub(crate) async fn start(&mut self) -> Result<()> {
@@ -33,14 +28,6 @@ impl ProxyServer {
             .await
             .context(format!("fail to bind tcp listener for proxy server: {server_bind_addr}"))?;
         loop {
-            let agent_tcp_connection_accept_semaphore = self.agent_tcp_connection_accept_semaphore.clone();
-            let Ok(Ok(agent_tcp_connection_accept_permit)) = tokio::time::timeout(
-                Duration::from_secs(self.configuration.get_agent_tcp_connection_accept_timout_seconds()),
-                agent_tcp_connection_accept_semaphore.acquire_owned(),
-            ).await else {
-                error!("fail to get agent tcp connection accept permit.");
-                continue;
-            };
             let Ok((agent_tcp_stream, agent_socket_address)) =tcp_listener.accept().await else{
                 error!("fail to accept agent tcp connection.");
                 continue;
@@ -56,10 +43,9 @@ impl ProxyServer {
                 proxy_server_rsa_crypto_fetcher.clone(),
             ) else{
                 error!("fail to generate agent message framed.");
-                drop(agent_tcp_connection_accept_permit);
                 continue;
             };
-            let transport = Transport::new(agent_message_framed, configuration, agent_tcp_connection_accept_permit);
+            let transport = Tunnel::new(agent_message_framed, configuration, agent_tcp_connection_accept_permit);
             transport.exec().await;
         }
     }

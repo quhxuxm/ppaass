@@ -9,25 +9,20 @@ pub enum PpaassMessageAgentPayloadTypeValue {
     UdpRelay,
     UdpDestory,
     DomainNameResolve,
-    ConnectionKeepAlive,
+    Heartbeat,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum PpaassMessageProxyPayloadTypeValue {
     TcpInitializeSuccess,
     TcpInitializeFail,
-    TcpRelaySuccess,
-    TcpRelayFail,
-    TcpDestorySuccess,
-    TcpDestoryFail,
+    TcpRelay,
     UdpInitializeSuccess,
     UdpInitializeFail,
-    UdpRelaySuccess,
-    UdpRelayFail,
-    UdpDestorySuccess,
+    UdpRelay,
     DomainNameResolveSuccess,
     DomainNameResolveFail,
-    ConnectionKeepAliveSuccess,
+    HeartbeatSuccess,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]

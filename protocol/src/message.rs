@@ -3,12 +3,10 @@ use ppaass_common::generate_uuid;
 use serde_derive::{Deserialize, Serialize};
 
 mod address;
-mod dns;
 mod encryption;
 mod payload;
 mod types;
 pub use address::*;
-pub use dns::*;
 pub use encryption::*;
 pub use payload::*;
 pub use types::*;

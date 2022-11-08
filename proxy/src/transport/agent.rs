@@ -90,7 +90,7 @@ impl AgentEdge {
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::DomainNameResolve) => AgentToTargetData {
                         data_type: AgentToTargetDataType::DomainNameResolve { data, user_token },
                     },
-                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::ConnectionKeepAlive) => AgentToTargetData {
+                    PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::Heartbeat) => AgentToTargetData {
                         data_type: AgentToTargetDataType::ConnectionKeepAlive { user_token },
                     },
                     PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpInitialize) => {
@@ -229,7 +229,7 @@ impl AgentEdge {
                         PpaassMessagePayload::new(
                             None,
                             None,
-                            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::ConnectionKeepAliveSuccess),
+                            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::HeartbeatSuccess),
                             vec![],
                         ),
                         user_token,
