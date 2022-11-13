@@ -11,7 +11,7 @@ use crate::common::ProxyServerPayloadEncryptionSelector;
 use crate::tunnel::tcp_session::TcpSession;
 use crate::{common::AgentMessageFramed, config::ProxyServerConfig};
 use anyhow::Result;
-use ppaass_protocol::tcp_destory::TcpDestroyRequestPayload;
+use ppaass_protocol::tcp_destroy::TcpDestroyRequestPayload;
 use ppaass_protocol::tcp_initialize::TcpInitializeRequestPayload;
 use ppaass_protocol::tcp_relay::TcpRelayPayload;
 use ppaass_protocol::{
