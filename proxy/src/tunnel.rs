@@ -103,7 +103,23 @@ impl TcpTunnel {
                         let request_id = domain_resolve_request.request_id;
                         let domain_name = domain_resolve_request.domain_name;
                         trace!("Receive agent domain resolve message, request id: {request_id}, domain name: {domain_name}");
-                        let resolved_ip_addresses = dns_lookup::lookup_host(&domain_name)?;
+                        let resolved_ip_addresses = match dns_lookup::lookup_host(&domain_name) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                error!("Fail to resolve domain name because of error: {e:?}");
+                                let domain_resolve_fail_response_encryption =
+                                    ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
+                                let domain_resolve_fail_response = MessageUtil::create_proxy_domain_resolve_fail_response(
+                                    user_token,
+                                    request_id,
+                                    domain_name,
+                                    domain_resolve_fail_response_encryption,
+                                )?;
+                                let mut agent_message_framed_write = agent_message_framed_write.lock().await;
+                                agent_message_framed_write.send(domain_resolve_fail_response).await?;
+                                return Ok::<_, anyhow::Error>(());
+                            },
+                        };
                         debug!("Success resolve domain to ip addresses, request id: {request_id}, domain name:{domain_name}, resolved ip addresses: {resolved_ip_addresses:?}");
                         let resolved_ip_addresses = resolved_ip_addresses
                             .into_iter()
@@ -138,13 +154,14 @@ impl TcpTunnel {
                         dest_address.clone(),
                     )
                     .await?;
-                    self.tcp_session_container.insert(format!("{src_address}=>{dest_address}"), tcp_session);
+                    self.tcp_session_container
+                        .insert(TcpSession::generate_key(src_address, dest_address), tcp_session);
                 },
                 PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpRelay) => {
                     let tcp_relay_payload: TcpRelayPayload = agent_message_payload_data.try_into()?;
                     let src_address = tcp_relay_payload.src_address;
                     let dest_address = tcp_relay_payload.dest_address;
-                    let tcp_session_key = format!("{src_address}=>{dest_address}");
+                    let tcp_session_key = TcpSession::generate_key(src_address, dest_address);
                     let data = tcp_relay_payload.data;
                     let Some(tcp_session) = self.tcp_session_container.get_mut(&tcp_session_key) else {
                         return Err(anyhow::anyhow!(format!( "Tcp session not exist for {tcp_session_key}")));
@@ -155,7 +172,7 @@ impl TcpTunnel {
                     let tcp_destroy_request: TcpDestroyRequestPayload = agent_message_payload_data.try_into()?;
                     let src_address = tcp_destroy_request.src_address;
                     let dest_address = tcp_destroy_request.dest_address;
-                    let tcp_session_key = format!("{src_address}=>{dest_address}");
+                    let tcp_session_key = TcpSession::generate_key(src_address, dest_address);
                     if let None = self.tcp_session_container.remove(&tcp_session_key) {
                         return Err(anyhow::anyhow!(format!("Tcp session not exist for {tcp_session_key}")));
                     };
