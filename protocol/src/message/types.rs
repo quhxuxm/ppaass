@@ -4,7 +4,7 @@ use serde_derive::{Deserialize, Serialize};
 pub enum PpaassMessageAgentPayloadTypeValue {
     TcpInitialize,
     TcpRelay,
-    TcpDestory,
+    TcpDestroy,
     UdpInitialize,
     UdpRelay,
     UdpDestory,

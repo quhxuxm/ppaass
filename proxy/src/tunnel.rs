@@ -11,7 +11,7 @@ use crate::common::ProxyServerPayloadEncryptionSelector;
 use crate::tunnel::tcp_session::TcpSession;
 use crate::{common::AgentMessageFramed, config::ProxyServerConfig};
 use anyhow::Result;
-use ppaass_protocol::tcp_destory::TcpDestoryRequestPayload;
+use ppaass_protocol::tcp_destory::TcpDestroyRequestPayload;
 use ppaass_protocol::tcp_initialize::TcpInitializeRequestPayload;
 use ppaass_protocol::tcp_relay::TcpRelayPayload;
 use ppaass_protocol::{
@@ -151,14 +151,15 @@ impl TcpTunnel {
                     };
                     tcp_session.forward(&data).await?;
                 },
-                PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpDestory) => {
-                    let tcp_destory_request: TcpDestoryRequestPayload = agent_message_payload_data.try_into()?;
-                    let src_address = tcp_destory_request.src_address;
-                    let dest_address = tcp_destory_request.dest_address;
+                PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpDestroy) => {
+                    let tcp_destroy_request: TcpDestroyRequestPayload = agent_message_payload_data.try_into()?;
+                    let src_address = tcp_destroy_request.src_address;
+                    let dest_address = tcp_destroy_request.dest_address;
                     let tcp_session_key = format!("{src_address}=>{dest_address}");
                     if let None = self.tcp_session_container.remove(&tcp_session_key) {
                         return Err(anyhow::anyhow!(format!("Tcp session not exist for {tcp_session_key}")));
                     };
+                    debug!("Tcp session [{tcp_session_key}] destroyed.")
                 },
                 PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpInitialize) => {
                     todo!();
