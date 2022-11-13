@@ -68,21 +68,26 @@ pub(crate) mod array_u8_l16_to_base64 {
     }
 }
 
-pub(crate) mod vec_array_u8_l4_to_base64 {
+pub(crate) mod option_vec_array_u8_l4_to_base64 {
 
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
     use tracing::error;
 
-    pub fn serialize<S: Serializer>(v: &Vec<[u8; 4]>, s: S) -> Result<S::Ok, S::Error> {
-        let mut base64_container = vec![];
-        v.iter().for_each(|v| {
-            let base64 = base64::encode(v);
-            base64_container.push(base64);
-        });
-        Vec::serialize(&base64_container, s)
+    pub fn serialize<S: Serializer>(v: &Option<Vec<[u8; 4]>>, s: S) -> Result<S::Ok, S::Error> {
+        match v {
+            None => None::<Vec<[u8; 4]>>.serialize(s),
+            Some(v) => {
+                let mut base64_container = vec![];
+                v.iter().for_each(|v| {
+                    let base64 = base64::encode(v);
+                    base64_container.push(base64);
+                });
+                Vec::serialize(&base64_container, s)
+            },
+        }
     }
 
-    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<[u8; 4]>, D::Error> {
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<[u8; 4]>>, D::Error> {
         let base64_vec = Vec::<String>::deserialize(d)?;
         let mut result = vec![];
         base64_vec.iter().for_each(|base64| {
@@ -100,6 +105,6 @@ pub(crate) mod vec_array_u8_l4_to_base64 {
             ipv4.copy_from_slice(&decode_result);
             result.push(ipv4);
         });
-        Ok(result)
+        Ok(Some(result))
     }
 }

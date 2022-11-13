@@ -12,6 +12,13 @@ pub use payload::*;
 pub use types::*;
 
 use crate::serializer::vec_u8_to_base64;
+use anyhow::Result;
+use heartbeat::HeartbeatRequestPayload;
+
+use self::{
+    domain_resolve::{DomainResolveRequestPayload, DomainResolveResponsePayload},
+    heartbeat::HeartbeatResponsePayload,
+};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -88,5 +95,81 @@ impl TryFrom<PpaassMessage> for Vec<u8> {
     fn try_from(value: PpaassMessage) -> Result<Self, Self::Error> {
         let result = serde_json::to_vec(&value).context("fail to serialize PpaassMessage object to bytes")?;
         Ok(result)
+    }
+}
+
+pub struct MessageUtil;
+
+impl MessageUtil {
+    pub fn create_agent_heartbeat_request(
+        user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress, payload_encryption: PpaassMessagePayloadEncryption,
+    ) -> Result<PpaassMessage> {
+        let heartbeat_request = HeartbeatRequestPayload { src_address, dest_address };
+        let message_payload = PpaassMessagePayload::new(
+            PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::Heartbeat),
+            heartbeat_request.try_into()?,
+        );
+        let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
+        Ok(message)
+    }
+
+    pub fn create_proxy_heartbeat_response(
+        user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress, payload_encryption: PpaassMessagePayloadEncryption,
+    ) -> Result<PpaassMessage> {
+        let heartbeat_response = HeartbeatResponsePayload { src_address, dest_address };
+        let message_payload = PpaassMessagePayload::new(
+            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::HeartbeatSuccess),
+            heartbeat_response.try_into()?,
+        );
+        let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
+        Ok(message)
+    }
+
+    pub fn create_agent_domain_resolve_request(
+        user_token: impl AsRef<str>, request_id: impl AsRef<str>, domain_name: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption,
+    ) -> Result<PpaassMessage> {
+        let domain_resolve_request = DomainResolveRequestPayload {
+            request_id: request_id.as_ref().to_string(),
+            domain_name: domain_name.as_ref().to_string(),
+        };
+        let message_payload = PpaassMessagePayload::new(
+            PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::DomainNameResolve),
+            domain_resolve_request.try_into()?,
+        );
+        let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
+        Ok(message)
+    }
+
+    pub fn create_proxy_domain_resolve_success_response(
+        user_token: impl AsRef<str>, request_id: impl AsRef<str>, domain_name: impl AsRef<str>, resolved_ip_addresses: Vec<[u8; 4]>,
+        payload_encryption: PpaassMessagePayloadEncryption,
+    ) -> Result<PpaassMessage> {
+        let domain_resolve_response = DomainResolveResponsePayload {
+            request_id: request_id.as_ref().to_string(),
+            domain_name: domain_name.as_ref().to_string(),
+            resolved_ip_addresses: Some(resolved_ip_addresses),
+        };
+        let message_payload = PpaassMessagePayload::new(
+            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::DomainNameResolveSuccess),
+            domain_resolve_response.try_into()?,
+        );
+        let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
+        Ok(message)
+    }
+
+    pub fn create_proxy_domain_resolve_fail_response(
+        user_token: impl AsRef<str>, request_id: impl AsRef<str>, domain_name: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption,
+    ) -> Result<PpaassMessage> {
+        let domain_resolve_response = DomainResolveResponsePayload {
+            request_id: request_id.as_ref().to_string(),
+            domain_name: domain_name.as_ref().to_string(),
+            resolved_ip_addresses: None,
+        };
+        let message_payload = PpaassMessagePayload::new(
+            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::DomainNameResolveFail),
+            domain_resolve_response.try_into()?,
+        );
+        let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
+        Ok(message)
     }
 }

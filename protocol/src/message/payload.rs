@@ -4,6 +4,7 @@ use serde_derive::{Deserialize, Serialize};
 use crate::{serializer::vec_u8_to_base64, PpaassMessagePayloadType, PpaassNetAddress};
 
 pub mod domain_resolve;
+pub mod heartbeat;
 pub mod tcp_destory;
 pub mod tcp_initialize;
 pub mod tcp_relay;

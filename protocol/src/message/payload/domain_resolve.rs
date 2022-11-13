@@ -1,7 +1,7 @@
 use anyhow::Context;
 use serde_derive::{Deserialize, Serialize};
 
-use crate::serializer::vec_array_u8_l4_to_base64;
+use crate::serializer::option_vec_array_u8_l4_to_base64;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -31,8 +31,8 @@ impl TryFrom<DomainResolveRequestPayload> for Vec<u8> {
 pub struct DomainResolveResponsePayload {
     pub request_id: String,
     pub domain_name: String,
-    #[serde(with = "vec_array_u8_l4_to_base64")]
-    pub resolved_ip_addresses: Vec<[u8; 4]>,
+    #[serde(with = "option_vec_array_u8_l4_to_base64")]
+    pub resolved_ip_addresses: Option<Vec<[u8; 4]>>,
 }
 
 impl TryFrom<Vec<u8>> for DomainResolveResponsePayload {

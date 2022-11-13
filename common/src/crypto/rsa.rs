@@ -16,7 +16,7 @@ const DEFAULT_PROXY_PUBLIC_KEY_PATH: &str = "ProxyPublicKey.pem";
 /// with user token
 pub trait RsaCryptoFetcher {
     /// Fetch the rsa crypto by user token
-    fn fetch(&self, user_token: &str) -> Result<Option<&RsaCrypto>>;
+    fn fetch(&self, user_token: impl AsRef<str>) -> Result<Option<&RsaCrypto>>;
 }
 
 /// The util to do RSA encryption and decryption.
