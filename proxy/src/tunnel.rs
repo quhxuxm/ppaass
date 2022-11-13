@@ -50,8 +50,8 @@ impl TcpTunnel {
             let PpaassMessageParts {
                 id: agent_message_id,
                 user_token,
-                payload_encryption,
                 payload_bytes,
+                ..
             } = agent_message.split();
             let PpaassMessagePayloadParts {
                 payload_type: agent_message_payload_type,
