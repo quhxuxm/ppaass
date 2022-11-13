@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::net::IpAddr;
 use std::{net::SocketAddr, sync::Arc};
 
@@ -6,13 +8,19 @@ use ppaass_common::generate_uuid;
 use tokio::sync::Mutex;
 
 use crate::common::ProxyServerPayloadEncryptionSelector;
+use crate::tunnel::tcp_session::TcpSession;
 use crate::{common::AgentMessageFramed, config::ProxyServerConfig};
 use anyhow::Result;
+use ppaass_protocol::tcp_destory::TcpDestoryRequestPayload;
+use ppaass_protocol::tcp_initialize::TcpInitializeRequestPayload;
+use ppaass_protocol::tcp_relay::TcpRelayPayload;
 use ppaass_protocol::{
     domain_resolve::DomainResolveRequestPayload, heartbeat::HeartbeatRequestPayload, MessageUtil, PpaassMessageAgentPayloadTypeValue, PpaassMessageParts,
-    PpaassMessagePayload, PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts, PpaassMessagePayloadType,
+    PpaassMessagePayload, PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassNetAddress,
 };
 use tracing::{debug, error, trace};
+
+mod tcp_session;
 
 #[derive(Debug)]
 pub(crate) struct TcpTunnel {
@@ -20,6 +28,7 @@ pub(crate) struct TcpTunnel {
     agent_message_framed: AgentMessageFramed,
     agent_socket_address: SocketAddr,
     configuration: Arc<ProxyServerConfig>,
+    tcp_session_container: HashMap<String, TcpSession>,
 }
 
 impl TcpTunnel {
@@ -29,10 +38,11 @@ impl TcpTunnel {
             agent_message_framed,
             agent_socket_address,
             configuration,
+            tcp_session_container: HashMap::new(),
         }
     }
 
-    pub(crate) async fn exec(self) -> Result<()> {
+    pub(crate) async fn exec(mut self) -> Result<()> {
         let tunnel_id = self.id;
         let agent_socket_address = self.agent_socket_address;
         debug!("tunnel [{tunnel_id}] begin for agent connection: {agent_socket_address}");
@@ -117,13 +127,38 @@ impl TcpTunnel {
                     });
                 },
                 PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpInitialize) => {
-                    todo!();
+                    let agent_message_framed_write = agent_message_framed_write.clone();
+                    let tcp_initialize_request: TcpInitializeRequestPayload = agent_message_payload_data.try_into()?;
+                    let src_address = tcp_initialize_request.src_address;
+                    let dest_address = tcp_initialize_request.dest_address;
+                    let tcp_session = TcpSession::new(
+                        agent_message_framed_write.clone(),
+                        user_token.clone(),
+                        src_address.clone(),
+                        dest_address.clone(),
+                    )
+                    .await?;
+                    self.tcp_session_container.insert(format!("{src_address}=>{dest_address}"), tcp_session);
                 },
                 PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpRelay) => {
-                    todo!();
+                    let tcp_relay_payload: TcpRelayPayload = agent_message_payload_data.try_into()?;
+                    let src_address = tcp_relay_payload.src_address;
+                    let dest_address = tcp_relay_payload.dest_address;
+                    let tcp_session_key = format!("{src_address}=>{dest_address}");
+                    let data = tcp_relay_payload.data;
+                    let Some(tcp_session) = self.tcp_session_container.get_mut(&tcp_session_key) else {
+                        return Err(anyhow::anyhow!(format!( "Tcp session not exist for {tcp_session_key}")));
+                    };
+                    tcp_session.forward(&data).await?;
                 },
                 PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpDestory) => {
-                    todo!();
+                    let tcp_destory_request: TcpDestoryRequestPayload = agent_message_payload_data.try_into()?;
+                    let src_address = tcp_destory_request.src_address;
+                    let dest_address = tcp_destory_request.dest_address;
+                    let tcp_session_key = format!("{src_address}=>{dest_address}");
+                    if let None = self.tcp_session_container.remove(&tcp_session_key) {
+                        return Err(anyhow::anyhow!(format!("Tcp session not exist for {tcp_session_key}")));
+                    };
                 },
                 PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpInitialize) => {
                     todo!();

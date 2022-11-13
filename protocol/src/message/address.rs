@@ -4,11 +4,13 @@ use anyhow::Context;
 use bytes::Buf;
 use serde_derive::{Deserialize, Serialize};
 
+use std::fmt::{Display, Formatter};
 use std::net::{IpAddr, SocketAddr};
 use std::{
     io::Cursor,
     net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6, ToSocketAddrs},
 };
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum PpaassNetAddress {
     IpV4 {
@@ -123,5 +125,23 @@ impl From<&SocketAddr> for PpaassNetAddress {
 impl From<SocketAddr> for PpaassNetAddress {
     fn from(value: SocketAddr) -> Self {
         (&value).into()
+    }
+}
+
+impl Display for PpaassNetAddress {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PpaassNetAddress::IpV4 { ip, port } => {
+                let ipv4_addr = Ipv4Addr::from(ip.clone());
+                write!(f, "{ipv4_addr}:{port}")
+            },
+            PpaassNetAddress::IpV6 { ip, port } => {
+                let ipv6_addr = Ipv6Addr::from(ip.clone());
+                write!(f, "{ipv6_addr}:{port}")
+            },
+            PpaassNetAddress::Domain { host, port } => {
+                write!(f, "{host}:{port}")
+            },
+        }
     }
 }
