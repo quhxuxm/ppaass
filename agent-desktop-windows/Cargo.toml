@@ -6,3 +6,13 @@ version = "0.1.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = {workspace = true}
+chrono = {workspace = true}
+ppaass-agent-desktop-lib = {path = "../agent-desktop-lib"}
+serde = {workspace = true}
+serde_derive = {workspace = true}
+tokio = {workspace = true, features = ["macros", "time", "net", "io-util", "rt-multi-thread", "fs"]}
+toml = {workspace = true}
+tracing = {workspace = true}
+tracing-appender = {workspace = true}
+tracing-subscriber = {workspace = true}

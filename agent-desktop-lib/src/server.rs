@@ -1,27 +1,23 @@
 use std::{sync::Arc, time::Duration};
 
+use deadpool::managed::Pool;
 use tokio::{net::TcpListener, sync::Semaphore};
 use tracing::{debug, error, info};
 
-use crate::flow::dispatcher::FlowDispatcher;
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher};
+use crate::{flow::dispatcher::FlowDispatcher, pool::ProxyMessageFramedManager};
 use anyhow::{Context, Result};
 
-pub(crate) struct AgentServer {
+pub struct AgentServer {
     configuration: Arc<AgentServerConfig>,
-    client_tcp_connection_accept_semaphore: Arc<Semaphore>,
 }
 
 impl AgentServer {
-    pub(crate) fn new(configuration: Arc<AgentServerConfig>) -> Self {
-        let client_max_connection_number = configuration.get_client_max_connection_number();
-        Self {
-            configuration,
-            client_tcp_connection_accept_semaphore: Arc::new(Semaphore::new(client_max_connection_number)),
-        }
+    pub fn new(configuration: Arc<AgentServerConfig>) -> Self {
+        Self { configuration }
     }
 
-    pub(crate) async fn start(&mut self) -> Result<()> {
+    pub async fn start(&mut self) -> Result<()> {
         let server_bind_addr = if self.configuration.get_ipv6() {
             format!(
                 "::1:{}",
@@ -42,42 +38,26 @@ impl AgentServer {
         info!("Agent server start to serve request on address: {server_bind_addr}.");
         let tcp_listener = TcpListener::bind(&server_bind_addr)
             .await
-            .context("fail to bind tcp listener for agent server")?;
+            .context("Fail to bind tcp listener for agent server")?;
+
+        let proxy_connection_pool_builder =
+            Pool::<ProxyMessageFramedManager>::builder(ProxyMessageFramedManager::new(self.configuration.clone(), rsa_crypto_fetcher.clone()));
+        let proxy_connection_pool = proxy_connection_pool_builder
+            .build()
+            .map_err(|e| anyhow::anyhow!(e))
+            .context("Fail to create proxy server connection pool.")?;
         loop {
-            let client_tcp_connection_accept_semaphore = self.client_tcp_connection_accept_semaphore.clone();
-            let client_tcp_connection_accept_permit = match tokio::time::timeout(
-                Duration::from_secs(self.configuration.get_client_tcp_connection_accept_timout_seconds()),
-                client_tcp_connection_accept_semaphore.acquire_owned(),
-            )
-            .await
-            {
-                Ok(Ok(v)) => v,
-                Ok(Err(e)) => {
-                    error!("fail to accept client tcp connection because of error: {e:?}");
-                    continue;
-                },
-                Err(e) => {
-                    error!("fail to accept client tcp connection because of error: {e:?}");
-                    continue;
-                },
-            };
-            let (client_tcp_stream, client_socket_address) = match tcp_listener.accept().await {
-                Ok(v) => v,
-                Err(e) => {
-                    error!("fail to accept client tcp connection because of error: {e:?}");
-                    continue;
-                },
-            };
-            if let Err(e) = client_tcp_stream.set_nodelay(true) {
-                error!("fail to set no delay on client tcp connection because of error: {e:?}");
+            let (client_tcp_stream, client_socket_address) = tcp_listener.accept().await.context("Fail to accept client tcp connection because if error.")?;
+            if let Err(e) = client_tcp_stream.set_nodelay(true).context("Fail to set client tcp stream to no delay") {
+                error!("Fail to set no delay on client tcp connection because of error: {e:?}");
                 continue;
             }
             debug!("Accept client tcp connection on address: {}", client_socket_address);
             let rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();
-            let mut flow = match FlowDispatcher::dispatch(client_tcp_stream, configuration, rsa_crypto_fetcher).await {
+            let mut flow = match FlowDispatcher::dispatch(client_tcp_stream, configuration, rsa_crypto_fetcher, proxy_connection_pool.clone()).await {
                 Err(e) => {
-                    error!("fail to dispatch client tcp connection to concrete flow because of error: {e:?}");
+                    error!("Fail to dispatch client tcp connection to concrete flow because of error: {e:?}");
                     continue;
                 },
                 Ok(v) => v,

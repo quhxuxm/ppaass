@@ -12,11 +12,14 @@ use tokio::net::TcpStream;
 use tracing::error;
 
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher};
-pub(crate) struct ProxyServerConnectionPool {
+
+pub(crate) type ProxyMessageFramed = PpaassMessageFramed<TcpStream, AgentServerRsaCryptoFetcher>;
+
+pub(crate) struct ProxyMessageFramedManager {
     configuration: Arc<AgentServerConfig>,
     rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
 }
-impl ProxyServerConnectionPool {
+impl ProxyMessageFramedManager {
     pub(crate) fn new(configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>) -> Self {
         Self {
             configuration,
@@ -26,8 +29,8 @@ impl ProxyServerConnectionPool {
 }
 
 #[async_trait]
-impl Manager for ProxyServerConnectionPool {
-    type Type = PpaassMessageFramed<TcpStream, AgentServerRsaCryptoFetcher>;
+impl Manager for ProxyMessageFramedManager {
+    type Type = ProxyMessageFramed;
     type Error = anyhow::Error;
 
     async fn create(&self) -> Result<Self::Type, Self::Error> {

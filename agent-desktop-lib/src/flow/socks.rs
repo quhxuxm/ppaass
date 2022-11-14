@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
+use deadpool::managed::Pool;
 use futures::{SinkExt, StreamExt};
 use ppaass_io::PpaassMessageFramed;
 
@@ -16,10 +17,10 @@ use crate::{
         codec::Socks5InitCommandContentCodec,
         message::{Socks5AuthCommandContentParts, Socks5AuthCommandResultContent, Socks5InitCommandContentParts},
     },
-    pool::ProxyServerConnectionPool,
+    pool::ProxyMessageFramedManager,
 };
 
-use self::{codec::Socks5AuthCommandContentCodec, message::Socks5AuthCommandContent};
+use self::codec::Socks5AuthCommandContentCodec;
 use super::ClientFlow;
 use anyhow::Context;
 use anyhow::Result;
@@ -33,17 +34,22 @@ where
     stream: T,
     configuration: Arc<AgentServerConfig>,
     rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
+    proxy_connection_pool: Pool<ProxyMessageFramedManager>,
 }
 
 impl<T> Socks5ClientFlow<T>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
-    pub(crate) fn new(stream: T, configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>) -> Self {
+    pub(crate) fn new(
+        stream: T, configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
+        proxy_connection_pool: Pool<ProxyMessageFramedManager>,
+    ) -> Self {
         Self {
             stream,
             configuration,
             rsa_crypto_fetcher,
+            proxy_connection_pool,
         }
     }
 }
@@ -76,11 +82,13 @@ where
         let Socks5InitCommandContentParts { request_type, dest_address } = init_message.split();
         debug!("Socks5 connection in init process, request type: {request_type:?}, destination address: {dest_address:?}");
 
-        let proxy_coneection_pool_builder = deadpool::managed::Pool::<ProxyServerConnectionPool>::builder(ProxyServerConnectionPool::new(
-            self.configuration.clone(),
-            self.rsa_crypto_fetcher.clone(),
-        ));
-        let proxy_connection_pool = proxy_coneection_pool_builder.build();
+        let mut connection = self
+            .proxy_connection_pool
+            .get()
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+            .context("Fail to get proxy server connection")?;
+        connection.next().await;
         todo!()
     }
 }

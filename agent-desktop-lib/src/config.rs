@@ -1,7 +1,7 @@
 use serde_derive::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Default)]
-pub(crate) struct AgentServerConfig {
+pub struct AgentServerConfig {
     /// Whehter use ip v6
     ipv6: Option<bool>,
     /// Port of the ppaass proxy
