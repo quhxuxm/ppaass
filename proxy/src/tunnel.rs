@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
+
 use std::net::IpAddr;
 use std::{net::SocketAddr, sync::Arc};
 
@@ -155,24 +155,24 @@ impl TcpTunnel {
                     )
                     .await?;
                     self.tcp_session_container
-                        .insert(TcpSession::generate_key(src_address, dest_address), tcp_session);
+                        .insert(TcpSession::generate_key(&src_address, &dest_address), tcp_session);
                 },
                 PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpRelay) => {
                     let tcp_relay_payload: TcpRelayPayload = agent_message_payload_data.try_into()?;
                     let src_address = tcp_relay_payload.src_address;
                     let dest_address = tcp_relay_payload.dest_address;
-                    let tcp_session_key = TcpSession::generate_key(src_address, dest_address);
+                    let tcp_session_key = TcpSession::generate_key(&src_address, &dest_address);
                     let data = tcp_relay_payload.data;
                     let Some(tcp_session) = self.tcp_session_container.get_mut(&tcp_session_key) else {
                         return Err(anyhow::anyhow!(format!( "Tcp session not exist for {tcp_session_key}")));
                     };
-                    tcp_session.forward(&data).await?;
+                    tcp_session.forward(data.as_slice()).await?;
                 },
                 PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpDestroy) => {
                     let tcp_destroy_request: TcpDestroyRequestPayload = agent_message_payload_data.try_into()?;
                     let src_address = tcp_destroy_request.src_address;
                     let dest_address = tcp_destroy_request.dest_address;
-                    let tcp_session_key = TcpSession::generate_key(src_address, dest_address);
+                    let tcp_session_key = TcpSession::generate_key(&src_address, &dest_address);
                     if let None = self.tcp_session_container.remove(&tcp_session_key) {
                         return Err(anyhow::anyhow!(format!("Tcp session not exist for {tcp_session_key}")));
                     };

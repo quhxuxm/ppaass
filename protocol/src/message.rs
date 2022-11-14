@@ -13,6 +13,7 @@ pub use types::*;
 
 use crate::serializer::vec_u8_to_base64;
 use crate::tcp_initialize::{TcpInitializeRequestPayload, TcpInitializeResponsePayload};
+use crate::tcp_relay::TcpRelayPayload;
 use anyhow::Result;
 use heartbeat::HeartbeatRequestPayload;
 
@@ -206,6 +207,25 @@ impl MessageUtil {
             PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpInitializeFail),
             tcp_initialize_response.try_into()?,
         );
+        let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
+        Ok(message)
+    }
+
+    pub fn create_tcp_relay(
+        user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress, payload_encryption: PpaassMessagePayloadEncryption,
+        data: Vec<u8>, agent: bool,
+    ) -> Result<PpaassMessage> {
+        let tcp_relay = TcpRelayPayload {
+            src_address,
+            dest_address,
+            data,
+        };
+        let payload_type = if agent {
+            PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpRelay)
+        } else {
+            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpRelay)
+        };
+        let message_payload = PpaassMessagePayload::new(payload_type, tcp_relay.try_into()?);
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
         Ok(message)
     }
