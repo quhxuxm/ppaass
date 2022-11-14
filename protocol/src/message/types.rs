@@ -2,24 +2,24 @@ use serde_derive::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum PpaassMessageAgentPayloadTypeValue {
-    TcpInitialize,
-    TcpRelay,
-    TcpDestroy,
-    UdpInitialize,
-    UdpRelay,
-    UdpDestory,
+    TcpSessionInitialize,
+    TcpSessionRelay,
+    TcpSessionDestroy,
+    UdpSessionInitialize,
+    UdpSessionRelay,
+    UdpSessionDestroy,
     DomainNameResolve,
     Heartbeat,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum PpaassMessageProxyPayloadTypeValue {
-    TcpInitializeSuccess,
-    TcpInitializeFail,
-    TcpRelay,
-    UdpInitializeSuccess,
-    UdpInitializeFail,
-    UdpRelay,
+    TcpSessionInitializeSuccess,
+    TcpSessionInitializeFail,
+    TcpSessionRelay,
+    UdpSessionInitializeSuccess,
+    UdpSessionInitializeFail,
+    UdpSessionRelay,
     DomainNameResolveSuccess,
     DomainNameResolveFail,
     HeartbeatSuccess,

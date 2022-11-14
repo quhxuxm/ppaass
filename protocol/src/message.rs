@@ -180,7 +180,7 @@ impl MessageUtil {
     ) -> Result<PpaassMessage> {
         let tcp_initialize_request = TcpInitializeRequestPayload { src_address, dest_address };
         let message_payload = PpaassMessagePayload::new(
-            PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpInitialize),
+            PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpSessionInitialize),
             tcp_initialize_request.try_into()?,
         );
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
@@ -192,7 +192,7 @@ impl MessageUtil {
     ) -> Result<PpaassMessage> {
         let tcp_initialize_response = TcpInitializeResponsePayload { src_address, dest_address };
         let message_payload = PpaassMessagePayload::new(
-            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpInitializeSuccess),
+            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpSessionInitializeSuccess),
             tcp_initialize_response.try_into()?,
         );
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
@@ -204,7 +204,7 @@ impl MessageUtil {
     ) -> Result<PpaassMessage> {
         let tcp_initialize_response = TcpInitializeResponsePayload { src_address, dest_address };
         let message_payload = PpaassMessagePayload::new(
-            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpInitializeFail),
+            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpSessionInitializeFail),
             tcp_initialize_response.try_into()?,
         );
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
@@ -221,9 +221,9 @@ impl MessageUtil {
             data,
         };
         let payload_type = if agent {
-            PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpRelay)
+            PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpSessionRelay)
         } else {
-            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpRelay)
+            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpSessionRelay)
         };
         let message_payload = PpaassMessagePayload::new(payload_type, tcp_relay.try_into()?);
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);

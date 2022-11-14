@@ -1,11 +1,14 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use std::net::IpAddr;
 use std::{net::SocketAddr, sync::Arc};
 
 use futures::{SinkExt, StreamExt};
 use ppaass_common::generate_uuid;
-use tokio::sync::Mutex;
+use tokio::{
+    select,
+    sync::{mpsc::channel, Mutex},
+};
 
 use crate::common::ProxyServerPayloadEncryptionSelector;
 use crate::tunnel::tcp_session::TcpSession;
@@ -16,7 +19,7 @@ use ppaass_protocol::tcp_initialize::TcpInitializeRequestPayload;
 use ppaass_protocol::tcp_relay::TcpRelayPayload;
 use ppaass_protocol::{
     domain_resolve::DomainResolveRequestPayload, heartbeat::HeartbeatRequestPayload, MessageUtil, PpaassMessageAgentPayloadTypeValue, PpaassMessageParts,
-    PpaassMessagePayload, PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassNetAddress,
+    PpaassMessagePayload, PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts, PpaassMessagePayloadType,
 };
 use tracing::{debug, error, trace};
 
@@ -29,6 +32,7 @@ pub(crate) struct TcpTunnel {
     agent_socket_address: SocketAddr,
     configuration: Arc<ProxyServerConfig>,
     tcp_session_container: HashMap<String, TcpSession>,
+    last_heartbeat_timestamp: i64,
 }
 
 impl TcpTunnel {
@@ -39,6 +43,7 @@ impl TcpTunnel {
             agent_socket_address,
             configuration,
             tcp_session_container: HashMap::new(),
+            last_heartbeat_timestamp: chrono::Utc::now().timestamp_millis(),
         }
     }
 
@@ -49,7 +54,38 @@ impl TcpTunnel {
         let agent_message_framed = self.agent_message_framed;
         let (agent_message_framed_write, mut agent_message_framed_read) = agent_message_framed.split();
         let agent_message_framed_write = Arc::new(Mutex::new(agent_message_framed_write));
-        while let Some(agent_message) = agent_message_framed_read.next().await {
+        let last_heartbeat_timestamp = Arc::new(Mutex::new(self.last_heartbeat_timestamp));
+        let last_heartbeat_timestamp_for_checker = last_heartbeat_timestamp.clone();
+        let (heartbeat_timeout_sender, mut heartbeat_timeout_receiver) = channel::<bool>(1);
+        let tunnel_id_for_heartbeat = tunnel_id.clone();
+
+        tokio::spawn(async move {
+            debug!("Start heartbeat task for tunnel [{tunnel_id_for_heartbeat}]");
+            let mut check_interval = tokio::time::interval(Duration::from_secs(10));
+            let current_last_heartbeat_timestamp = last_heartbeat_timestamp_for_checker.lock().await;
+            loop {
+                check_interval.tick().await;
+                let deta = chrono::Utc::now().timestamp_millis() - *current_last_heartbeat_timestamp;
+                if deta <= 1000 * 120 {
+                    continue;
+                }
+                error!("Tunnel {tunnel_id_for_heartbeat} idle timeout.");
+                match heartbeat_timeout_sender.send(true).await {
+                    Ok(()) => break,
+                    Err(e) => {
+                        error!("Tunnel {tunnel_id_for_heartbeat} idle timeout because fail to notify because of error: {e:?}");
+                        break;
+                    },
+                };
+            }
+        });
+
+        while let Some(agent_message) = select! {
+            _ = heartbeat_timeout_receiver.recv()=>{
+                return Err(anyhow::anyhow!("Tunnel [{tunnel_id}] idle timeout."));
+            },
+            v = agent_message_framed_read.next()=>v
+        } {
             let agent_message = match agent_message {
                 Err(e) => {
                     error!("Fail to read agent message because of error: {e:?}");
@@ -77,11 +113,14 @@ impl TcpTunnel {
                 PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::Heartbeat) => {
                     let agent_message_framed_write = agent_message_framed_write.clone();
                     let user_token = user_token.clone();
+                    let last_heartbeat_timestamp = last_heartbeat_timestamp.clone();
                     tokio::spawn(async move {
                         let heartbeat_request: HeartbeatRequestPayload = agent_message_payload_data.try_into()?;
                         let src_address = heartbeat_request.src_address;
                         let dest_address = heartbeat_request.dest_address;
                         trace!("Receive agent heartbeat message, agent address: {agent_socket_address}, source address: {src_address:?}, target address: {dest_address:?}");
+                        let mut last_heartbeat_timestamp = last_heartbeat_timestamp.lock().await;
+                        *last_heartbeat_timestamp = chrono::Utc::now().timestamp_millis();
                         let heartbeat_response_success_payload_encryption =
                             ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
                         let heartbeat_response_success = MessageUtil::create_proxy_heartbeat_response(
@@ -142,7 +181,7 @@ impl TcpTunnel {
                         Ok::<_, anyhow::Error>(())
                     });
                 },
-                PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpInitialize) => {
+                PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpSessionInitialize) => {
                     let agent_message_framed_write = agent_message_framed_write.clone();
                     let tcp_initialize_request: TcpInitializeRequestPayload = agent_message_payload_data.try_into()?;
                     let src_address = tcp_initialize_request.src_address;
@@ -157,7 +196,7 @@ impl TcpTunnel {
                     self.tcp_session_container
                         .insert(TcpSession::generate_key(&src_address, &dest_address), tcp_session);
                 },
-                PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpRelay) => {
+                PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpSessionRelay) => {
                     let tcp_relay_payload: TcpRelayPayload = agent_message_payload_data.try_into()?;
                     let src_address = tcp_relay_payload.src_address;
                     let dest_address = tcp_relay_payload.dest_address;
@@ -168,7 +207,7 @@ impl TcpTunnel {
                     };
                     tcp_session.forward(data.as_slice()).await?;
                 },
-                PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpDestroy) => {
+                PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpSessionDestroy) => {
                     let tcp_destroy_request: TcpDestroyRequestPayload = agent_message_payload_data.try_into()?;
                     let src_address = tcp_destroy_request.src_address;
                     let dest_address = tcp_destroy_request.dest_address;
@@ -178,17 +217,17 @@ impl TcpTunnel {
                     };
                     debug!("Tcp session [{tcp_session_key}] destroyed.")
                 },
-                PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpInitialize) => {
+                PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpSessionInitialize) => {
                     todo!();
                 },
-                PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpRelay) => {
+                PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpSessionRelay) => {
                     todo!();
                 },
-                PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpDestory) => {
+                PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpSessionDestroy) => {
                     todo!();
                 },
             };
         }
-        todo!()
+        Ok(())
     }
 }

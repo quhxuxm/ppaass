@@ -22,7 +22,7 @@ fn test_serialize_message_payload() -> Result<(), Box<dyn Error>> {
     let tcp_initialize_payload = TcpInitializeRequestPayload { src_address, dest_address };
 
     let message_payload = PpaassMessagePayload::new(
-        PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpInitialize),
+        PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpSessionInitialize),
         tcp_initialize_payload.try_into()?,
     );
 
