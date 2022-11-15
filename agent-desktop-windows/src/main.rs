@@ -3,22 +3,23 @@ use std::{str::FromStr, sync::Arc};
 use anyhow::Context;
 use anyhow::Result;
 use common::AgentServerLogTimer;
-use config::AgentServerLogConfig;
+use ppaass_agent_desktop_lib::config::AgentServerLogConfig;
 use ppaass_agent_desktop_lib::{config::AgentServerConfig, server::AgentServer};
 use tracing::{metadata::LevelFilter, subscriber};
 use tracing_subscriber::{fmt::Layer, prelude::__tracing_subscriber_SubscriberExt, Registry};
 
 mod common;
-mod config;
 mod constant;
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    let log_configuration_file_content = tokio::fs::read_to_string(config::DEFAULT_AGENT_LOG_CONFIG_FILE)
-        .await
-        .context(format!("fail to read agent log configuration file: {}", config::DEFAULT_AGENT_LOG_CONFIG_FILE))?;
+    let log_configuration_file_content = tokio::fs::read_to_string(constant::DEFAULT_AGENT_LOG_CONFIG_FILE).await.context(format!(
+        "fail to read agent log configuration file: {}",
+        constant::DEFAULT_AGENT_LOG_CONFIG_FILE
+    ))?;
     let agent_server_log_config: AgentServerLogConfig = toml::from_str(&log_configuration_file_content).context(format!(
         "fail to parse agent server log configuration file: {}",
-        config::DEFAULT_AGENT_LOG_CONFIG_FILE
+        constant::DEFAULT_AGENT_LOG_CONFIG_FILE
     ))?;
     let log_dir = agent_server_log_config
         .get_dir()

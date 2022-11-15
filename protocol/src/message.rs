@@ -175,7 +175,7 @@ impl MessageUtil {
         Ok(message)
     }
 
-    pub fn create_agent_tcp_initialize_request(
+    pub fn create_agent_tcp_session_initialize_request(
         user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress, payload_encryption: PpaassMessagePayloadEncryption,
     ) -> Result<PpaassMessage> {
         let tcp_initialize_request = TcpInitializeRequestPayload { src_address, dest_address };
@@ -187,7 +187,7 @@ impl MessageUtil {
         Ok(message)
     }
 
-    pub fn create_proxy_tcp_initialize_success_response(
+    pub fn create_proxy_tcp_session_initialize_success_response(
         user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress, payload_encryption: PpaassMessagePayloadEncryption,
     ) -> Result<PpaassMessage> {
         let tcp_initialize_response = TcpInitializeResponsePayload { src_address, dest_address };
@@ -199,7 +199,7 @@ impl MessageUtil {
         Ok(message)
     }
 
-    pub fn create_proxy_tcp_initialize_fail_response(
+    pub fn create_proxy_tcp_session_initialize_fail_response(
         user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress, payload_encryption: PpaassMessagePayloadEncryption,
     ) -> Result<PpaassMessage> {
         let tcp_initialize_response = TcpInitializeResponsePayload { src_address, dest_address };

@@ -14,7 +14,7 @@ mod socks;
 #[async_trait]
 pub(crate) trait ClientFlow {
     async fn exec(
-        &mut self, proxy_message_framed_pool: Pool<ProxyMessageFramedManager>, configuration: Arc<AgentServerConfig>,
+        &mut self, proxy_connection_pool: Pool<ProxyMessageFramedManager>, configuration: Arc<AgentServerConfig>,
         rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
     ) -> Result<()>;
 }

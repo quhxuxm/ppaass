@@ -39,7 +39,7 @@ impl TcpSession {
                 error!("Fail connect to dest address because of error: {e:?}");
                 let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
                 let tcp_initialize_fail_message =
-                    MessageUtil::create_proxy_tcp_initialize_fail_response(&user_token, src_address, dest_address, payload_encryption_token)?;
+                    MessageUtil::create_proxy_tcp_session_initialize_fail_response(&user_token, src_address, dest_address, payload_encryption_token)?;
                 let mut agent_message_framed_write = agent_message_framed_write.lock().await;
                 agent_message_framed_write
                     .send(tcp_initialize_fail_message)
@@ -50,8 +50,12 @@ impl TcpSession {
         };
         let agent_message_framed_write_for_read_task = agent_message_framed_write.clone();
         let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-        let tcp_initialize_success_message =
-            MessageUtil::create_proxy_tcp_initialize_success_response(&user_token, src_address.clone(), dest_address.clone(), payload_encryption_token)?;
+        let tcp_initialize_success_message = MessageUtil::create_proxy_tcp_session_initialize_success_response(
+            &user_token,
+            src_address.clone(),
+            dest_address.clone(),
+            payload_encryption_token,
+        )?;
         let mut agent_message_framed_write = agent_message_framed_write.lock().await;
         agent_message_framed_write
             .send(tcp_initialize_success_message)

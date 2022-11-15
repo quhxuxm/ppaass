@@ -5,15 +5,20 @@ use std::sync::Arc;
 use anyhow::Context;
 use async_trait::async_trait;
 use deadpool::managed::{self, Manager};
+use futures_util::stream::{SplitSink, SplitStream};
+use futures_util::StreamExt;
 
 use ppaass_io::PpaassMessageFramed;
 
+use ppaass_protocol::PpaassMessage;
 use tokio::net::TcpStream;
 use tracing::error;
 
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher};
 
 pub(crate) type ProxyMessageFramed = PpaassMessageFramed<TcpStream, AgentServerRsaCryptoFetcher>;
+pub(crate) type ProxyMessageFramedRead = SplitStream<PpaassMessageFramed<TcpStream, AgentServerRsaCryptoFetcher>>;
+pub(crate) type ProxyMessageFramedWrite = SplitSink<PpaassMessageFramed<TcpStream, AgentServerRsaCryptoFetcher>, PpaassMessage>;
 
 pub(crate) struct ProxyMessageFramedManager {
     configuration: Arc<AgentServerConfig>,
@@ -59,7 +64,7 @@ impl Manager for ProxyMessageFramedManager {
             .context("fail to create ppaass message framed")
     }
 
-    async fn recycle(&self, _: &mut Self::Type) -> managed::RecycleResult<Self::Error> {
+    async fn recycle(&self, _proxy_message_framed: &mut Self::Type) -> managed::RecycleResult<Self::Error> {
         Ok(())
     }
 }

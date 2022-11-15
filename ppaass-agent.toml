@@ -5,3 +5,4 @@ port = 10081
 proxy_addresses = ["127.0.0.1:9090"]
 rsa_dir = "./resources/rsa/"
 thread_number = 2048
+user_token = "user1"
