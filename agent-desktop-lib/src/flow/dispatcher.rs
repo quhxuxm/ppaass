@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, flow::socks::Socks5ClientFlow, pool::ProxyMessageFramedManager};
@@ -15,10 +16,7 @@ const SOCKS_V4: u8 = 4;
 pub(crate) struct FlowDispatcher;
 
 impl FlowDispatcher {
-    pub(crate) async fn dispatch<T>(
-        mut stream: T, configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
-        proxy_connection_pool: Pool<ProxyMessageFramedManager>,
-    ) -> Result<Box<dyn ClientFlow>>
+    pub(crate) async fn dispatch<T>(mut stream: T, client_socket_address: SocketAddr) -> Result<Box<dyn ClientFlow>>
     where
         T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     {
@@ -26,12 +24,7 @@ impl FlowDispatcher {
         match protocol {
             SOCKS_V5 => {
                 // For socks5 protocol
-                Ok(Box::new(Socks5ClientFlow::new(
-                    stream,
-                    configuration,
-                    rsa_crypto_fetcher,
-                    proxy_connection_pool,
-                )))
+                Ok(Box::new(Socks5ClientFlow::new(stream, client_socket_address)))
             },
             SOCKS_V4 => {
                 // For socks4 protocol
@@ -40,7 +33,7 @@ impl FlowDispatcher {
             },
             _ => {
                 // For http protocol
-                Ok(Box::new(HttpClientFlow::new(stream, configuration, rsa_crypto_fetcher)))
+                Ok(Box::new(HttpClientFlow::new(stream, client_socket_address)))
             },
         }
     }

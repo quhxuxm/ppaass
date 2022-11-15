@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -24,6 +25,8 @@ use self::codec::Socks5AuthCommandContentCodec;
 use super::ClientFlow;
 use anyhow::Context;
 use anyhow::Result;
+use ppaass_protocol::MessageUtil;
+
 mod codec;
 mod message;
 
@@ -32,25 +35,15 @@ where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
     stream: T,
-    configuration: Arc<AgentServerConfig>,
-    rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
-    proxy_connection_pool: Pool<ProxyMessageFramedManager>,
+    client_socket_address: SocketAddr,
 }
 
 impl<T> Socks5ClientFlow<T>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
-    pub(crate) fn new(
-        stream: T, configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
-        proxy_connection_pool: Pool<ProxyMessageFramedManager>,
-    ) -> Self {
-        Self {
-            stream,
-            configuration,
-            rsa_crypto_fetcher,
-            proxy_connection_pool,
-        }
+    pub(crate) fn new(stream: T, client_socket_address: SocketAddr) -> Self {
+        Self { stream, client_socket_address }
     }
 }
 
@@ -59,7 +52,10 @@ impl<T> ClientFlow for Socks5ClientFlow<T>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
-    async fn exec(&mut self) -> Result<()> {
+    async fn exec(
+        &mut self, proxy_message_framed_pool: Pool<ProxyMessageFramedManager>, configuration: Arc<AgentServerConfig>,
+        rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
+    ) -> Result<()> {
         let mut auth_framed_parts = FramedParts::new(&mut self.stream, Socks5AuthCommandContentCodec);
         let mut auth_initial_buf = BytesMut::new();
         auth_initial_buf.put_u8(5);
@@ -82,13 +78,15 @@ where
         let Socks5InitCommandContentParts { request_type, dest_address } = init_message.split();
         debug!("Socks5 connection in init process, request type: {request_type:?}, destination address: {dest_address:?}");
 
-        let mut connection = self
-            .proxy_connection_pool
+        let mut proxy_message_framed = proxy_message_framed_pool
             .get()
             .await
             .map_err(|e| anyhow::anyhow!(e))
             .context("Fail to get proxy server connection")?;
-        connection.next().await;
+
+        MessageUtil::create_agent_tcp_initialize_request("user1");
+
+        proxy_message_framed.next().await;
         todo!()
     }
 }

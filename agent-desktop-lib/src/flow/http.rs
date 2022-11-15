@@ -1,32 +1,31 @@
 pub(crate) mod codec;
+
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::ClientFlow;
+use crate::pool::ProxyMessageFramedManager;
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher};
 use anyhow::Result;
+use deadpool::managed::Pool;
 
 pub(crate) struct HttpClientFlow<T>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
     stream: T,
-    configuration: Arc<AgentServerConfig>,
-    rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
+    client_socket_address: SocketAddr,
 }
 
 impl<T> HttpClientFlow<T>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
-    pub(crate) fn new(stream: T, configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>) -> Self {
-        Self {
-            stream,
-            configuration,
-            rsa_crypto_fetcher,
-        }
+    pub(crate) fn new(stream: T, client_socket_address: SocketAddr) -> Self {
+        Self { stream, client_socket_address }
     }
 }
 
@@ -35,7 +34,10 @@ impl<T> ClientFlow for HttpClientFlow<T>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
-    async fn exec(&mut self) -> Result<()> {
-        todo!();
+    async fn exec(
+        &mut self, proxy_message_framed_pool: Pool<ProxyMessageFramedManager>, configuration: Arc<AgentServerConfig>,
+        rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
+    ) -> Result<()> {
+        todo!()
     }
 }
