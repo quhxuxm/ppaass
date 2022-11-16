@@ -100,13 +100,12 @@ impl TryFrom<PpaassMessage> for Vec<u8> {
     }
 }
 
-pub struct MessageUtil;
+pub struct PpaassMessageUtil;
 
-impl MessageUtil {
-    pub fn create_agent_heartbeat_request(
-        user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress, payload_encryption: PpaassMessagePayloadEncryption,
-    ) -> Result<PpaassMessage> {
-        let heartbeat_request = HeartbeatRequestPayload { src_address, dest_address };
+impl PpaassMessageUtil {
+    pub fn create_agent_heartbeat_request(user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption) -> Result<PpaassMessage> {
+        let timestamp = chrono::Utc::now().timestamp();
+        let heartbeat_request = HeartbeatRequestPayload { timestamp };
         let message_payload = PpaassMessagePayload::new(
             PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::Heartbeat),
             heartbeat_request.try_into()?,
@@ -115,10 +114,9 @@ impl MessageUtil {
         Ok(message)
     }
 
-    pub fn create_proxy_heartbeat_response(
-        user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress, payload_encryption: PpaassMessagePayloadEncryption,
-    ) -> Result<PpaassMessage> {
-        let heartbeat_response = HeartbeatResponsePayload { src_address, dest_address };
+    pub fn create_proxy_heartbeat_response(user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption) -> Result<PpaassMessage> {
+        let timestamp = chrono::Utc::now().timestamp();
+        let heartbeat_response = HeartbeatResponsePayload { timestamp };
         let message_payload = PpaassMessagePayload::new(
             PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::HeartbeatSuccess),
             heartbeat_response.try_into()?,

@@ -18,8 +18,8 @@ use ppaass_protocol::tcp_destroy::TcpDestroyRequestPayload;
 use ppaass_protocol::tcp_initialize::TcpInitializeRequestPayload;
 use ppaass_protocol::tcp_relay::TcpRelayPayload;
 use ppaass_protocol::{
-    domain_resolve::DomainResolveRequestPayload, heartbeat::HeartbeatRequestPayload, MessageUtil, PpaassMessageAgentPayloadTypeValue, PpaassMessageParts,
-    PpaassMessagePayload, PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts, PpaassMessagePayloadType,
+    domain_resolve::DomainResolveRequestPayload, heartbeat::HeartbeatRequestPayload, PpaassMessageAgentPayloadTypeValue, PpaassMessageParts,
+    PpaassMessagePayload, PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassMessageUtil,
 };
 use tracing::{debug, error, trace};
 
@@ -116,19 +116,14 @@ impl TcpTunnel {
                     let last_heartbeat_timestamp = last_heartbeat_timestamp.clone();
                     tokio::spawn(async move {
                         let heartbeat_request: HeartbeatRequestPayload = agent_message_payload_data.try_into()?;
-                        let src_address = heartbeat_request.src_address;
-                        let dest_address = heartbeat_request.dest_address;
-                        trace!("Receive agent heartbeat message, agent address: {agent_socket_address}, source address: {src_address:?}, target address: {dest_address:?}");
+                        let timestamp_in_request = heartbeat_request.timestamp;
+                        trace!("Receive agent heartbeat message, agent address: {agent_socket_address}, timestamp: {timestamp_in_request}");
                         let mut last_heartbeat_timestamp = last_heartbeat_timestamp.lock().await;
                         *last_heartbeat_timestamp = chrono::Utc::now().timestamp_millis();
                         let heartbeat_response_success_payload_encryption =
                             ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-                        let heartbeat_response_success = MessageUtil::create_proxy_heartbeat_response(
-                            &user_token,
-                            src_address,
-                            dest_address,
-                            heartbeat_response_success_payload_encryption,
-                        )?;
+                        let heartbeat_response_success =
+                            PpaassMessageUtil::create_proxy_heartbeat_response(&user_token, heartbeat_response_success_payload_encryption)?;
                         let mut agent_message_framed_write = agent_message_framed_write.lock().await;
                         agent_message_framed_write.send(heartbeat_response_success).await?;
                         Ok::<_, anyhow::Error>(())
@@ -148,7 +143,7 @@ impl TcpTunnel {
                                 error!("Fail to resolve domain name because of error: {e:?}");
                                 let domain_resolve_fail_response_encryption =
                                     ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-                                let domain_resolve_fail_response = MessageUtil::create_proxy_domain_resolve_fail_response(
+                                let domain_resolve_fail_response = PpaassMessageUtil::create_proxy_domain_resolve_fail_response(
                                     user_token,
                                     request_id,
                                     domain_name,
@@ -169,7 +164,7 @@ impl TcpTunnel {
                             .collect::<Vec<[u8; 4]>>();
                         let domain_resolve_success_response_encryption =
                             ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-                        let domain_resolve_success_response = MessageUtil::create_proxy_domain_resolve_success_response(
+                        let domain_resolve_success_response = PpaassMessageUtil::create_proxy_domain_resolve_success_response(
                             user_token,
                             request_id,
                             domain_name,

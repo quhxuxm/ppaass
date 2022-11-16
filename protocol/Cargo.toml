@@ -9,6 +9,7 @@ version = "0.1.0"
 anyhow = {workspace = true, features = ["backtrace"]}
 base64 = {workspace = true}
 bytes = {workspace = true}
+chrono = {workspace = true}
 ppaass-common = {path = "../common"}
 serde = {workspace = true}
 serde_derive = {workspace = true}

@@ -1,10 +1,10 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use deadpool::managed::Pool;
-use tokio::{net::TcpListener, sync::Semaphore};
+use tokio::net::TcpListener;
 use tracing::{debug, error, info};
 
-use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher};
+use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, pool::ProxyMessageFramedPoolKeepalive};
 use crate::{flow::dispatcher::FlowDispatcher, pool::ProxyMessageFramedManager};
 use anyhow::{Context, Result};
 
@@ -46,6 +46,8 @@ impl AgentServer {
             .build()
             .map_err(|e| anyhow::anyhow!(e))
             .context("Fail to create proxy server connection pool.")?;
+        let proxy_connection_keepalive = ProxyMessageFramedPoolKeepalive::new(proxy_connection_pool.clone(), self.configuration.clone());
+        let _keepalive_guard = proxy_connection_keepalive.start()?;
         loop {
             let (client_tcp_stream, client_socket_address) = tcp_listener.accept().await.context("Fail to accept client tcp connection because if error.")?;
             if let Err(e) = client_tcp_stream.set_nodelay(true).context("Fail to set client tcp stream to no delay") {

@@ -4,7 +4,7 @@ use bytes::Buf;
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use ppaass_common::generate_uuid;
-use ppaass_protocol::{MessageUtil, PpaassMessage, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
+use ppaass_protocol::{PpaassMessage, PpaassMessagePayloadEncryptionSelector, PpaassMessageUtil, PpaassNetAddress};
 use pretty_hex::pretty_hex;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
@@ -39,7 +39,7 @@ impl TcpSession {
                 error!("Fail connect to dest address because of error: {e:?}");
                 let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
                 let tcp_initialize_fail_message =
-                    MessageUtil::create_proxy_tcp_session_initialize_fail_response(&user_token, src_address, dest_address, payload_encryption_token)?;
+                    PpaassMessageUtil::create_proxy_tcp_session_initialize_fail_response(&user_token, src_address, dest_address, payload_encryption_token)?;
                 let mut agent_message_framed_write = agent_message_framed_write.lock().await;
                 agent_message_framed_write
                     .send(tcp_initialize_fail_message)
@@ -50,7 +50,7 @@ impl TcpSession {
         };
         let agent_message_framed_write_for_read_task = agent_message_framed_write.clone();
         let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-        let tcp_initialize_success_message = MessageUtil::create_proxy_tcp_session_initialize_success_response(
+        let tcp_initialize_success_message = PpaassMessageUtil::create_proxy_tcp_session_initialize_success_response(
             &user_token,
             src_address.clone(),
             dest_address.clone(),
@@ -89,7 +89,7 @@ impl TcpSession {
                 let mut dest_read_buf = Vec::<u8>::with_capacity(1024 * 64);
                 let dest_tcp_stream_read_size = dest_tcp_stream_read.read(&mut dest_read_buf).await?;
                 let concrete_dest_inbound_data = &dest_read_buf[..dest_tcp_stream_read_size];
-                let tcp_relay = MessageUtil::create_tcp_relay(
+                let tcp_relay = PpaassMessageUtil::create_tcp_relay(
                     &user_token,
                     src_address.clone(),
                     dest_address.clone(),

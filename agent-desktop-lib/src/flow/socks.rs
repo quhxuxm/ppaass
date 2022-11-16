@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use deadpool::managed::Pool;
 use futures::{SinkExt, StreamExt};
-use ppaass_protocol::{MessageUtil, PpaassMessageParts, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
+use ppaass_protocol::{PpaassMessageParts, PpaassMessagePayloadEncryptionSelector, PpaassMessageUtil, PpaassNetAddress};
 use std::borrow::BorrowMut;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -88,7 +88,8 @@ where
         let src_address: PpaassNetAddress = self.client_socket_address.into();
         let dest_address: PpaassNetAddress = dest_address.into();
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(generate_uuid().into_bytes()));
-        let tcp_session_init_request = MessageUtil::create_agent_tcp_session_initialize_request(&user_token, src_address, dest_address, payload_encryption)?;
+        let tcp_session_init_request =
+            PpaassMessageUtil::create_agent_tcp_session_initialize_request(&user_token, src_address, dest_address, payload_encryption)?;
 
         proxy_message_framed_write.send(tcp_session_init_request).await?;
 
