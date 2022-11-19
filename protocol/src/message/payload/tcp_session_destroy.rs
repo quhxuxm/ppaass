@@ -5,12 +5,13 @@ use crate::PpaassNetAddress;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TcpDestroyRequestPayload {
+pub struct TcpSessionDestroyRequestPayload {
+    pub session_key: String,
     pub src_address: PpaassNetAddress,
     pub dest_address: PpaassNetAddress,
 }
 
-impl TryFrom<Vec<u8>> for TcpDestroyRequestPayload {
+impl TryFrom<Vec<u8>> for TcpSessionDestroyRequestPayload {
     type Error = anyhow::Error;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
@@ -18,10 +19,10 @@ impl TryFrom<Vec<u8>> for TcpDestroyRequestPayload {
     }
 }
 
-impl TryFrom<TcpDestroyRequestPayload> for Vec<u8> {
+impl TryFrom<TcpSessionDestroyRequestPayload> for Vec<u8> {
     type Error = anyhow::Error;
 
-    fn try_from(value: TcpDestroyRequestPayload) -> Result<Self, Self::Error> {
+    fn try_from(value: TcpSessionDestroyRequestPayload) -> Result<Self, Self::Error> {
         serde_json::to_vec(&value).context("fail generate bytes from TcpDestroyRequestPayload")
     }
 }

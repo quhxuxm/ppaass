@@ -1,7 +1,7 @@
 use anyhow::Context;
 use serde_derive::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct HeartbeatRequestPayload {
     pub timestamp: i64,
@@ -23,7 +23,7 @@ impl TryFrom<HeartbeatRequestPayload> for Vec<u8> {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct HeartbeatResponsePayload {
     pub timestamp: i64,

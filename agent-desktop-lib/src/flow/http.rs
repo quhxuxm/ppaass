@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::ClientFlow;
-use crate::pool::ProxyMessageFramedManager;
+use crate::pool::ProxyConnectionManager;
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher};
 use anyhow::Result;
 use deadpool::managed::Pool;
@@ -35,7 +35,7 @@ where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
     async fn exec(
-        &mut self, proxy_message_framed_pool: Pool<ProxyMessageFramedManager>, configuration: Arc<AgentServerConfig>,
+        &mut self, proxy_message_framed_pool: Pool<ProxyConnectionManager>, configuration: Arc<AgentServerConfig>,
         rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
     ) -> Result<()> {
         todo!()

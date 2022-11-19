@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, flow::socks::Socks5ClientFlow, pool::ProxyMessageFramedManager};
+use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, flow::socks::Socks5ClientFlow, pool::ProxyConnectionManager};
 use anyhow::Result;
 
 use deadpool::managed::Pool;
@@ -18,7 +18,7 @@ pub(crate) struct FlowDispatcher;
 impl FlowDispatcher {
     pub(crate) async fn dispatch<T>(mut stream: T, client_socket_address: SocketAddr) -> Result<Box<dyn ClientFlow>>
     where
-        T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+        T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
     {
         let protocol = stream.read_u8().await?;
         match protocol {

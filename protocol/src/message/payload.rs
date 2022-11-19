@@ -5,8 +5,8 @@ use crate::{serializer::vec_u8_to_base64, PpaassMessagePayloadType, PpaassNetAdd
 
 pub mod domain_resolve;
 pub mod heartbeat;
-pub mod tcp_destroy;
-pub mod tcp_initialize;
+pub mod tcp_session_destroy;
+pub mod tcp_session_init;
 pub mod tcp_relay;
 pub mod udp_destory;
 pub mod udp_initialize;

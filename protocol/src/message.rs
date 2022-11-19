@@ -12,8 +12,8 @@ pub use payload::*;
 pub use types::*;
 
 use crate::serializer::vec_u8_to_base64;
-use crate::tcp_initialize::{TcpInitializeRequestPayload, TcpInitializeResponsePayload};
 use crate::tcp_relay::TcpRelayPayload;
+use crate::tcp_session_init::{TcpSessionInitRequestPayload, TcpSessionInitResponsePayload};
 use anyhow::Result;
 use heartbeat::HeartbeatRequestPayload;
 
@@ -107,18 +107,18 @@ impl PpaassMessageUtil {
         let timestamp = chrono::Utc::now().timestamp();
         let heartbeat_request = HeartbeatRequestPayload { timestamp };
         let message_payload = PpaassMessagePayload::new(
-            PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::Heartbeat),
+            PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::IdleHeartbeat),
             heartbeat_request.try_into()?,
         );
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
         Ok(message)
     }
 
-    pub fn create_proxy_heartbeat_response(user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption) -> Result<PpaassMessage> {
+    pub fn create_proxy_idle_heartbeat_response(user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption) -> Result<PpaassMessage> {
         let timestamp = chrono::Utc::now().timestamp();
         let heartbeat_response = HeartbeatResponsePayload { timestamp };
         let message_payload = PpaassMessagePayload::new(
-            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::HeartbeatSuccess),
+            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::IdleHeartbeatSuccess),
             heartbeat_response.try_into()?,
         );
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
@@ -176,7 +176,7 @@ impl PpaassMessageUtil {
     pub fn create_agent_tcp_session_initialize_request(
         user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress, payload_encryption: PpaassMessagePayloadEncryption,
     ) -> Result<PpaassMessage> {
-        let tcp_initialize_request = TcpInitializeRequestPayload { src_address, dest_address };
+        let tcp_initialize_request = TcpSessionInitRequestPayload { src_address, dest_address };
         let message_payload = PpaassMessagePayload::new(
             PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpSessionInitialize),
             tcp_initialize_request.try_into()?,
@@ -186,9 +186,14 @@ impl PpaassMessageUtil {
     }
 
     pub fn create_proxy_tcp_session_initialize_success_response(
-        user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress, payload_encryption: PpaassMessagePayloadEncryption,
+        user_token: impl AsRef<str>, session_key: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress,
+        payload_encryption: PpaassMessagePayloadEncryption,
     ) -> Result<PpaassMessage> {
-        let tcp_initialize_response = TcpInitializeResponsePayload { src_address, dest_address };
+        let tcp_initialize_response = TcpSessionInitResponsePayload {
+            session_key: Some(session_key.as_ref().to_owned()),
+            src_address,
+            dest_address,
+        };
         let message_payload = PpaassMessagePayload::new(
             PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpSessionInitializeSuccess),
             tcp_initialize_response.try_into()?,
@@ -200,7 +205,11 @@ impl PpaassMessageUtil {
     pub fn create_proxy_tcp_session_initialize_fail_response(
         user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress, payload_encryption: PpaassMessagePayloadEncryption,
     ) -> Result<PpaassMessage> {
-        let tcp_initialize_response = TcpInitializeResponsePayload { src_address, dest_address };
+        let tcp_initialize_response = TcpSessionInitResponsePayload {
+            session_key: None,
+            src_address,
+            dest_address,
+        };
         let message_payload = PpaassMessagePayload::new(
             PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpSessionInitializeFail),
             tcp_initialize_response.try_into()?,
@@ -210,10 +219,11 @@ impl PpaassMessageUtil {
     }
 
     pub fn create_tcp_relay(
-        user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress, payload_encryption: PpaassMessagePayloadEncryption,
-        data: Vec<u8>, agent: bool,
+        user_token: impl AsRef<str>, session_key: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress,
+        payload_encryption: PpaassMessagePayloadEncryption, data: Vec<u8>, agent: bool,
     ) -> Result<PpaassMessage> {
         let tcp_relay = TcpRelayPayload {
+            session_key: session_key.as_ref().to_owned(),
             src_address,
             dest_address,
             data,

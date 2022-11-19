@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use ppaass_protocol::{
-    tcp_initialize::TcpInitializeRequestPayload, PpaassMessageAgentPayloadTypeValue, PpaassMessagePayload, PpaassMessagePayloadEncryption,
+    tcp_session_init::TcpSessionInitRequestPayload, PpaassMessageAgentPayloadTypeValue, PpaassMessagePayload, PpaassMessagePayloadEncryption,
     PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassNetAddress,
 };
 
@@ -19,7 +19,7 @@ fn test_serialize_message_payload() -> Result<(), Box<dyn Error>> {
         ip: [10, 20, 30, 40],
         port: 800,
     };
-    let tcp_initialize_payload = TcpInitializeRequestPayload { src_address, dest_address };
+    let tcp_initialize_payload = TcpSessionInitRequestPayload { src_address, dest_address };
 
     let message_payload = PpaassMessagePayload::new(
         PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpSessionInitialize),

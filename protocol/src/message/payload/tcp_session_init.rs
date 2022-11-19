@@ -5,12 +5,12 @@ use crate::PpaassNetAddress;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TcpInitializeRequestPayload {
+pub struct TcpSessionInitRequestPayload {
     pub src_address: PpaassNetAddress,
     pub dest_address: PpaassNetAddress,
 }
 
-impl TryFrom<Vec<u8>> for TcpInitializeRequestPayload {
+impl TryFrom<Vec<u8>> for TcpSessionInitRequestPayload {
     type Error = anyhow::Error;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
@@ -18,22 +18,23 @@ impl TryFrom<Vec<u8>> for TcpInitializeRequestPayload {
     }
 }
 
-impl TryFrom<TcpInitializeRequestPayload> for Vec<u8> {
+impl TryFrom<TcpSessionInitRequestPayload> for Vec<u8> {
     type Error = anyhow::Error;
 
-    fn try_from(value: TcpInitializeRequestPayload) -> Result<Self, Self::Error> {
+    fn try_from(value: TcpSessionInitRequestPayload) -> Result<Self, Self::Error> {
         serde_json::to_vec(&value).context("fail generate bytes from TcpInitializeRequestPayload")
     }
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TcpInitializeResponsePayload {
+pub struct TcpSessionInitResponsePayload {
     pub src_address: PpaassNetAddress,
     pub dest_address: PpaassNetAddress,
+    pub session_key: Option<String>,
 }
 
-impl TryFrom<Vec<u8>> for TcpInitializeResponsePayload {
+impl TryFrom<Vec<u8>> for TcpSessionInitResponsePayload {
     type Error = anyhow::Error;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
@@ -41,10 +42,10 @@ impl TryFrom<Vec<u8>> for TcpInitializeResponsePayload {
     }
 }
 
-impl TryFrom<TcpInitializeResponsePayload> for Vec<u8> {
+impl TryFrom<TcpSessionInitResponsePayload> for Vec<u8> {
     type Error = anyhow::Error;
 
-    fn try_from(value: TcpInitializeResponsePayload) -> Result<Self, Self::Error> {
+    fn try_from(value: TcpSessionInitResponsePayload) -> Result<Self, Self::Error> {
         serde_json::to_vec(&value).context("fail generate bytes from TcpInitializeResponsePayload")
     }
 }

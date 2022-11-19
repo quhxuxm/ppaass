@@ -6,6 +6,7 @@ use serde_derive::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TcpRelayPayload {
+    pub session_key: String,
     pub src_address: PpaassNetAddress,
     pub dest_address: PpaassNetAddress,
     #[serde(with = "vec_u8_to_base64")]

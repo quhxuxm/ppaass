@@ -9,7 +9,7 @@ pub enum PpaassMessageAgentPayloadTypeValue {
     UdpSessionRelay,
     UdpSessionDestroy,
     DomainNameResolve,
-    Heartbeat,
+    IdleHeartbeat,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
@@ -22,7 +22,7 @@ pub enum PpaassMessageProxyPayloadTypeValue {
     UdpSessionRelay,
     DomainNameResolveSuccess,
     DomainNameResolveFail,
-    HeartbeatSuccess,
+    IdleHeartbeatSuccess,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]

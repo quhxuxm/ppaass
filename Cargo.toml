@@ -22,6 +22,7 @@ ecb = {version = "*", features = ["std"]}
 futures = "*"
 futures-util = "*"
 httpcodec = "*"
+lazy_static = "*"
 lz4 = "*"
 pin-project = "*"
 pretty-hex = "*"

@@ -24,11 +24,12 @@ pub(crate) struct TcpSession {
 }
 
 impl TcpSession {
-    pub(crate) fn generate_key(src_address: &PpaassNetAddress, dest_address: &PpaassNetAddress) -> String {
-        format!("{src_address}=>{dest_address}")
+    fn generate_key(agent_address: &PpaassNetAddress, src_address: &PpaassNetAddress, dest_address: &PpaassNetAddress) -> String {
+        format!("[{agent_address}]::[{src_address}=>{dest_address}]")
     }
     pub(crate) async fn new(
-        agent_message_framed_write: AgentMessageFramedWrite, user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress,
+        agent_message_framed_write: AgentMessageFramedWrite, user_token: impl AsRef<str>, agent_address: PpaassNetAddress, src_address: PpaassNetAddress,
+        dest_address: PpaassNetAddress,
     ) -> Result<Self> {
         let user_token = user_token.as_ref().to_owned();
         let socket_address = dest_address.to_socket_addrs().context("Convert destination address to socket address")?;
@@ -48,10 +49,12 @@ impl TcpSession {
                 return Err(anyhow::anyhow!(e));
             },
         };
+        let key = Self::generate_key(&agent_address, &src_address, &dest_address);
         let agent_message_framed_write_for_read_task = agent_message_framed_write.clone();
         let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
         let tcp_initialize_success_message = PpaassMessageUtil::create_proxy_tcp_session_initialize_success_response(
             &user_token,
+            key.clone(),
             src_address.clone(),
             dest_address.clone(),
             payload_encryption_token,
@@ -66,10 +69,11 @@ impl TcpSession {
             agent_message_framed_write_for_read_task,
             dest_tcp_stream_read,
             &user_token,
+            &key,
             src_address.clone(),
             dest_address.clone(),
         );
-        let key = Self::generate_key(&src_address, &dest_address);
+
         Ok(Self {
             key,
             dest_read_guard,
@@ -79,10 +83,11 @@ impl TcpSession {
 
     fn start_dest_read_task(
         agent_message_framed_write: AgentMessageFramedWrite, mut dest_tcp_stream_read: OwnedReadHalf, user_token: impl AsRef<str>,
-        src_address: PpaassNetAddress, dest_address: PpaassNetAddress,
+        session_key: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress,
     ) -> JoinHandle<Result<()>> {
         let user_token = user_token.as_ref().to_owned();
-        let session_key = Self::generate_key(&src_address, &dest_address);
+        let session_key = session_key.as_ref().to_owned();
+
         tokio::spawn(async move {
             let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
             loop {
@@ -91,6 +96,7 @@ impl TcpSession {
                 let concrete_dest_inbound_data = &dest_read_buf[..dest_tcp_stream_read_size];
                 let tcp_relay = PpaassMessageUtil::create_tcp_relay(
                     &user_token,
+                    &session_key,
                     src_address.clone(),
                     dest_address.clone(),
                     payload_encryption_token.clone(),
@@ -117,6 +123,10 @@ impl TcpSession {
             .context("Fail to forward agent data to destination")?;
         trace!("Session [{}] forward agent data to destination:\n{}\n", self.key, pretty_hex(&data));
         Ok(())
+    }
+
+    pub(crate) fn get_key(&self) -> &str {
+        &self.key.as_str()
     }
 }
 
