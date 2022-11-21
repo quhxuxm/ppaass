@@ -90,7 +90,12 @@ where
                 match client_data {
                     Err(e) => {
                         error!("Fail to read client data because of error: {e:?}");
-                        return Err(anyhow::anyhow!(e));
+                        return Err(Socks5FlowError {
+                            client_stream: None,
+                            proxy_connection: None,
+                            source: anyhow::anyhow!(e),
+                            status: Socks5FlowStatus::Relay,
+                        });
                     },
                     Ok(client_data) => {
                         info!(
@@ -98,7 +103,7 @@ where
                             proxy_connection_id,
                             pretty_hex::pretty_hex(&client_data)
                         );
-                        let agent_message = PpaassMessageUtil::create_tcp_session_relay(
+                        let agent_message = match PpaassMessageUtil::create_tcp_session_relay(
                             user_token.as_ref(),
                             session_key.as_ref(),
                             src_address.clone(),
@@ -106,16 +111,38 @@ where
                             payload_encryption.clone(),
                             client_data.to_vec(),
                             true,
-                        )?;
+                        ) {
+                            Ok(agent_message) => agent_message,
+                            Err(e) => {
+                                return Err(Socks5FlowError {
+                                    client_stream: None,
+                                    proxy_connection: None,
+                                    source: anyhow::anyhow!(e),
+                                    status: Socks5FlowStatus::Relay,
+                                });
+                            },
+                        };
                         let mut proxy_connection_write = proxy_connection_write.lock().await;
                         if let Err(e) = proxy_connection_write.send(agent_message).await {
-                            proxy_connection_write.close().await?;
-                            return Err(anyhow::anyhow!(e));
+                            if let Err(e) = proxy_connection_write.close().await {
+                                return Err(Socks5FlowError {
+                                    client_stream: None,
+                                    proxy_connection: None,
+                                    source: anyhow::anyhow!(e),
+                                    status: Socks5FlowStatus::Relay,
+                                });
+                            }
+                            return Err(Socks5FlowError {
+                                client_stream: None,
+                                proxy_connection: None,
+                                source: anyhow::anyhow!(e),
+                                status: Socks5FlowStatus::Relay,
+                            });
                         };
                     },
                 }
             }
-            Ok::<_, anyhow::Error>(())
+            Ok::<_, Socks5FlowError<T>>(())
         });
         let proxy_to_agnet_relay_guard = tokio::spawn(async move {
             let mut proxy_connection_read = proxy_connection_read.lock().await;
@@ -123,30 +150,65 @@ where
                 match proxy_data {
                     Err(e) => {
                         error!("Fail to read proxy data because of error: {e:?}");
-                        return Err(anyhow::anyhow!(e));
+                        return Err(Socks5FlowError {
+                            client_stream: None,
+                            proxy_connection: None,
+                            source: anyhow::anyhow!(e),
+                            status: Socks5FlowStatus::Relay,
+                        });
                     },
                     Ok(proxy_data) => {
                         let PpaassMessageParts { payload_bytes, .. } = proxy_data.split();
-                        let PpaassMessagePayloadParts { payload_type, data } = TryInto::<PpaassMessagePayload>::try_into(payload_bytes)?.split();
+                        let PpaassMessagePayloadParts { payload_type, data } = match TryInto::<PpaassMessagePayload>::try_into(payload_bytes) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                return Err(Socks5FlowError {
+                                    client_stream: None,
+                                    proxy_connection: None,
+                                    source: anyhow::anyhow!(e),
+                                    status: Socks5FlowStatus::Relay,
+                                });
+                            },
+                        }
+                        .split();
                         match payload_type {
                             PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpSessionRelay) => {
-                                let tcp_session_relay: TcpSessionRelayPayload = data.try_into()?;
-                                client_relay_framed_write.send(BytesMut::from_iter(tcp_session_relay.data)).await?;
+                                let tcp_session_relay: TcpSessionRelayPayload = match data.try_into() {
+                                    Ok(tcp_session_relay) => tcp_session_relay,
+                                    Err(e) => {
+                                        return Err(Socks5FlowError {
+                                            client_stream: None,
+                                            proxy_connection: None,
+                                            source: anyhow::anyhow!(e),
+                                            status: Socks5FlowStatus::Relay,
+                                        });
+                                    },
+                                };
+                                if let Err(e) = client_relay_framed_write.send(BytesMut::from_iter(tcp_session_relay.data)).await {
+                                    return Err(Socks5FlowError {
+                                        client_stream: None,
+                                        proxy_connection: None,
+                                        source: anyhow::anyhow!(e),
+                                        status: Socks5FlowStatus::Relay,
+                                    });
+                                };
                             },
                             payload_type => {
                                 error!("Fail to read proxy data because of invalid payload type: {payload_type:?}");
-                                return Err(anyhow::anyhow!(format!(
-                                    "Fail to read proxy data because of invalid payload type: {payload_type:?}"
-                                )));
+                                return Err(Socks5FlowError {
+                                    client_stream: None,
+                                    proxy_connection: None,
+                                    source: anyhow::anyhow!(format!("Fail to read proxy data because of invalid payload type: {payload_type:?}")),
+                                    status: Socks5FlowStatus::Relay,
+                                });
                             },
                         }
                     },
                 }
             }
-            Ok::<_, anyhow::Error>(())
+            Ok::<_, Socks5FlowError<T>>(())
         });
         let _ = join!(agnet_to_proxy_relay_guard, proxy_to_agnet_relay_guard);
-
         Ok(())
     }
 
