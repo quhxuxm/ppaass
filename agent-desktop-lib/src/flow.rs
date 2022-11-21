@@ -28,8 +28,7 @@ where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
     pub(crate) async fn exec(
-        mut self, proxy_connection_pool: Pool<ProxyConnectionManager>, configuration: Arc<AgentServerConfig>,
-        rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
+        self, proxy_connection_pool: Pool<ProxyConnectionManager>, configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
     ) -> Result<()> {
         match self {
             ClientFlow::Http { stream, client_socket_address } => {
