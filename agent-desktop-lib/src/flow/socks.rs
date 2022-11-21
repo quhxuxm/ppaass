@@ -1,6 +1,9 @@
 use bytes::{BufMut, BytesMut};
 use deadpool::managed::{Object, Pool};
-use futures::{SinkExt, StreamExt};
+use futures::{
+    stream::{SplitSink, SplitStream},
+    SinkExt, StreamExt,
+};
 use ppaass_protocol::{
     tcp_session_init::TcpSessionInitResponsePayload, tcp_session_relay::TcpSessionRelayPayload, PpaassMessageParts, PpaassMessagePayload,
     PpaassMessagePayloadEncryption, PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts, PpaassMessagePayloadType,
@@ -11,6 +14,7 @@ use std::{net::SocketAddr, sync::Arc};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     join,
+    task::JoinError,
 };
 use tokio_util::codec::{BytesCodec, Framed, FramedParts};
 use tracing::{debug, error, info};
@@ -53,6 +57,21 @@ where
     pub(crate) source: anyhow::Error,
 }
 
+struct Socks5RelayAgentToProxyError<T>
+where
+    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
+{
+    client_relay_framed_read: SplitStream<Framed<T, BytesCodec>>,
+    source: anyhow::Error,
+}
+
+struct Socks5RelayProxyToAgentError<T>
+where
+    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
+{
+    client_relay_framed_write: SplitSink<Framed<T, BytesCodec>, BytesMut>,
+    source: anyhow::Error,
+}
 pub(crate) struct Socks5Flow<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
@@ -90,11 +109,9 @@ where
                 match client_data {
                     Err(e) => {
                         error!("Fail to read client data because of error: {e:?}");
-                        return Err(Socks5FlowError {
-                            client_stream: None,
-                            proxy_connection: None,
+                        return Err(Socks5RelayAgentToProxyError {
+                            client_relay_framed_read,
                             source: anyhow::anyhow!(e),
-                            status: Socks5FlowStatus::Relay,
                         });
                     },
                     Ok(client_data) => {
@@ -114,35 +131,29 @@ where
                         ) {
                             Ok(agent_message) => agent_message,
                             Err(e) => {
-                                return Err(Socks5FlowError {
-                                    client_stream: None,
-                                    proxy_connection: None,
+                                return Err(Socks5RelayAgentToProxyError {
+                                    client_relay_framed_read,
                                     source: anyhow::anyhow!(e),
-                                    status: Socks5FlowStatus::Relay,
                                 });
                             },
                         };
                         let mut proxy_connection_write = proxy_connection_write.lock().await;
                         if let Err(e) = proxy_connection_write.send(agent_message).await {
                             if let Err(e) = proxy_connection_write.close().await {
-                                return Err(Socks5FlowError {
-                                    client_stream: None,
-                                    proxy_connection: None,
+                                return Err(Socks5RelayAgentToProxyError {
+                                    client_relay_framed_read,
                                     source: anyhow::anyhow!(e),
-                                    status: Socks5FlowStatus::Relay,
                                 });
                             }
-                            return Err(Socks5FlowError {
-                                client_stream: None,
-                                proxy_connection: None,
+                            return Err(Socks5RelayAgentToProxyError {
+                                client_relay_framed_read,
                                 source: anyhow::anyhow!(e),
-                                status: Socks5FlowStatus::Relay,
                             });
                         };
                     },
                 }
             }
-            Ok::<_, Socks5FlowError<T>>(())
+            Ok::<_, Socks5RelayAgentToProxyError<T>>(client_relay_framed_read)
         });
         let proxy_to_agnet_relay_guard = tokio::spawn(async move {
             let mut proxy_connection_read = proxy_connection_read.lock().await;
@@ -150,11 +161,9 @@ where
                 match proxy_data {
                     Err(e) => {
                         error!("Fail to read proxy data because of error: {e:?}");
-                        return Err(Socks5FlowError {
-                            client_stream: None,
-                            proxy_connection: None,
+                        return Err(Socks5RelayProxyToAgentError {
+                            client_relay_framed_write,
                             source: anyhow::anyhow!(e),
-                            status: Socks5FlowStatus::Relay,
                         });
                     },
                     Ok(proxy_data) => {
@@ -162,11 +171,9 @@ where
                         let PpaassMessagePayloadParts { payload_type, data } = match TryInto::<PpaassMessagePayload>::try_into(payload_bytes) {
                             Ok(v) => v,
                             Err(e) => {
-                                return Err(Socks5FlowError {
-                                    client_stream: None,
-                                    proxy_connection: None,
+                                return Err(Socks5RelayProxyToAgentError {
+                                    client_relay_framed_write,
                                     source: anyhow::anyhow!(e),
-                                    status: Socks5FlowStatus::Relay,
                                 });
                             },
                         }
@@ -176,40 +183,163 @@ where
                                 let tcp_session_relay: TcpSessionRelayPayload = match data.try_into() {
                                     Ok(tcp_session_relay) => tcp_session_relay,
                                     Err(e) => {
-                                        return Err(Socks5FlowError {
-                                            client_stream: None,
-                                            proxy_connection: None,
+                                        return Err(Socks5RelayProxyToAgentError {
+                                            client_relay_framed_write,
                                             source: anyhow::anyhow!(e),
-                                            status: Socks5FlowStatus::Relay,
                                         });
                                     },
                                 };
                                 if let Err(e) = client_relay_framed_write.send(BytesMut::from_iter(tcp_session_relay.data)).await {
-                                    return Err(Socks5FlowError {
-                                        client_stream: None,
-                                        proxy_connection: None,
+                                    return Err(Socks5RelayProxyToAgentError {
+                                        client_relay_framed_write,
                                         source: anyhow::anyhow!(e),
-                                        status: Socks5FlowStatus::Relay,
                                     });
                                 };
                             },
                             payload_type => {
                                 error!("Fail to read proxy data because of invalid payload type: {payload_type:?}");
-                                return Err(Socks5FlowError {
-                                    client_stream: None,
-                                    proxy_connection: None,
+                                return Err(Socks5RelayProxyToAgentError {
+                                    client_relay_framed_write,
                                     source: anyhow::anyhow!(format!("Fail to read proxy data because of invalid payload type: {payload_type:?}")),
-                                    status: Socks5FlowStatus::Relay,
                                 });
                             },
                         }
                     },
                 }
             }
-            Ok::<_, Socks5FlowError<T>>(())
+            Ok::<_, Socks5RelayProxyToAgentError<T>>(client_relay_framed_write)
         });
-        let _ = join!(agnet_to_proxy_relay_guard, proxy_to_agnet_relay_guard);
-        Ok(())
+        let (a2p, p2a) = join!(agnet_to_proxy_relay_guard, proxy_to_agnet_relay_guard);
+        match (a2p, p2a) {
+            (Ok(Ok(_)), Ok(Ok(_))) => return Ok(()),
+            (
+                Ok(Err(Socks5RelayAgentToProxyError {
+                    client_relay_framed_read,
+                    source,
+                })),
+                Ok(Ok(client_relay_framed_write)),
+            ) => {
+                let client_relay_framed = match client_relay_framed_read.reunite(client_relay_framed_write) {
+                    Ok(client_relay_framed) => client_relay_framed,
+                    Err(e) => {
+                        return Err(Socks5FlowError {
+                            status: Socks5FlowStatus::Relay,
+                            client_stream: None,
+                            proxy_connection: Some(proxy_connection),
+                            source: anyhow::anyhow!(e),
+                        });
+                    },
+                };
+                let FramedParts { io, .. } = client_relay_framed.into_parts();
+                return Err(Socks5FlowError {
+                    status: Socks5FlowStatus::Relay,
+                    client_stream: Some(io),
+                    proxy_connection: Some(proxy_connection),
+                    source,
+                });
+            },
+            (
+                Ok(Err(Socks5RelayAgentToProxyError {
+                    client_relay_framed_read,
+                    source: source_a2p,
+                })),
+                Ok(Err(Socks5RelayProxyToAgentError {
+                    client_relay_framed_write,
+                    source: source_p2a,
+                })),
+            ) => {
+                error!("Agent to proxy relay has error: {source_a2p:?}");
+                error!("Proxy to agent relay has error: {source_p2a:?}");
+                let client_relay_framed = match client_relay_framed_read.reunite(client_relay_framed_write) {
+                    Ok(client_relay_framed) => client_relay_framed,
+                    Err(e) => {
+                        return Err(Socks5FlowError {
+                            status: Socks5FlowStatus::Relay,
+                            client_stream: None,
+                            proxy_connection: Some(proxy_connection),
+                            source: anyhow::anyhow!(e),
+                        });
+                    },
+                };
+                let FramedParts { io, .. } = client_relay_framed.into_parts();
+                return Err(Socks5FlowError {
+                    status: Socks5FlowStatus::Relay,
+                    client_stream: Some(io),
+                    proxy_connection: Some(proxy_connection),
+                    source: anyhow::anyhow!("Both agent to proxy relay and proxy to agent relay have error"),
+                });
+            },
+            (Ok(Ok(_client_relay_framed_read)), Err(join_error)) => {
+                return Err(Socks5FlowError {
+                    status: Socks5FlowStatus::Relay,
+                    client_stream: None,
+                    proxy_connection: Some(proxy_connection),
+                    source: anyhow::anyhow!(join_error),
+                });
+            },
+            (Ok(Err(Socks5RelayAgentToProxyError { source, .. })), Err(join_error)) => {
+                error!("Agent to proxy relay has error: {source:?}");
+                return Err(Socks5FlowError {
+                    status: Socks5FlowStatus::Relay,
+                    client_stream: None,
+                    proxy_connection: Some(proxy_connection),
+                    source: anyhow::anyhow!(join_error),
+                });
+            },
+            (Err(join_error), Ok(Ok(_))) => {
+                return Err(Socks5FlowError {
+                    status: Socks5FlowStatus::Relay,
+                    client_stream: None,
+                    proxy_connection: Some(proxy_connection),
+                    source: anyhow::anyhow!(join_error),
+                });
+            },
+            (Err(join_error), Ok(Err(Socks5RelayProxyToAgentError { source, .. }))) => {
+                error!("Proxy to agent relay has error: {source:?}");
+                return Err(Socks5FlowError {
+                    status: Socks5FlowStatus::Relay,
+                    client_stream: None,
+                    proxy_connection: Some(proxy_connection),
+                    source: anyhow::anyhow!(join_error),
+                });
+            },
+            (Err(join_error_a2p), Err(join_error_p2a)) => {
+                error!("Agent to proxy relay has error: {join_error_a2p:?}");
+                error!("Proxy to agent relay has error: {join_error_p2a:?}");
+                return Err(Socks5FlowError {
+                    status: Socks5FlowStatus::Relay,
+                    client_stream: None,
+                    proxy_connection: Some(proxy_connection),
+                    source: anyhow::anyhow!("Both agent to proxy relay and proxy to agent relay have error."),
+                });
+            },
+            (
+                Ok(Ok(client_relay_framed_read)),
+                Ok(Err(Socks5RelayProxyToAgentError {
+                    client_relay_framed_write,
+                    source,
+                })),
+            ) => {
+                let client_relay_framed = match client_relay_framed_read.reunite(client_relay_framed_write) {
+                    Ok(client_relay_framed) => client_relay_framed,
+                    Err(e) => {
+                        return Err(Socks5FlowError {
+                            status: Socks5FlowStatus::Relay,
+                            client_stream: None,
+                            proxy_connection: Some(proxy_connection),
+                            source: anyhow::anyhow!(e),
+                        });
+                    },
+                };
+                let FramedParts { io, .. } = client_relay_framed.into_parts();
+                return Err(Socks5FlowError {
+                    status: Socks5FlowStatus::Relay,
+                    client_stream: Some(io),
+                    proxy_connection: Some(proxy_connection),
+                    source,
+                });
+            },
+        }
     }
 
     pub(crate) async fn exec(

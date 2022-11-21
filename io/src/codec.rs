@@ -84,9 +84,8 @@ where
         };
         if src.remaining() < body_length as usize {
             debug!(
-                "Input message is not enough to decode body, buffer remaining: {}, body length: {}.",
+                "Input message is not enough to decode body, continue read, buffer remaining: {}, body length: {body_length}.",
                 src.remaining(),
-                body_length
             );
             return Ok(None);
         }
