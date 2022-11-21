@@ -5,7 +5,8 @@ use anyhow::Result;
 use common::AgentServerLogTimer;
 use ppaass_agent_desktop_lib::config::AgentServerLogConfig;
 use ppaass_agent_desktop_lib::{config::AgentServerConfig, server::AgentServer};
-use tracing::{metadata::LevelFilter, subscriber};
+use tokio::runtime::{Builder, Runtime};
+use tracing::{error, metadata::LevelFilter, subscriber};
 use tracing_subscriber::{fmt::Layer, prelude::__tracing_subscriber_SubscriberExt, Registry};
 
 mod common;
@@ -56,7 +57,16 @@ async fn main() -> Result<()> {
         "fail to parse agent server configuration file: {}",
         constant::DEFAULT_AGENT_CONFIG_FILE_PATH
     ))?;
-    let mut agent_server = AgentServer::new(Arc::new(agent_server_config));
-    agent_server.start().await?;
+    let mut agent_server_runtime_builder = Builder::new_multi_thread();
+    agent_server_runtime_builder.worker_threads(2);
+    let agent_server_runtime = agent_server_runtime_builder.build()?;
+
+    agent_server_runtime.spawn(async move {
+        let mut agent_server = AgentServer::new(Arc::new(agent_server_config));
+        if let Err(e) = agent_server.start().await {
+            error!("Fail to start agent server because of error: {e:?}");
+        };
+    });
+
     Ok(())
 }

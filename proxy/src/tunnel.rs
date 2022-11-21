@@ -20,7 +20,7 @@ use ppaass_protocol::{
     domain_resolve::DomainResolveRequestPayload, heartbeat::HeartbeatRequestPayload, PpaassMessageAgentPayloadTypeValue, PpaassMessageParts,
     PpaassMessagePayload, PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassMessageUtil,
 };
-use ppaass_protocol::{tcp_relay::TcpRelayPayload, PpaassNetAddress};
+use ppaass_protocol::{tcp_session_relay::TcpSessionRelayPayload, PpaassNetAddress};
 use tracing::{debug, error, info, trace};
 
 mod tcp_session;
@@ -59,29 +59,29 @@ impl TcpTunnel {
         let (heartbeat_timeout_sender, mut heartbeat_timeout_receiver) = channel::<bool>(1);
         let tunnel_id_for_heartbeat = tunnel_id.clone();
 
-        tokio::spawn(async move {
-            debug!("Start heartbeat task for tunnel [{tunnel_id_for_heartbeat}]");
-            let mut check_interval = tokio::time::interval(Duration::from_secs(2));
+        // tokio::spawn(async move {
+        //     debug!("Start heartbeat task for tunnel [{tunnel_id_for_heartbeat}]");
+        //     let mut check_interval = tokio::time::interval(Duration::from_secs(2));
 
-            loop {
-                check_interval.tick().await;
-                {
-                    let current_last_activate_timestamp = last_activate_timestamp_for_checker.lock().await;
-                    let deta = chrono::Utc::now().timestamp_millis() - *current_last_activate_timestamp;
-                    if deta <= 1000 * 120 {
-                        continue;
-                    }
-                }
-                error!("Tunnel {tunnel_id_for_heartbeat} idle timeout.");
-                match heartbeat_timeout_sender.send(true).await {
-                    Ok(()) => break,
-                    Err(e) => {
-                        error!("Tunnel {tunnel_id_for_heartbeat} idle timeout because fail to notify because of error: {e:?}");
-                        break;
-                    },
-                };
-            }
-        });
+        //     loop {
+        //         check_interval.tick().await;
+        //         {
+        //             let current_last_activate_timestamp = last_activate_timestamp_for_checker.lock().await;
+        //             let deta = chrono::Utc::now().timestamp_millis() - *current_last_activate_timestamp;
+        //             if deta <= 1000 * 120 {
+        //                 continue;
+        //             }
+        //         }
+        //         error!("Tunnel {tunnel_id_for_heartbeat} idle timeout.");
+        //         match heartbeat_timeout_sender.send(true).await {
+        //             Ok(()) => break,
+        //             Err(e) => {
+        //                 error!("Tunnel {tunnel_id_for_heartbeat} idle timeout because fail to notify because of error: {e:?}");
+        //                 break;
+        //             },
+        //         };
+        //     }
+        // });
 
         while let Some(agent_message) = select! {
             _ = heartbeat_timeout_receiver.recv()=>{
@@ -202,7 +202,7 @@ impl TcpTunnel {
                     self.tcp_session_container.insert(tcp_session.get_key().to_owned(), tcp_session);
                 },
                 PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpSessionRelay) => {
-                    let tcp_relay_payload: TcpRelayPayload = agent_message_payload_data.try_into()?;
+                    let tcp_relay_payload: TcpSessionRelayPayload = agent_message_payload_data.try_into()?;
                     let tcp_session_key = tcp_relay_payload.session_key;
 
                     let data = tcp_relay_payload.data;

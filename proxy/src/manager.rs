@@ -133,7 +133,8 @@ impl ProxyServerManager {
         let mut server_runtime_builder = Builder::new_multi_thread();
         server_runtime_builder.enable_all();
         server_runtime_builder.thread_name("proxy-server-runtime");
-        server_runtime_builder.worker_threads(config.get_thread_number());
+        // server_runtime_builder.worker_threads(config.get_thread_number());
+        server_runtime_builder.worker_threads(2);
         let server_runtime = server_runtime_builder.build().context("fail to build proxy server runtime.")?;
         Self::start_proxy_server(config.clone(), &server_runtime).await?;
         self.start_command_monitor(config, server_runtime_builder, server_runtime).await?;

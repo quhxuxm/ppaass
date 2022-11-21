@@ -44,7 +44,7 @@ impl AgentServer {
             .await
             .context("Fail to bind tcp listener for agent server")?;
 
-        let mut proxy_connection_pool_config = PoolConfig::new(8);
+        let mut proxy_connection_pool_config = PoolConfig::new(2);
         proxy_connection_pool_config.timeouts = Timeouts::wait_millis(2000);
         let proxy_connection_pool_builder =
             Pool::<ProxyConnectionManager>::builder(ProxyConnectionManager::new(self.configuration.clone(), rsa_crypto_fetcher.clone()))
@@ -56,8 +56,8 @@ impl AgentServer {
             .map_err(|e| anyhow::anyhow!(e))
             .context("Fail to create proxy server connection pool.")?;
 
-        let proxy_connection_keepalive = ProxyConnectionPoolKeepalive::new(proxy_connection_pool.clone(), self.configuration.clone());
-        let _keepalive_guard = proxy_connection_keepalive.start().await?;
+        // let proxy_connection_keepalive = ProxyConnectionPoolKeepalive::new(proxy_connection_pool.clone(), self.configuration.clone());
+        // let _keepalive_guard = proxy_connection_keepalive.start().await?;
         loop {
             let (client_tcp_stream, client_socket_address) = tcp_listener.accept().await.context("Fail to accept client tcp connection because if error.")?;
             if let Err(e) = client_tcp_stream.set_nodelay(true).context("Fail to set client tcp stream to no delay") {
@@ -66,7 +66,7 @@ impl AgentServer {
             }
             debug!("Accept client tcp connection on address: {}", client_socket_address);
 
-            let mut flow = match FlowDispatcher::dispatch(client_tcp_stream, client_socket_address).await {
+            let flow = match FlowDispatcher::dispatch(client_tcp_stream, client_socket_address).await {
                 Err(e) => {
                     error!("Fail to dispatch client tcp connection to concrete flow because of error: {e:?}");
                     continue;
@@ -75,7 +75,6 @@ impl AgentServer {
             };
 
             if let Err(e) = flow
-                .as_mut()
                 .exec(proxy_connection_pool.clone(), self.configuration.clone(), rsa_crypto_fetcher.clone())
                 .await
             {

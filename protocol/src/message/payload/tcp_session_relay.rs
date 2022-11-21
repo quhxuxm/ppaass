@@ -5,7 +5,7 @@ use serde_derive::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TcpRelayPayload {
+pub struct TcpSessionRelayPayload {
     pub session_key: String,
     pub src_address: PpaassNetAddress,
     pub dest_address: PpaassNetAddress,
@@ -13,7 +13,7 @@ pub struct TcpRelayPayload {
     pub data: Vec<u8>,
 }
 
-impl TryFrom<Vec<u8>> for TcpRelayPayload {
+impl TryFrom<Vec<u8>> for TcpSessionRelayPayload {
     type Error = anyhow::Error;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
@@ -21,10 +21,10 @@ impl TryFrom<Vec<u8>> for TcpRelayPayload {
     }
 }
 
-impl TryFrom<TcpRelayPayload> for Vec<u8> {
+impl TryFrom<TcpSessionRelayPayload> for Vec<u8> {
     type Error = anyhow::Error;
 
-    fn try_from(value: TcpRelayPayload) -> Result<Self, Self::Error> {
+    fn try_from(value: TcpSessionRelayPayload) -> Result<Self, Self::Error> {
         serde_json::to_vec(&value).context("fail generate bytes from TcpRelayPayload")
     }
 }

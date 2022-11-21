@@ -12,8 +12,8 @@ pub use payload::*;
 pub use types::*;
 
 use crate::serializer::vec_u8_to_base64;
-use crate::tcp_relay::TcpRelayPayload;
 use crate::tcp_session_init::{TcpSessionInitRequestPayload, TcpSessionInitResponsePayload};
+use crate::tcp_session_relay::TcpSessionRelayPayload;
 use anyhow::Result;
 use heartbeat::HeartbeatRequestPayload;
 
@@ -218,11 +218,11 @@ impl PpaassMessageUtil {
         Ok(message)
     }
 
-    pub fn create_tcp_relay(
+    pub fn create_tcp_session_relay(
         user_token: impl AsRef<str>, session_key: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress,
         payload_encryption: PpaassMessagePayloadEncryption, data: Vec<u8>, agent: bool,
     ) -> Result<PpaassMessage> {
-        let tcp_relay = TcpRelayPayload {
+        let tcp_relay = TcpSessionRelayPayload {
             session_key: session_key.as_ref().to_owned(),
             src_address,
             dest_address,

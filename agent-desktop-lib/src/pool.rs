@@ -1,5 +1,5 @@
-use std::str::FromStr;
 use std::sync::Arc;
+use std::{fmt::Debug, str::FromStr};
 use std::{net::SocketAddr, time::Duration};
 
 use anyhow::Context;
@@ -31,17 +31,27 @@ pub(crate) type ProxyMessageFramedWriter = SplitSink<ProxyMessageFramed, PpaassM
 pub(crate) type ProxyMessageFramedReader = SplitStream<ProxyMessageFramed>;
 
 pub(crate) struct ProxyConnection {
+    id: String,
     reader: Arc<Mutex<ProxyMessageFramedReader>>,
     writer: Arc<Mutex<ProxyMessageFramedWriter>>,
 }
 
 impl ProxyConnection {
+    pub(crate) fn get_id(&self) -> &String {
+        &self.id
+    }
     pub(crate) fn get_reader(&self) -> Arc<Mutex<ProxyMessageFramedReader>> {
         self.reader.clone()
     }
 
     pub(crate) fn get_writer(&self) -> Arc<Mutex<ProxyMessageFramedWriter>> {
         self.writer.clone()
+    }
+}
+
+impl Debug for ProxyConnection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProxyConnection").field("id", &self.id).finish()
     }
 }
 
@@ -86,11 +96,11 @@ impl Manager for ProxyConnectionManager {
             return Err(anyhow::anyhow!("no available proxy address for runtime to use."));
         }
         let proxy_tcp_stream = TcpStream::connect(&proxy_addresses.as_slice()).await?;
-        let mut ppaass_message_framed =
-            PpaassMessageFramed::new(proxy_tcp_stream, self.configuration.get_compress(), 1024 * 64, self.rsa_crypto_fetcher.clone())
-                .context("fail to create ppaass message framed")?;
+        let ppaass_message_framed = PpaassMessageFramed::new(proxy_tcp_stream, self.configuration.get_compress(), 1024 * 64, self.rsa_crypto_fetcher.clone())
+            .context("fail to create ppaass message framed")?;
         let (ppaass_message_framed_write, ppaass_message_framed_read) = ppaass_message_framed.split();
         Ok(ProxyConnection {
+            id: generate_uuid(),
             reader: Arc::new(Mutex::new(ppaass_message_framed_read)),
             writer: Arc::new(Mutex::new(ppaass_message_framed_write)),
         })
@@ -126,6 +136,7 @@ impl ProxyConnectionPoolKeepalive {
                 let Status { max_size, .. } = connection_pool.status();
                 for _i in [0..max_size] {
                     let idle_connection = connection_pool.get().await.map_err(|e| anyhow::anyhow!(e))?;
+                    debug!("Heartbeat on proxy connection: [{:?}]", idle_connection.as_ref());
 
                     let configuration = configuration.clone();
                     tokio::spawn(async move {
@@ -135,7 +146,10 @@ impl ProxyConnectionPoolKeepalive {
                             .context("Can not get user token from configuration file")?;
                         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(&user_token, Some(generate_uuid().into_bytes()));
                         let heartbeat_message = PpaassMessageUtil::create_agent_heartbeat_request(user_token, payload_encryption)?;
-                        info!("Send heartbeat request to proxy: {heartbeat_message:?}");
+                        info!(
+                            "Proxy connection [{:?}] send heartbeat request to proxy: {heartbeat_message:?}",
+                            idle_connection.as_ref()
+                        );
                         {
                             let idle_connection_writer = idle_connection.get_writer();
                             let mut idle_connection_writer = idle_connection_writer.lock().await;
@@ -153,11 +167,14 @@ impl ProxyConnectionPoolKeepalive {
                                 let idle_connection_writer = idle_connection.get_writer();
                                 let mut idle_connection_writer = idle_connection_writer.lock().await;
                                 idle_connection_writer.close().await?;
-                                info!("Proxy connection disconnected already, shutdown it.");
+                                info!("Proxy connection [{:?}] disconnected already, shutdown it.", idle_connection);
                                 Ok::<_, anyhow::Error>(())
                             },
                             Some(Err(e)) => {
-                                error!("Fail to do idle heartbeat on proxy connection because of error: {e:?}");
+                                error!(
+                                    "Fail to do idle heartbeat on proxy connection [{:?}] because of error: {e:?}",
+                                    idle_connection.as_ref()
+                                );
                                 let idle_connection = Object::take(idle_connection);
                                 let idle_connection_writer = idle_connection.get_writer();
                                 let mut idle_connection_writer = idle_connection_writer.lock().await;
@@ -171,10 +188,16 @@ impl ProxyConnectionPoolKeepalive {
                                     payload_type
                                 {
                                     let heartbeat_success_response: HeartbeatResponsePayload = data.try_into()?;
-                                    info!("Success to do idle heartbeat on connection: {heartbeat_success_response:?}");
+                                    info!(
+                                        "Success to do idle heartbeat on proxy connection: {:?}, heartbeat response: {heartbeat_success_response:?}",
+                                        idle_connection.as_ref()
+                                    );
                                     Ok::<_, anyhow::Error>(())
                                 } else {
-                                    error!("Fail to do idle heartbeat on proxy connection because of invalid payload type.");
+                                    error!(
+                                        "Fail to do idle heartbeat on proxy connection [{:?}] because of invalid payload type: [{payload_type:?}].",
+                                        idle_connection.as_ref()
+                                    );
                                     let idle_connection = Object::take(idle_connection);
                                     let idle_connection_writer = idle_connection.get_writer();
                                     let mut idle_connection_writer = idle_connection_writer.lock().await;

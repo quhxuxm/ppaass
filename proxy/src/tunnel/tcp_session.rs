@@ -94,7 +94,7 @@ impl TcpSession {
                 let mut dest_read_buf = Vec::<u8>::with_capacity(1024 * 64);
                 let dest_tcp_stream_read_size = dest_tcp_stream_read.read(&mut dest_read_buf).await?;
                 let concrete_dest_inbound_data = &dest_read_buf[..dest_tcp_stream_read_size];
-                let tcp_relay = PpaassMessageUtil::create_tcp_relay(
+                let tcp_relay = PpaassMessageUtil::create_tcp_session_relay(
                     &user_token,
                     &session_key,
                     src_address.clone(),

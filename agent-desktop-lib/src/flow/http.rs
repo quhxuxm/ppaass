@@ -12,7 +12,7 @@ use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher};
 use anyhow::Result;
 use deadpool::managed::Pool;
 
-pub(crate) struct HttpClientFlow<T>
+pub(crate) struct HttpFlow<T>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
@@ -20,22 +20,16 @@ where
     client_socket_address: SocketAddr,
 }
 
-impl<T> HttpClientFlow<T>
+impl<T> HttpFlow<T>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
     pub(crate) fn new(stream: T, client_socket_address: SocketAddr) -> Self {
         Self { stream, client_socket_address }
     }
-}
 
-#[async_trait]
-impl<T> ClientFlow for HttpClientFlow<T>
-where
-    T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
-{
-    async fn exec(
-        &mut self, proxy_message_framed_pool: Pool<ProxyConnectionManager>, configuration: Arc<AgentServerConfig>,
+    pub(crate) async fn exec(
+        self, proxy_message_framed_pool: Pool<ProxyConnectionManager>, configuration: Arc<AgentServerConfig>,
         rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
     ) -> Result<()> {
         todo!()

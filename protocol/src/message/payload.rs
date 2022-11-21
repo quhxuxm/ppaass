@@ -7,7 +7,7 @@ pub mod domain_resolve;
 pub mod heartbeat;
 pub mod tcp_session_destroy;
 pub mod tcp_session_init;
-pub mod tcp_relay;
+pub mod tcp_session_relay;
 pub mod udp_destory;
 pub mod udp_initialize;
 pub mod udp_relay;

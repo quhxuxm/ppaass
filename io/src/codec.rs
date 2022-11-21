@@ -62,7 +62,7 @@ where
         let (body_is_compressed, body_length) = match self.status {
             DecodeStatus::Head => {
                 if src.len() < header_length {
-                    debug!("Input message is not enough to decode header.");
+                    trace!("Input message is not enough to decode header, header length: {}", src.len());
                     src.reserve(header_length);
                     return Ok(None);
                 }
@@ -76,7 +76,7 @@ where
                 let compressed = src.get_u8() == 1;
                 let body_length = src.get_u64();
                 src.reserve(body_length as usize);
-                debug!("The body length of the input message is {}", body_length);
+                trace!("The body length of the input message is {}", body_length);
                 self.status = DecodeStatus::Data(compressed, body_length);
                 (compressed, body_length)
             },
@@ -149,7 +149,7 @@ where
     type Error = anyhow::Error;
 
     fn encode(&mut self, original_message: PpaassMessage, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        debug!("Encode message to output(decrypted): {:?}", original_message);
+        trace!("Encode message to output(decrypted): {:?}", original_message);
         dst.put(PPAASS_FLAG);
         if self.compress {
             dst.put_u8(1);
