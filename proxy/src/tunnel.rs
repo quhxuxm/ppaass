@@ -11,12 +11,12 @@ use crate::common::ProxyServerPayloadEncryptionSelector;
 use crate::tunnel::tcp_session::TcpSession;
 use crate::{common::AgentMessageFramed, config::ProxyServerConfig};
 use anyhow::Result;
-use ppaass_protocol::tcp_session_destroy::TcpSessionDestroyRequestPayload;
 use ppaass_protocol::tcp_session_init::TcpSessionInitRequestPayload;
 use ppaass_protocol::{
     domain_resolve::DomainResolveRequestPayload, heartbeat::HeartbeatRequestPayload, PpaassMessageAgentPayloadTypeValue, PpaassMessageParts,
     PpaassMessagePayload, PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassMessageUtil,
 };
+use ppaass_protocol::{tcp_session_destroy::TcpSessionDestroyRequestPayload, tcp_session_relay::TcpSessionRelayStatus};
 use ppaass_protocol::{tcp_session_relay::TcpSessionRelayPayload, PpaassNetAddress};
 use tracing::{debug, error, info, trace};
 
@@ -184,12 +184,19 @@ impl TcpTunnel {
                 PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpSessionRelay) => {
                     let tcp_relay_payload: TcpSessionRelayPayload = agent_message_payload_data.try_into()?;
                     let tcp_session_key = tcp_relay_payload.session_key;
-
-                    let data = tcp_relay_payload.data;
-                    let Some(tcp_session) = self.tcp_session_container.get_mut(&tcp_session_key) else {
-                        return Err(anyhow::anyhow!(format!( "Tcp session not exist for {tcp_session_key}")));
-                    };
-                    tcp_session.forward(data).await?;
+                    let tcp_relay_status = tcp_relay_payload.status;
+                    match tcp_relay_status {
+                        TcpSessionRelayStatus::Data => {
+                            let data = tcp_relay_payload.data;
+                            let Some(tcp_session) = self.tcp_session_container.get_mut(&tcp_session_key) else {
+                                return Err(anyhow::anyhow!(format!( "Tcp session not exist for {tcp_session_key}")));
+                            };
+                            tcp_session.forward(data).await?;
+                        },
+                        TcpSessionRelayStatus::Complete => {
+                            debug!("Session [{tcp_session_key}] read agent data complete.")
+                        },
+                    }
                 },
                 PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpSessionDestroy) => {
                     let tcp_destroy_request: TcpSessionDestroyRequestPayload = agent_message_payload_data.try_into()?;

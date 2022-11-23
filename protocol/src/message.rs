@@ -20,6 +20,7 @@ use heartbeat::HeartbeatRequestPayload;
 use self::{
     domain_resolve::{DomainResolveRequestPayload, DomainResolveResponsePayload},
     heartbeat::HeartbeatResponsePayload,
+    tcp_session_relay::TcpSessionRelayStatus,
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -218,7 +219,7 @@ impl PpaassMessageUtil {
         Ok(message)
     }
 
-    pub fn create_tcp_session_relay(
+    pub fn create_tcp_session_relay_data(
         user_token: impl AsRef<str>, session_key: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress,
         payload_encryption: PpaassMessagePayloadEncryption, data: Vec<u8>, agent: bool,
     ) -> Result<PpaassMessage> {
@@ -227,6 +228,28 @@ impl PpaassMessageUtil {
             src_address,
             dest_address,
             data,
+            status: TcpSessionRelayStatus::Data,
+        };
+        let payload_type = if agent {
+            PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpSessionRelay)
+        } else {
+            PpaassMessagePayloadType::ProxyPayload(PpaassMessageProxyPayloadTypeValue::TcpSessionRelay)
+        };
+        let message_payload = PpaassMessagePayload::new(payload_type, tcp_relay.try_into()?);
+        let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
+        Ok(message)
+    }
+
+    pub fn create_tcp_session_relay_complete(
+        user_token: impl AsRef<str>, session_key: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress,
+        payload_encryption: PpaassMessagePayloadEncryption, agent: bool,
+    ) -> Result<PpaassMessage> {
+        let tcp_relay = TcpSessionRelayPayload {
+            session_key: session_key.as_ref().to_owned(),
+            src_address,
+            dest_address,
+            data: Vec::new(),
+            status: TcpSessionRelayStatus::Complete,
         };
         let payload_type = if agent {
             PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpSessionRelay)

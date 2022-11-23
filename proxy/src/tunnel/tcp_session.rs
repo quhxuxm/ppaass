@@ -99,7 +99,7 @@ impl TcpSession {
             while let Some(dest_tcp_data) = dest_tcp_framed_read.next().await {
                 let dest_tcp_data = dest_tcp_data?;
                 debug!("Session [{session_key}] forward destination data to agent:\n{}\n", pretty_hex(&dest_tcp_data));
-                let tcp_relay = PpaassMessageUtil::create_tcp_session_relay(
+                let tcp_relay = PpaassMessageUtil::create_tcp_session_relay_data(
                     &user_token,
                     &session_key,
                     src_address.clone(),
@@ -111,6 +111,16 @@ impl TcpSession {
                 let mut agent_message_framed_write = agent_message_framed_write.lock().await;
                 agent_message_framed_write.send(tcp_relay).await?;
             }
+            let tcp_relay_complete = PpaassMessageUtil::create_tcp_session_relay_complete(
+                &user_token,
+                &session_key,
+                src_address.clone(),
+                dest_address.clone(),
+                payload_encryption_token.clone(),
+                false,
+            )?;
+            let mut agent_message_framed_write = agent_message_framed_write.lock().await;
+            agent_message_framed_write.send(tcp_relay_complete).await?;
             debug!("Session [{session_key}] read destination data complete");
             Ok(())
         })

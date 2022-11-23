@@ -5,9 +5,10 @@ use futures::{
     SinkExt, StreamExt,
 };
 use ppaass_protocol::{
-    tcp_session_init::TcpSessionInitResponsePayload, tcp_session_relay::TcpSessionRelayPayload, PpaassMessageParts, PpaassMessagePayload,
-    PpaassMessagePayloadEncryption, PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts, PpaassMessagePayloadType,
-    PpaassMessageProxyPayloadTypeValue, PpaassMessageUtil, PpaassNetAddress,
+    tcp_session_init::TcpSessionInitResponsePayload,
+    tcp_session_relay::{TcpSessionRelayPayload, TcpSessionRelayStatus},
+    PpaassMessageParts, PpaassMessagePayload, PpaassMessagePayloadEncryption, PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts,
+    PpaassMessagePayloadType, PpaassMessageProxyPayloadTypeValue, PpaassMessageUtil, PpaassNetAddress,
 };
 
 use std::{
@@ -124,7 +125,7 @@ where
                             proxy_connection_id,
                             pretty_hex::pretty_hex(&client_data)
                         );
-                        let agent_message = match PpaassMessageUtil::create_tcp_session_relay(
+                        let agent_message = match PpaassMessageUtil::create_tcp_session_relay_data(
                             user_token.as_ref(),
                             session_key_a2p.as_ref(),
                             src_address.clone(),
@@ -157,12 +158,48 @@ where
                     },
                 }
             }
+            let agent_relay_complete_message = match PpaassMessageUtil::create_tcp_session_relay_complete(
+                user_token.as_ref(),
+                session_key_a2p.as_ref(),
+                src_address.clone(),
+                dest_address.clone(),
+                payload_encryption.clone(),
+                true,
+            ) {
+                Ok(agent_relay_complete_message) => agent_relay_complete_message,
+                Err(e) => {
+                    return Err(Socks5RelayAgentToProxyError {
+                        client_relay_framed_read,
+                        source: anyhow::anyhow!(e),
+                    });
+                },
+            };
+            let mut proxy_connection_write = proxy_connection_write.lock().await;
+            if let Err(e) = proxy_connection_write.send(agent_relay_complete_message).await {
+                if let Err(e) = proxy_connection_write.close().await {
+                    return Err(Socks5RelayAgentToProxyError {
+                        client_relay_framed_read,
+                        source: anyhow::anyhow!(e),
+                    });
+                }
+                return Err(Socks5RelayAgentToProxyError {
+                    client_relay_framed_read,
+                    source: anyhow::anyhow!(e),
+                });
+            };
+
             debug!("Session [{session_key_a2p}] read client data complete");
             Ok::<_, Socks5RelayAgentToProxyError<T>>(client_relay_framed_read)
         });
         let proxy_to_agnet_relay_guard = tokio::spawn(async move {
-            let mut proxy_connection_read = proxy_connection_read.lock().await;
-            while let Some(proxy_data) = proxy_connection_read.next().await {
+            loop {
+                let proxy_data = {
+                    let mut proxy_connection_read = proxy_connection_read.lock().await;
+                    let Some(proxy_data) = proxy_connection_read.next().await else{
+                        break;
+                    };
+                    proxy_data
+                };
                 match proxy_data {
                     Err(e) => {
                         error!("Fail to read proxy data because of error: {e:?}");
@@ -194,12 +231,19 @@ where
                                         });
                                     },
                                 };
-                                if let Err(e) = client_relay_framed_write.send(BytesMut::from_iter(tcp_session_relay.data)).await {
-                                    return Err(Socks5RelayProxyToAgentError {
-                                        client_relay_framed_write,
-                                        source: anyhow::anyhow!(e),
-                                    });
-                                };
+
+                                let tcp_session_relay_status = tcp_session_relay.status;
+                                match tcp_session_relay_status {
+                                    TcpSessionRelayStatus::Data => {
+                                        if let Err(e) = client_relay_framed_write.send(BytesMut::from_iter(tcp_session_relay.data)).await {
+                                            return Err(Socks5RelayProxyToAgentError {
+                                                client_relay_framed_write,
+                                                source: anyhow::anyhow!(e),
+                                            });
+                                        };
+                                    },
+                                    TcpSessionRelayStatus::Complete => break,
+                                }
                             },
                             payload_type => {
                                 error!("Fail to read proxy data because of invalid payload type: {payload_type:?}");
@@ -212,6 +256,7 @@ where
                     },
                 }
             }
+
             debug!("Session [{session_key}] read proxy data complete");
             Ok::<_, Socks5RelayProxyToAgentError<T>>(client_relay_framed_write)
         });
