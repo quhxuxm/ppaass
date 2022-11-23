@@ -32,7 +32,6 @@ pub(crate) struct TcpTunnel {
     agent_address: PpaassNetAddress,
     configuration: Arc<ProxyServerConfig>,
     tcp_session_container: HashMap<String, TcpSession>,
-    last_activate_timestamp: i64,
 }
 
 impl TcpTunnel {
@@ -43,7 +42,6 @@ impl TcpTunnel {
             agent_address: agent_socket_address.into(),
             configuration,
             tcp_session_container: HashMap::new(),
-            last_activate_timestamp: chrono::Utc::now().timestamp_millis(),
         }
     }
 
@@ -54,10 +52,6 @@ impl TcpTunnel {
         let agent_message_framed = self.agent_message_framed;
         let (agent_message_framed_write, mut agent_message_framed_read) = agent_message_framed.split();
         let agent_message_framed_write = Arc::new(Mutex::new(agent_message_framed_write));
-        let last_activate_timestamp = Arc::new(Mutex::new(self.last_activate_timestamp));
-        let last_activate_timestamp_for_checker = last_activate_timestamp.clone();
-        let (heartbeat_timeout_sender, mut heartbeat_timeout_receiver) = channel::<bool>(1);
-        let tunnel_id_for_heartbeat = tunnel_id.clone();
 
         // tokio::spawn(async move {
         //     debug!("Start heartbeat task for tunnel [{tunnel_id_for_heartbeat}]");
@@ -83,12 +77,7 @@ impl TcpTunnel {
         //     }
         // });
 
-        while let Some(agent_message) = select! {
-            _ = heartbeat_timeout_receiver.recv()=>{
-                return Err(anyhow::anyhow!("Tunnel [{tunnel_id}] idle timeout."));
-            },
-            v = agent_message_framed_read.next()=>v
-        } {
+        while let Some(agent_message) = agent_message_framed_read.next().await {
             let agent_message = match agent_message {
                 Err(e) => {
                     error!("Fail to read agent message because of error: {e:?}");
@@ -107,11 +96,6 @@ impl TcpTunnel {
                 data: agent_message_payload_data,
             } = TryInto::<PpaassMessagePayload>::try_into(payload_bytes)?.split();
             debug!("Receive agent message: {agent_message_id}, payload_type: {agent_message_payload_type:?}");
-
-            {
-                let mut last_heartbeat_timestamp = last_activate_timestamp.lock().await;
-                *last_heartbeat_timestamp = chrono::Utc::now().timestamp_millis();
-            }
 
             match agent_message_payload_type {
                 PpaassMessagePayloadType::ProxyPayload(v) => {
@@ -192,7 +176,7 @@ impl TcpTunnel {
                     let src_address = tcp_initialize_request.src_address;
                     let dest_address = tcp_initialize_request.dest_address;
                     let tcp_session = TcpSession::new(
-                        agent_message_framed_write.clone(),
+                        agent_message_framed_write,
                         user_token.clone(),
                         agent_address.clone(),
                         src_address.clone(),

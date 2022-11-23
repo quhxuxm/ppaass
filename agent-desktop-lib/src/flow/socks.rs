@@ -14,7 +14,6 @@ use std::{net::SocketAddr, sync::Arc};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     join,
-    task::JoinError,
 };
 use tokio_util::codec::{BytesCodec, Framed, FramedParts};
 use tracing::{debug, error, info};
@@ -231,12 +230,12 @@ where
                     },
                 };
                 let FramedParts { io, .. } = client_relay_framed.into_parts();
-                return Err(Socks5FlowError {
+                Err(Socks5FlowError {
                     status: Socks5FlowStatus::Relay,
                     client_stream: Some(io),
                     proxy_connection: Some(proxy_connection),
                     source,
-                });
+                })
             },
             (
                 Ok(Err(Socks5RelayAgentToProxyError {
@@ -262,56 +261,52 @@ where
                     },
                 };
                 let FramedParts { io, .. } = client_relay_framed.into_parts();
-                return Err(Socks5FlowError {
+                Err(Socks5FlowError {
                     status: Socks5FlowStatus::Relay,
                     client_stream: Some(io),
                     proxy_connection: Some(proxy_connection),
                     source: anyhow::anyhow!("Both agent to proxy relay and proxy to agent relay have error"),
-                });
+                })
             },
-            (Ok(Ok(_client_relay_framed_read)), Err(join_error)) => {
-                return Err(Socks5FlowError {
-                    status: Socks5FlowStatus::Relay,
-                    client_stream: None,
-                    proxy_connection: Some(proxy_connection),
-                    source: anyhow::anyhow!(join_error),
-                });
-            },
+            (Ok(Ok(_client_relay_framed_read)), Err(join_error)) => Err(Socks5FlowError {
+                status: Socks5FlowStatus::Relay,
+                client_stream: None,
+                proxy_connection: Some(proxy_connection),
+                source: anyhow::anyhow!(join_error),
+            }),
             (Ok(Err(Socks5RelayAgentToProxyError { source, .. })), Err(join_error)) => {
                 error!("Agent to proxy relay has error: {source:?}");
-                return Err(Socks5FlowError {
+                Err(Socks5FlowError {
                     status: Socks5FlowStatus::Relay,
                     client_stream: None,
                     proxy_connection: Some(proxy_connection),
                     source: anyhow::anyhow!(join_error),
-                });
+                })
             },
-            (Err(join_error), Ok(Ok(_))) => {
-                return Err(Socks5FlowError {
-                    status: Socks5FlowStatus::Relay,
-                    client_stream: None,
-                    proxy_connection: Some(proxy_connection),
-                    source: anyhow::anyhow!(join_error),
-                });
-            },
+            (Err(join_error), Ok(Ok(_))) => Err(Socks5FlowError {
+                status: Socks5FlowStatus::Relay,
+                client_stream: None,
+                proxy_connection: Some(proxy_connection),
+                source: anyhow::anyhow!(join_error),
+            }),
             (Err(join_error), Ok(Err(Socks5RelayProxyToAgentError { source, .. }))) => {
                 error!("Proxy to agent relay has error: {source:?}");
-                return Err(Socks5FlowError {
+                Err(Socks5FlowError {
                     status: Socks5FlowStatus::Relay,
                     client_stream: None,
                     proxy_connection: Some(proxy_connection),
                     source: anyhow::anyhow!(join_error),
-                });
+                })
             },
             (Err(join_error_a2p), Err(join_error_p2a)) => {
                 error!("Agent to proxy relay has error: {join_error_a2p:?}");
                 error!("Proxy to agent relay has error: {join_error_p2a:?}");
-                return Err(Socks5FlowError {
+                Err(Socks5FlowError {
                     status: Socks5FlowStatus::Relay,
                     client_stream: None,
                     proxy_connection: Some(proxy_connection),
                     source: anyhow::anyhow!("Both agent to proxy relay and proxy to agent relay have error."),
-                });
+                })
             },
             (
                 Ok(Ok(client_relay_framed_read)),
@@ -332,12 +327,12 @@ where
                     },
                 };
                 let FramedParts { io, .. } = client_relay_framed.into_parts();
-                return Err(Socks5FlowError {
+                Err(Socks5FlowError {
                     status: Socks5FlowStatus::Relay,
                     client_stream: Some(io),
                     proxy_connection: Some(proxy_connection),
                     source,
-                });
+                })
             },
         }
     }

@@ -134,7 +134,7 @@ impl ProxyConnectionPoolKeepalive {
                 heartbeat_interval.tick().await;
 
                 let Status { max_size, .. } = connection_pool.status();
-                for _i in [0..max_size] {
+                for _ in 0..max_size {
                     let idle_connection = connection_pool.get().await.map_err(|e| anyhow::anyhow!(e))?;
                     debug!("Heartbeat on proxy connection: [{:?}]", idle_connection.as_ref());
 

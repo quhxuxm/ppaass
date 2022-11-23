@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
     let default_log_level = "info".to_string();
     let log_level = agent_server_log_config.get_level().as_ref().unwrap_or(&default_log_level);
     let log_file_appender = tracing_appender::rolling::daily(log_dir, log_file);
-    let log_level_filter = LevelFilter::from_str(&log_level).expect("Fail to initialize log filter");
+    let log_level_filter = LevelFilter::from_str(log_level).expect("Fail to initialize log filter");
     let (non_blocking, _appender_guard) = tracing_appender::non_blocking(log_file_appender);
     let subscriber = Registry::default()
         .with(
@@ -57,7 +57,7 @@ async fn main() -> Result<()> {
         "fail to parse agent server configuration file: {}",
         constant::DEFAULT_AGENT_CONFIG_FILE_PATH
     ))?;
-    let agent_server_runtime = Builder::new_multi_thread().enable_io().enable_time().worker_threads(2).build()?;
+    let agent_server_runtime = Builder::new_multi_thread().enable_io().enable_time().worker_threads(16).build()?;
 
     let agent_server_join_handler = agent_server_runtime.spawn(async move {
         let mut agent_server = AgentServer::new(Arc::new(agent_server_config));
