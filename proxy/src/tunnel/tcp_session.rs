@@ -14,7 +14,7 @@ use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_util::codec::{BytesCodec, Framed};
-use tracing::{error, trace};
+use tracing::{debug, error, trace};
 
 type AgentMessageFramedWrite = Arc<Mutex<SplitSink<AgentMessageFramed, PpaassMessage>>>;
 type DestTcpFramedWrite = SplitSink<Framed<TcpStream, BytesCodec>, BytesMut>;
@@ -98,7 +98,7 @@ impl TcpSession {
             let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
             while let Some(dest_tcp_data) = dest_tcp_framed_read.next().await {
                 let dest_tcp_data = dest_tcp_data?;
-                trace!("Session [{session_key}] forward agent data to destination:\n{}\n", pretty_hex(&dest_tcp_data));
+                debug!("Session [{session_key}] forward destination data to agent:\n{}\n", pretty_hex(&dest_tcp_data));
                 let tcp_relay = PpaassMessageUtil::create_tcp_session_relay(
                     &user_token,
                     &session_key,
@@ -111,6 +111,7 @@ impl TcpSession {
                 let mut agent_message_framed_write = agent_message_framed_write.lock().await;
                 agent_message_framed_write.send(tcp_relay).await?;
             }
+            debug!("Session [{session_key}] read destination data complete");
             Ok(())
         })
     }
@@ -121,7 +122,7 @@ impl TcpSession {
         };
 
         let data = BytesMut::from_iter(data.as_ref().to_vec());
-        trace!("Session [{}] forward agent data to destination:\n{}\n", self.key, pretty_hex(&data));
+        debug!("Session [{}] forward agent data to destination:\n{}\n", self.key, pretty_hex(&data));
 
         dest_tcp_framed_write.send(data).await.context("Fail to forward agent data to destination")?;
         Ok(())

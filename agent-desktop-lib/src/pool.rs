@@ -58,27 +58,14 @@ impl Debug for ProxyConnection {
 pub(crate) struct ProxyConnectionManager {
     configuration: Arc<AgentServerConfig>,
     rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
+    proxy_addresses: Vec<SocketAddr>,
 }
 
 impl ProxyConnectionManager {
     pub(crate) fn new(configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>) -> Self {
-        Self {
-            configuration,
-            rsa_crypto_fetcher,
-        }
-    }
-}
-
-#[async_trait]
-impl Manager for ProxyConnectionManager {
-    type Type = ProxyConnection;
-    type Error = anyhow::Error;
-
-    async fn create(&self) -> Result<Self::Type, Self::Error> {
-        let proxy_addresses_configuration = self
-            .configuration
+        let proxy_addresses_configuration = configuration
             .get_proxy_addresses()
-            .ok_or(anyhow::anyhow!(format!("Fail to parse proxy addresses from configuration file")))?;
+            .expect("Fail to parse proxy addresses from configuration file");
         let mut proxy_addresses: Vec<SocketAddr> = Vec::new();
         for address in proxy_addresses_configuration {
             match SocketAddr::from_str(&address) {
@@ -93,9 +80,23 @@ impl Manager for ProxyConnectionManager {
         }
         if proxy_addresses.is_empty() {
             error!("No available proxy address for runtime to use.");
-            return Err(anyhow::anyhow!("no available proxy address for runtime to use."));
+            panic!("No available proxy address for runtime to use.")
         }
-        let proxy_tcp_stream = TcpStream::connect(&proxy_addresses.as_slice()).await?;
+        Self {
+            configuration,
+            rsa_crypto_fetcher,
+            proxy_addresses,
+        }
+    }
+}
+
+#[async_trait]
+impl Manager for ProxyConnectionManager {
+    type Type = ProxyConnection;
+    type Error = anyhow::Error;
+
+    async fn create(&self) -> Result<Self::Type, Self::Error> {
+        let proxy_tcp_stream = TcpStream::connect(self.proxy_addresses.as_slice()).await?;
         let ppaass_message_framed = PpaassMessageFramed::new(proxy_tcp_stream, self.configuration.get_compress(), 1024 * 64, self.rsa_crypto_fetcher.clone())
             .context("fail to create ppaass message framed")?;
         let (ppaass_message_framed_write, ppaass_message_framed_read) = ppaass_message_framed.split();

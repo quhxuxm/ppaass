@@ -10,7 +10,11 @@ use ppaass_protocol::{
     PpaassMessageProxyPayloadTypeValue, PpaassMessageUtil, PpaassNetAddress,
 };
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    fmt::{Debug, Display},
+    net::SocketAddr,
+    sync::Arc,
+};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     join,
@@ -96,13 +100,14 @@ where
     ) -> Result<(), Socks5FlowError<T>>
     where
         U: AsRef<str> + Send + 'static,
-        S: AsRef<str> + Send + 'static,
+        S: AsRef<str> + Send + Debug + Display + Clone + 'static,
     {
         let client_relay_framed = Framed::with_capacity(client_io, BytesCodec::new(), 1024 * 64);
         let (mut client_relay_framed_write, mut client_relay_framed_read) = client_relay_framed.split::<BytesMut>();
         let proxy_connection_id = proxy_connection.get_id().clone();
         let proxy_connection_read = proxy_connection.get_reader();
         let proxy_connection_write = proxy_connection.get_writer();
+        let session_key_a2p = session_key.clone();
         let agnet_to_proxy_relay_guard = tokio::spawn(async move {
             while let Some(client_data) = client_relay_framed_read.next().await {
                 match client_data {
@@ -121,7 +126,7 @@ where
                         );
                         let agent_message = match PpaassMessageUtil::create_tcp_session_relay(
                             user_token.as_ref(),
-                            session_key.as_ref(),
+                            session_key_a2p.as_ref(),
                             src_address.clone(),
                             dest_address.clone(),
                             payload_encryption.clone(),
@@ -152,6 +157,7 @@ where
                     },
                 }
             }
+            debug!("Session [{session_key_a2p}] read client data complete");
             Ok::<_, Socks5RelayAgentToProxyError<T>>(client_relay_framed_read)
         });
         let proxy_to_agnet_relay_guard = tokio::spawn(async move {
@@ -206,11 +212,12 @@ where
                     },
                 }
             }
+            debug!("Session [{session_key}] read proxy data complete");
             Ok::<_, Socks5RelayProxyToAgentError<T>>(client_relay_framed_write)
         });
         let (a2p, p2a) = join!(agnet_to_proxy_relay_guard, proxy_to_agnet_relay_guard);
         match (a2p, p2a) {
-            (Ok(Ok(_)), Ok(Ok(_))) => return Ok(()),
+            (Ok(Ok(_)), Ok(Ok(_))) => Ok(()),
             (
                 Ok(Err(Socks5RelayAgentToProxyError {
                     client_relay_framed_read,

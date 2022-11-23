@@ -1,14 +1,11 @@
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
 
 use std::net::IpAddr;
 use std::{net::SocketAddr, sync::Arc};
 
 use futures::{SinkExt, StreamExt};
 use ppaass_common::generate_uuid;
-use tokio::{
-    select,
-    sync::{mpsc::channel, Mutex},
-};
+use tokio::sync::Mutex;
 
 use crate::common::ProxyServerPayloadEncryptionSelector;
 use crate::tunnel::tcp_session::TcpSession;
@@ -119,7 +116,6 @@ impl TcpTunnel {
                         let mut agent_message_framed_write = agent_message_framed_write.lock().await;
                         info!("Send heartbeat response: {heartbeat_response_success:?}");
                         agent_message_framed_write.send(heartbeat_response_success).await?;
-                        agent_message_framed_write.flush().await?;
                         Ok::<_, anyhow::Error>(())
                     });
                 },
@@ -193,12 +189,12 @@ impl TcpTunnel {
                     let Some(tcp_session) = self.tcp_session_container.get_mut(&tcp_session_key) else {
                         return Err(anyhow::anyhow!(format!( "Tcp session not exist for {tcp_session_key}")));
                     };
-                    tcp_session.forward(data.as_slice()).await?;
+                    tcp_session.forward(data).await?;
                 },
                 PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpSessionDestroy) => {
                     let tcp_destroy_request: TcpSessionDestroyRequestPayload = agent_message_payload_data.try_into()?;
                     let tcp_session_key = tcp_destroy_request.session_key;
-                    if let None = self.tcp_session_container.remove(&tcp_session_key) {
+                    if self.tcp_session_container.remove(&tcp_session_key).is_none() {
                         return Err(anyhow::anyhow!(format!("Tcp session not exist for {tcp_session_key}")));
                     };
                     debug!("Tcp session [{tcp_session_key}] destroyed.")
@@ -214,6 +210,7 @@ impl TcpTunnel {
                 },
             };
         }
+
         Ok(())
     }
 }

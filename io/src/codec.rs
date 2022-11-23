@@ -87,17 +87,22 @@ where
                 "Input message is not enough to decode body, continue read, buffer remaining: {}, body length: {body_length}.",
                 src.remaining(),
             );
+            src.reserve(body_length as usize);
             return Ok(None);
         }
-        self.status = DecodeStatus::Data(body_is_compressed, body_length);
+        debug!(
+            "Input message has enough bytes to decode body, buffer remaining: {}, body length: {body_length}.",
+            src.remaining(),
+        );
+        //self.status = DecodeStatus::Data(body_is_compressed, body_length);
         let body_bytes = src.split_to(body_length as usize);
         trace!("Input message body bytes:\n\n{}\n\n", pretty_hex(&body_bytes));
         let encrypted_message: PpaassMessage = if body_is_compressed {
             debug!("Input message body is compressed.");
             let decompress_result = decompress(body_bytes.chunk(), None)?;
-            decompress_result.try_into().context("fail to decompress bytes of the PpaassMessage")?
+            decompress_result.try_into().context("Fail to decompress bytes of the PpaassMessage")?
         } else {
-            body_bytes.to_vec().try_into().context("fail to decompress bytes of the PpaassMessage")?
+            body_bytes.to_vec().try_into().context("Fail to decompress bytes of the PpaassMessage")?
         };
 
         let PpaassMessageParts {
@@ -110,20 +115,18 @@ where
         let rsa_crypto = self
             .rsa_crypto_fetcher
             .fetch(&user_token)
-            .context(format!("fail to fetch rsa crypto for user: {user_token}"))?
-            .context(format!("rsa crypto not exist for user: {user_token}"))?;
+            .context(format!("Fail to fetch rsa crypto for user: {user_token}"))?
+            .context(format!("Rsa crypto not exist for user: {user_token}"))?;
 
         let decrypt_payload_bytes = match payload_encryption {
             PpaassMessagePayloadEncryption::Plain => payload_bytes,
             PpaassMessagePayloadEncryption::Aes(ref encryption_token) => {
-                let original_encryption_token = rsa_crypto
-                    .decrypt(&encryption_token)
-                    .context("fail to descrypt aes encryption token with rsa")?;
+                let original_encryption_token = rsa_crypto.decrypt(encryption_token).context("fail to descrypt aes encryption token with rsa")?;
                 decrypt_with_aes(&original_encryption_token, &payload_bytes).context("fail to decrypt aes data")?
             },
             PpaassMessagePayloadEncryption::Blowfish(ref encryption_token) => {
                 let original_encryption_token = rsa_crypto
-                    .decrypt(&encryption_token)
+                    .decrypt(encryption_token)
                     .context("fail to descrypt blowfish encryption token with rsa")?;
                 decrypt_with_blowfish(&original_encryption_token, &payload_bytes).context("fail to descrypt blowfish data")?
             },
