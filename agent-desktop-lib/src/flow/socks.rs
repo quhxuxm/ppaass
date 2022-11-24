@@ -275,7 +275,13 @@ where
             debug!("Session [{session_key_p2a}] read proxy data complete");
             Ok::<_, Socks5RelayProxyToAgentError<T>>(client_relay_framed_write)
         });
-        let tcp_session_destroy = match PpaassMessageUtil::create_agent_tcp_session_destroy_request(user_token, src_address, dest_address, payload_encryption) {
+        let tcp_session_destroy = match PpaassMessageUtil::create_agent_tcp_session_destroy_request(
+            session_key.as_ref(),
+            user_token,
+            src_address,
+            dest_address,
+            payload_encryption,
+        ) {
             Ok(v) => v,
             Err(e) => {
                 error!("Fail to destroy tcp session: {session_key} because of error: {e:?}");

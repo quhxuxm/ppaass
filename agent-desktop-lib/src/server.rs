@@ -44,7 +44,7 @@ impl AgentServer {
             .await
             .context("Fail to bind tcp listener for agent server")?;
 
-        let mut proxy_connection_pool_config = PoolConfig::new(2);
+        let mut proxy_connection_pool_config = PoolConfig::new(32);
         proxy_connection_pool_config.timeouts = Timeouts::wait_millis(2000);
         let proxy_connection_pool_builder =
             Pool::<ProxyConnectionManager>::builder(ProxyConnectionManager::new(self.configuration.clone(), rsa_crypto_fetcher.clone()))
