@@ -260,4 +260,16 @@ impl PpaassMessageUtil {
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
         Ok(message)
     }
+
+    pub fn create_agent_tcp_session_destroy_request(
+        user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress, payload_encryption: PpaassMessagePayloadEncryption,
+    ) -> Result<PpaassMessage> {
+        let tcp_initialize_request = TcpSessionInitRequestPayload { src_address, dest_address };
+        let message_payload = PpaassMessagePayload::new(
+            PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpSessionDestroy),
+            tcp_initialize_request.try_into()?,
+        );
+        let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
+        Ok(message)
+    }
 }

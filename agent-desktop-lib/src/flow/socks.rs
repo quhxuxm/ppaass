@@ -49,6 +49,7 @@ pub(crate) enum Socks5FlowStatus {
     InitBind,
     InitUdpAssociate,
     Relay,
+    Destroy,
 }
 
 pub(crate) struct Socks5FlowError<T>
@@ -100,7 +101,7 @@ where
         payload_encryption: PpaassMessagePayloadEncryption, proxy_connection: Object<ProxyConnectionManager>,
     ) -> Result<(), Socks5FlowError<T>>
     where
-        U: AsRef<str> + Send + 'static,
+        U: AsRef<str> + Send + Debug + Display + Clone + 'static,
         S: AsRef<str> + Send + Debug + Display + Clone + 'static,
     {
         let client_relay_framed = Framed::with_capacity(client_io, BytesCodec::new(), 1024 * 64);
@@ -109,7 +110,12 @@ where
         let proxy_connection_read = proxy_connection.get_reader();
         let proxy_connection_write = proxy_connection.get_writer();
         let session_key_a2p = session_key.clone();
-        let agnet_to_proxy_relay_guard = tokio::spawn(async move {
+        let session_key_p2a = session_key.clone();
+        let user_token_a2p = user_token.clone();
+        let src_address_a2p = src_address.clone();
+        let dest_address_a2p = dest_address.clone();
+        let payload_encryption_a2p = payload_encryption.clone();
+        let a2p_relay_guard = tokio::spawn(async move {
             while let Some(client_data) = client_relay_framed_read.next().await {
                 match client_data {
                     Err(e) => {
@@ -126,11 +132,11 @@ where
                             pretty_hex::pretty_hex(&client_data)
                         );
                         let agent_message = match PpaassMessageUtil::create_tcp_session_relay_data(
-                            user_token.as_ref(),
+                            user_token_a2p.as_ref(),
                             session_key_a2p.as_ref(),
-                            src_address.clone(),
-                            dest_address.clone(),
-                            payload_encryption.clone(),
+                            src_address_a2p.clone(),
+                            dest_address_a2p.clone(),
+                            payload_encryption_a2p.clone(),
                             client_data.to_vec(),
                             true,
                         ) {
@@ -159,11 +165,11 @@ where
                 }
             }
             let agent_relay_complete_message = match PpaassMessageUtil::create_tcp_session_relay_complete(
-                user_token.as_ref(),
+                user_token_a2p.as_ref(),
                 session_key_a2p.as_ref(),
-                src_address.clone(),
-                dest_address.clone(),
-                payload_encryption.clone(),
+                src_address_a2p.clone(),
+                dest_address_a2p.clone(),
+                payload_encryption_a2p.clone(),
                 true,
             ) {
                 Ok(agent_relay_complete_message) => agent_relay_complete_message,
@@ -191,7 +197,7 @@ where
             debug!("Session [{session_key_a2p}] read client data complete");
             Ok::<_, Socks5RelayAgentToProxyError<T>>(client_relay_framed_read)
         });
-        let proxy_to_agnet_relay_guard = tokio::spawn(async move {
+        let p2a_relay_guard = tokio::spawn(async move {
             loop {
                 let proxy_data = {
                     let mut proxy_connection_read = proxy_connection_read.lock().await;
@@ -233,16 +239,25 @@ where
                                 };
 
                                 let tcp_session_relay_status = tcp_session_relay.status;
+                                let tcp_session_key = tcp_session_relay.session_key;
+                                let tcp_session_relay_data = tcp_session_relay.data;
                                 match tcp_session_relay_status {
                                     TcpSessionRelayStatus::Data => {
-                                        if let Err(e) = client_relay_framed_write.send(BytesMut::from_iter(tcp_session_relay.data)).await {
+                                        debug!(
+                                            "Session [{tcp_session_key}] read proxy data:\n{}\n.",
+                                            pretty_hex::pretty_hex(&tcp_session_relay_data)
+                                        );
+                                        if let Err(e) = client_relay_framed_write.send(BytesMut::from_iter(tcp_session_relay_data)).await {
                                             return Err(Socks5RelayProxyToAgentError {
                                                 client_relay_framed_write,
                                                 source: anyhow::anyhow!(e),
                                             });
                                         };
                                     },
-                                    TcpSessionRelayStatus::Complete => break,
+                                    TcpSessionRelayStatus::Complete => {
+                                        debug!("Session [{tcp_session_key}] read proxy data complete.");
+                                        break;
+                                    },
                                 }
                             },
                             payload_type => {
@@ -257,10 +272,33 @@ where
                 }
             }
 
-            debug!("Session [{session_key}] read proxy data complete");
+            debug!("Session [{session_key_p2a}] read proxy data complete");
             Ok::<_, Socks5RelayProxyToAgentError<T>>(client_relay_framed_write)
         });
-        let (a2p, p2a) = join!(agnet_to_proxy_relay_guard, proxy_to_agnet_relay_guard);
+        let tcp_session_destroy = match PpaassMessageUtil::create_agent_tcp_session_destroy_request(user_token, src_address, dest_address, payload_encryption) {
+            Ok(v) => v,
+            Err(e) => {
+                error!("Fail to destroy tcp session: {session_key} because of error: {e:?}");
+                return Err(Socks5FlowError {
+                    status: Socks5FlowStatus::Destroy,
+                    client_stream: None,
+                    proxy_connection: Some(proxy_connection),
+                    source: anyhow::anyhow!(e),
+                });
+            },
+        };
+        let proxy_connection_write = proxy_connection.get_writer();
+        let mut proxy_connection_write = proxy_connection_write.lock().await;
+        if let Err(e) = proxy_connection_write.send(tcp_session_destroy).await {
+            error!("Tcp session [{session_key}] fail to send destroy message to proxy because of error: {e:?}");
+            return Err(Socks5FlowError {
+                status: Socks5FlowStatus::Destroy,
+                client_stream: None,
+                proxy_connection: Some(proxy_connection),
+                source: anyhow::anyhow!(e),
+            });
+        };
+        let (a2p, p2a) = join!(a2p_relay_guard, p2a_relay_guard);
         match (a2p, p2a) {
             (Ok(Ok(_)), Ok(Ok(_))) => Ok(()),
             (
@@ -470,8 +508,8 @@ where
         let src_address: PpaassNetAddress = self.client_socket_address.into();
         let dest_address: PpaassNetAddress = dest_address.into();
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-        let proxy_connection = match proxy_connection_pool.get().await {
-            Ok(proxy_connection) => proxy_connection,
+        let proxy_connection: Object<ProxyConnectionManager> = match proxy_connection_pool.get().await {
+            Ok(v) => v,
             Err(e) => {
                 let FramedParts { io, .. } = init_framed.into_parts();
                 return Err(Socks5FlowError {
