@@ -201,10 +201,11 @@ impl TcpTunnel {
                 PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::TcpSessionDestroy) => {
                     let tcp_destroy_request: TcpSessionDestroyRequestPayload = agent_message_payload_data.try_into()?;
                     let tcp_session_key = tcp_destroy_request.session_key;
-                    if self.tcp_session_container.remove(&tcp_session_key).is_none() {
-                        return Err(anyhow::anyhow!(format!("Tcp session not exist for {tcp_session_key}")));
-                    };
-                    debug!("Tcp session [{tcp_session_key}] destroyed.")
+                    let tcp_session = self.tcp_session_container.remove(&tcp_session_key);
+                    match tcp_session {
+                        Some(_) => debug!("Tcp session [{tcp_session_key}] destroyed."),
+                        None => error!("Tcp session not exist for {tcp_session_key}"),
+                    }
                 },
                 PpaassMessagePayloadType::AgentPayload(PpaassMessageAgentPayloadTypeValue::UdpSessionInitialize) => {
                     todo!();

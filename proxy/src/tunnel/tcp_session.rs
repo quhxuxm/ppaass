@@ -147,5 +147,6 @@ impl Drop for TcpSession {
     fn drop(&mut self) {
         drop(self.dest_tcp_framed_write.take());
         self.dest_read_guard.abort();
+        debug!("Tcp session [{}] dropped.", self.key);
     }
 }
