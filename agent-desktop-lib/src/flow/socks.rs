@@ -197,11 +197,13 @@ where
             debug!("Session [{session_key_a2p}] read client data complete");
             Ok::<_, Socks5RelayAgentToProxyError<T>>(client_relay_framed_read)
         });
+
         let p2a_relay_guard = tokio::spawn(async move {
             loop {
                 let proxy_data = {
                     let mut proxy_connection_read = proxy_connection_read.lock().await;
                     let Some(proxy_data) = proxy_connection_read.next().await else{
+                        debug!("Nothing to read from proxy for tcp session [{session_key_p2a}]");
                         break;
                     };
                     proxy_data
@@ -275,6 +277,8 @@ where
             debug!("Session [{session_key_p2a}] read proxy data complete");
             Ok::<_, Socks5RelayProxyToAgentError<T>>(client_relay_framed_write)
         });
+
+        let (a2p, p2a) = join!(a2p_relay_guard, p2a_relay_guard);
         let tcp_session_destroy = match PpaassMessageUtil::create_agent_tcp_session_destroy_request(
             session_key.as_ref(),
             user_token,
@@ -304,7 +308,6 @@ where
                 source: anyhow::anyhow!(e),
             });
         };
-        let (a2p, p2a) = join!(a2p_relay_guard, p2a_relay_guard);
         match (a2p, p2a) {
             (Ok(Ok(_)), Ok(Ok(_))) => Ok(()),
             (

@@ -14,7 +14,7 @@ use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_util::codec::{BytesCodec, Framed};
-use tracing::{debug, error, trace};
+use tracing::{debug, error};
 
 type AgentMessageFramedWrite = Arc<Mutex<SplitSink<AgentMessageFramed, PpaassMessage>>>;
 type DestTcpFramedWrite = SplitSink<Framed<TcpStream, BytesCodec>, BytesMut>;
