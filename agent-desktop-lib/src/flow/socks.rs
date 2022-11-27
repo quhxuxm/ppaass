@@ -13,13 +13,9 @@ use std::{
     net::SocketAddr,
     sync::Arc,
 };
-use tokio::{
-    io::{AsyncRead, AsyncWrite},
-    join,
-    net::tcp,
-};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::{BytesCodec, Framed, FramedParts};
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 use self::message::Socks5InitCommandResultStatus;
 
@@ -38,17 +34,6 @@ use ppaass_common::generate_uuid;
 
 mod codec;
 mod message;
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum Socks5FlowStatus {
-    New,
-    Authenticate,
-    InitConnect,
-    InitBind,
-    InitUdpAssociate,
-    Relay,
-    Destroy,
-}
 
 pub(crate) struct Socks5Flow<T>
 where
@@ -143,28 +128,28 @@ where
                         let tcp_session_key = tcp_session_relay.session_key;
                         if session_key_p2a != tcp_session_key {
                             return Err(anyhow::anyhow!(format!(
-                                "Tcp session [{session_key_p2a}] read data from different tcp session [{tcp_session_key}] for proxy connection [{pooled_proxy_connection_id_p2a}]"
+                                "Tcp session [{session_key_p2a}] read proxy data from different tcp session [{tcp_session_key}] for proxy connection [{pooled_proxy_connection_id_p2a}]"
                             )));
                         }
                         let tcp_session_relay_data = tcp_session_relay.data;
                         match tcp_session_relay_status {
                             TcpSessionRelayStatus::Data => {
                                 debug!(
-                                    "Tcp session [{session_key_p2a}] read data from proxy connection [{pooled_proxy_connection_id_p2a}]:\n{}\n.",
+                                    "Tcp session [{session_key_p2a}] read proxy data from proxy connection [{pooled_proxy_connection_id_p2a}]:\n{}\n.",
                                     pretty_hex::pretty_hex(&tcp_session_relay_data)
                                 );
                                 client_relay_framed_write.send(BytesMut::from_iter(tcp_session_relay_data)).await?;
                             },
                             TcpSessionRelayStatus::Complete => {
-                                debug!("Tcp session [{session_key_p2a}] read data complete for proxy connection [{pooled_proxy_connection_id_p2a}]");
+                                debug!("Tcp session [{session_key_p2a}] read proxy data complete for proxy connection [{pooled_proxy_connection_id_p2a}]");
                                 break;
                             },
                         }
                     },
                     payload_type => {
-                        error!("Tcp session [{session_key_p2a}] fail to read data for proxy connection [{pooled_proxy_connection_id_p2a}] because of invalid payload type: {payload_type:?}");
+                        error!("Tcp session [{session_key_p2a}] fail to read proxy data for proxy connection [{pooled_proxy_connection_id_p2a}] because of invalid payload type: {payload_type:?}");
                         return Err(anyhow::anyhow!(format!(
-                            "Tcp session [{session_key_p2a}] fail to read data for proxy connection [{pooled_proxy_connection_id_p2a}] because of invalid payload type: {payload_type:?}"
+                            "Tcp session [{session_key_p2a}] fail to read proxy data for proxy connection [{pooled_proxy_connection_id_p2a}] because of invalid payload type: {payload_type:?}"
                         )));
                     },
                 }

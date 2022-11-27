@@ -4,17 +4,15 @@ use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
 
-use deadpool::managed::{Object, Pool};
+use deadpool::managed::Object;
 
-use futures::SinkExt;
-use socks::Socks5FlowStatus;
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::error;
 
 use crate::{
     config::AgentServerConfig,
     crypto::AgentServerRsaCryptoFetcher,
-    pool::{PooledProxyConnection, PooledProxyConnectionError, ProxyConnectionManager, ProxyConnectionPool},
+    pool::{PooledProxyConnectionError, ProxyConnectionPool},
 };
 
 use self::socks::Socks5Flow;
