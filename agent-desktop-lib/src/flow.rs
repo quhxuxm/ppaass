@@ -11,7 +11,11 @@ use socks::Socks5FlowStatus;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tracing::error;
 
-use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, pool::ProxyConnectionManager};
+use crate::{
+    config::AgentServerConfig,
+    crypto::AgentServerRsaCryptoFetcher,
+    pool::{PooledProxyConnection, PooledProxyConnectionError, ProxyConnectionManager, ProxyConnectionPool},
+};
 
 use self::socks::Socks5Flow;
 
@@ -31,7 +35,7 @@ where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
     pub(crate) async fn exec(
-        self, proxy_connection_pool: Pool<ProxyConnectionManager>, configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
+        self, proxy_connection_pool: ProxyConnectionPool, configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
     ) -> Result<()> {
         match self {
             ClientFlow::Http { stream, client_socket_address } => {
@@ -39,18 +43,16 @@ where
             },
             ClientFlow::Socks5 { stream, client_socket_address } => {
                 let mut socks5_flow = Socks5Flow::new(stream, client_socket_address);
-                if let Err(e) = socks5_flow.exec(proxy_connection_pool, configuration, rsa_crypto_fetcher).await {
-                    error!("Error happen on socks5 flow in stage [{:?}]: {:?}", e.status, e.source);
-                    if let Some(mut client_stream) = e.client_stream {
-                        client_stream.shutdown().await?;
+                if let Err(PooledProxyConnectionError {
+                    pooled_proxy_connection,
+                    source,
+                }) = socks5_flow.exec(proxy_connection_pool, configuration, rsa_crypto_fetcher).await
+                {
+                    error!("Error happen on socks5 flow for proxy connection[{pooled_proxy_connection:?}]: {source:?}");
+                    if let Some(proxy_connection) = pooled_proxy_connection {
+                        let _ = Object::take(proxy_connection);
                     };
-                    if let Some(proxy_connection) = e.proxy_connection {
-                        let proxy_connection = Object::take(proxy_connection);
-                        let proxy_connection_writer = proxy_connection.get_writer();
-                        let mut proxy_connection_writer = proxy_connection_writer.lock().await;
-                        proxy_connection_writer.close().await?;
-                    };
-                    return Err(e.source);
+                    return Err(source);
                 };
             },
         }

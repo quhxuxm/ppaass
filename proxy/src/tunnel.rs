@@ -50,30 +50,6 @@ impl TcpTunnel {
         let (agent_message_framed_write, mut agent_message_framed_read) = agent_message_framed.split();
         let agent_message_framed_write = Arc::new(Mutex::new(agent_message_framed_write));
 
-        // tokio::spawn(async move {
-        //     debug!("Start heartbeat task for tunnel [{tunnel_id_for_heartbeat}]");
-        //     let mut check_interval = tokio::time::interval(Duration::from_secs(2));
-
-        //     loop {
-        //         check_interval.tick().await;
-        //         {
-        //             let current_last_activate_timestamp = last_activate_timestamp_for_checker.lock().await;
-        //             let deta = chrono::Utc::now().timestamp_millis() - *current_last_activate_timestamp;
-        //             if deta <= 1000 * 120 {
-        //                 continue;
-        //             }
-        //         }
-        //         error!("Tunnel {tunnel_id_for_heartbeat} idle timeout.");
-        //         match heartbeat_timeout_sender.send(true).await {
-        //             Ok(()) => break,
-        //             Err(e) => {
-        //                 error!("Tunnel {tunnel_id_for_heartbeat} idle timeout because fail to notify because of error: {e:?}");
-        //                 break;
-        //             },
-        //         };
-        //     }
-        // });
-
         while let Some(agent_message) = agent_message_framed_read.next().await {
             let agent_message = match agent_message {
                 Err(e) => {
@@ -194,7 +170,8 @@ impl TcpTunnel {
                             tcp_session.forward(data).await?;
                         },
                         TcpSessionRelayStatus::Complete => {
-                            debug!("Session [{tcp_session_key}] read agent data complete.")
+                            debug!("Session [{tcp_session_key}] read agent data complete.");
+                            continue;
                         },
                     }
                 },

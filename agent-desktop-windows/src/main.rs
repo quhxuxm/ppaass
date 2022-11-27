@@ -57,7 +57,7 @@ async fn main() -> Result<()> {
         "fail to parse agent server configuration file: {}",
         constant::DEFAULT_AGENT_CONFIG_FILE_PATH
     ))?;
-    let agent_server_runtime = Builder::new_multi_thread().enable_io().enable_time().worker_threads(32).build()?;
+    let agent_server_runtime = Builder::new_multi_thread().enable_io().enable_time().worker_threads(64).build()?;
 
     let agent_server_join_handler = agent_server_runtime.spawn(async move {
         let mut agent_server = AgentServer::new(Arc::new(agent_server_config));

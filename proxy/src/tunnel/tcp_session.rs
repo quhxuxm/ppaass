@@ -64,15 +64,16 @@ impl TcpSession {
             dest_address.clone(),
             payload_encryption_token,
         )?;
-        let agent_message_framed_write_for_read_dest = agent_message_framed_write.clone();
-        let mut agent_message_framed_write = agent_message_framed_write.lock().await;
-        agent_message_framed_write
-            .send(tcp_initialize_success_message)
-            .await
-            .context("Fail to send tcp initialize success message to agent")?;
+        {
+            let mut agent_message_framed_write = agent_message_framed_write.lock().await;
+            agent_message_framed_write
+                .send(tcp_initialize_success_message)
+                .await
+                .context("Fail to send tcp initialize success message to agent")?;
+        }
         let (dest_tcp_framed_write, dest_tcp_framed_read) = dest_tcp_framed.split::<BytesMut>();
         let dest_read_guard = Self::start_dest_read_task(
-            agent_message_framed_write_for_read_dest,
+            agent_message_framed_write,
             dest_tcp_framed_read,
             &user_token,
             &key,
