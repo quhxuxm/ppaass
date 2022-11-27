@@ -70,10 +70,7 @@ where
         let proxy_connection_write = pooled_proxy_connection.clone_writer();
         let session_key_a2p = session_key.clone();
         let session_key_p2a = session_key.clone();
-        let user_token_a2p = user_token.clone();
-        let src_address_a2p = src_address.clone();
-        let dest_address_a2p = dest_address.clone();
-        let payload_encryption_a2p = payload_encryption.clone();
+
         let a2p_guard = tokio::spawn(async move {
             while let Some(client_data) = client_relay_framed_read.next().await {
                 let client_data = client_data?;
@@ -83,11 +80,11 @@ where
                     pretty_hex::pretty_hex(&client_data)
                 );
                 let agent_message = PpaassMessageUtil::create_tcp_session_relay_data(
-                    user_token_a2p.as_ref(),
+                    user_token.as_ref(),
                     session_key_a2p.as_ref(),
-                    src_address_a2p.clone(),
-                    dest_address_a2p.clone(),
-                    payload_encryption_a2p.clone(),
+                    src_address.clone(),
+                    dest_address.clone(),
+                    payload_encryption.clone(),
                     client_data.to_vec(),
                     true,
                 )?;
@@ -95,11 +92,11 @@ where
                 proxy_connection_write.send(agent_message).await?;
             }
             let agent_relay_complete_message = PpaassMessageUtil::create_tcp_session_relay_complete(
-                user_token_a2p.as_ref(),
+                user_token.as_ref(),
                 session_key_a2p.as_ref(),
-                src_address_a2p.clone(),
-                dest_address_a2p.clone(),
-                payload_encryption_a2p.clone(),
+                src_address.clone(),
+                dest_address.clone(),
+                payload_encryption.clone(),
                 true,
             )?;
             let mut proxy_connection_write = proxy_connection_write.lock().await;
