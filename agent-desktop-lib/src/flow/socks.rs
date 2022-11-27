@@ -207,7 +207,6 @@ where
             Some(result) => match result {
                 Ok(result) => result,
                 Err(e) => {
-                    let FramedParts { io, .. } = init_framed.into_parts();
                     return Err(PooledProxyConnectionError {
                         source: e,
                         pooled_proxy_connection: None,
@@ -236,7 +235,6 @@ where
         let pooled_proxy_connection: PooledProxyConnection = match proxy_connection_pool.get().await {
             Ok(v) => v,
             Err(e) => {
-                let FramedParts { io, .. } = init_framed.into_parts();
                 return Err(PooledProxyConnectionError {
                     source: anyhow::anyhow!(e),
                     pooled_proxy_connection: None,
