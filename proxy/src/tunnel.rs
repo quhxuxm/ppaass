@@ -11,13 +11,13 @@ use crate::common::ProxyServerPayloadEncryptionSelector;
 use crate::tunnel::tcp_session::TcpSession;
 use crate::{common::AgentMessageFramed, config::ProxyServerConfig};
 use anyhow::Result;
-use ppaass_protocol::tcp_session_init::TcpSessionInitRequestPayload;
-use ppaass_protocol::{
+use ppaass_common::tcp_session_init::TcpSessionInitRequestPayload;
+use ppaass_common::{
     domain_resolve::DomainResolveRequestPayload, heartbeat::HeartbeatRequestPayload, PpaassMessageAgentPayloadTypeValue, PpaassMessageParts,
     PpaassMessagePayload, PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassMessageUtil,
 };
-use ppaass_protocol::{tcp_session_destroy::TcpSessionDestroyRequestPayload, tcp_session_relay::TcpSessionRelayStatus};
-use ppaass_protocol::{tcp_session_relay::TcpSessionRelayPayload, PpaassNetAddress};
+use ppaass_common::{tcp_session_destroy::TcpSessionDestroyRequestPayload, tcp_session_relay::TcpSessionRelayStatus};
+use ppaass_common::{tcp_session_relay::TcpSessionRelayPayload, PpaassNetAddress};
 use tracing::{debug, error, info, trace};
 
 mod tcp_session;

@@ -11,10 +11,10 @@ use futures::{
 };
 
 use ppaass_common::generate_uuid;
-use ppaass_io::PpaassMessageFramed;
+use ppaass_common::PpaassMessageFramed;
 
 use anyhow::Result;
-use ppaass_protocol::PpaassMessage;
+use ppaass_common::PpaassMessage;
 use tokio::{net::TcpStream, sync::Mutex};
 use tracing::{debug, error};
 

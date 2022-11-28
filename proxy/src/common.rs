@@ -1,6 +1,6 @@
 use chrono::Local;
-use ppaass_io::PpaassMessageFramed;
-use ppaass_protocol::PpaassMessagePayloadEncryptionSelector;
+use ppaass_common::PpaassMessageFramed;
+use ppaass_common::PpaassMessagePayloadEncryptionSelector;
 use tokio::net::TcpStream;
 use tracing_subscriber::fmt::{format::Writer, time::FormatTime};
 

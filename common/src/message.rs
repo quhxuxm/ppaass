@@ -1,5 +1,5 @@
+use crate::generate_uuid;
 use anyhow::Context;
-use ppaass_common::generate_uuid;
 use serde_derive::{Deserialize, Serialize};
 
 mod address;

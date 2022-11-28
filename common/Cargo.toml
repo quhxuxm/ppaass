@@ -8,12 +8,22 @@ version = "0.1.0"
 [dependencies]
 aes = {workspace = true}
 anyhow = {workspace = true, features = ["backtrace"]}
+base64 = {workspace = true}
 blowfish = {workspace = true}
+bytes = {workspace = true}
+chrono = {workspace = true}
 cipher = {workspace = true}
 ecb = {workspace = true}
+futures = {workspace = true}
+futures-util = {workspace = true, features = ["alloc"]}
+lz4 = {workspace = true}
 pretty-hex = {workspace = true}
 rand = {workspace = true}
 rsa = {workspace = true}
+serde = {workspace = true}
+serde_derive = {workspace = true}
 serde_json = {workspace = true}
+tokio = {workspace = true, features = ["macros", "time", "net", "io-util", "rt-multi-thread"]}
+tokio-util = {workspace = true, features = ["codec"]}
 tracing = {workspace = true}
 uuid = {workspace = true}

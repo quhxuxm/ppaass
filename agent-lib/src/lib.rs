@@ -1,7 +1,7 @@
 use crypto::AgentServerRsaCryptoFetcher;
 use futures::stream::{SplitSink, SplitStream};
-use ppaass_io::PpaassMessageFramed;
-use ppaass_protocol::{PpaassMessage, PpaassMessagePayloadEncryptionSelector};
+use ppaass_common::PpaassMessageFramed;
+use ppaass_common::{PpaassMessage, PpaassMessagePayloadEncryptionSelector};
 use tokio::net::TcpStream;
 
 pub mod config;

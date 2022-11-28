@@ -5,10 +5,10 @@ use std::{
 };
 
 use crate::codec::PpaassMessageCodec;
+use crate::PpaassMessage;
+use crate::RsaCryptoFetcher;
 use anyhow::Result;
 use futures::{ready, Sink, Stream};
-use ppaass_common::RsaCryptoFetcher;
-use ppaass_protocol::PpaassMessage;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncWrite;
 use tokio_util::codec::Framed;

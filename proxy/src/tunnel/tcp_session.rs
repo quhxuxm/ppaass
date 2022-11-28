@@ -5,7 +5,7 @@ use futures::{stream::SplitStream, StreamExt};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use ppaass_common::generate_uuid;
-use ppaass_protocol::{PpaassMessage, PpaassMessagePayloadEncryptionSelector, PpaassMessageUtil, PpaassNetAddress};
+use ppaass_common::{PpaassMessage, PpaassMessagePayloadEncryptionSelector, PpaassMessageUtil, PpaassNetAddress};
 use pretty_hex::pretty_hex;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;

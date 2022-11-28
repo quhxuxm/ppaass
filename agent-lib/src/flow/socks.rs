@@ -1,7 +1,7 @@
 use bytes::{BufMut, BytesMut};
 use deadpool::managed::Pool;
 use futures::{try_join, SinkExt, StreamExt};
-use ppaass_protocol::{
+use ppaass_common::{
     tcp_session_init::TcpSessionInitResponsePayload,
     tcp_session_relay::{TcpSessionRelayPayload, TcpSessionRelayStatus},
     PpaassMessageParts, PpaassMessagePayload, PpaassMessagePayloadEncryption, PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts,

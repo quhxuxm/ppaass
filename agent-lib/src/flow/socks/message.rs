@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::Context;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use ppaass_protocol::PpaassNetAddress;
+use ppaass_common::PpaassNetAddress;
 
 mod auth;
 mod init;

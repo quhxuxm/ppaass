@@ -8,7 +8,7 @@ version = "0.1.0"
 [dependencies]
 anyhow = {workspace = true}
 chrono = {workspace = true}
-ppaass-agent-desktop-lib = {path = "../agent-desktop-lib"}
+ppaass-agent-lib = {path = "../agent-lib"}
 serde = {workspace = true}
 serde_derive = {workspace = true}
 tokio = {workspace = true, features = ["macros", "time", "net", "io-util", "rt-multi-thread", "fs"]}
