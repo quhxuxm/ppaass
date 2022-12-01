@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{common::AgentMessageFramed, config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher, tunnel::TcpTunnel};
+use crate::{config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher, connection::AgentConnection};
 
 use anyhow::{Context, Result};
 use tokio::net::TcpListener;
@@ -37,16 +37,7 @@ impl ProxyServer {
             debug!("Accept agent tcp connection on address: {}", agent_socket_address);
             let proxy_server_rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();
-            let Ok(agent_message_framed) = AgentMessageFramed::new(
-                agent_tcp_stream,
-                self.configuration.get_compress(),
-                agent_connection_buffer_size,
-                proxy_server_rsa_crypto_fetcher.clone(),
-            ) else{
-                error!("Fail to generate agent message framed.");
-                continue;
-            };
-            let tpc_tunnel = TcpTunnel::new(agent_message_framed, agent_socket_address, configuration);
+            let tpc_tunnel = AgentConnection::new(agent_tcp_stream, agent_socket_address.into(), configuration, proxy_server_rsa_crypto_fetcher);
             if let Err(e) = tpc_tunnel.exec().await {
                 error!("Fail to execute tunnel because of error: {e:?}");
             };

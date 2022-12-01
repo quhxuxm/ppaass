@@ -27,9 +27,9 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
     R: RsaCryptoFetcher,
 {
-    pub fn new(stream: T, compress: bool, buffer_size: usize, rsa_crypto_fetcher: Arc<R>) -> Result<Self> {
+    pub fn new(stream: T, compress: bool, buffer_size: usize, rsa_crypto_fetcher: Arc<R>) -> Self {
         let framed = Framed::with_capacity(stream, PpaassMessageCodec::new(compress, rsa_crypto_fetcher), buffer_size);
-        Ok(Self { inner: framed })
+        Self { inner: framed }
     }
 }
 

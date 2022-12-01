@@ -2,10 +2,10 @@ use bytes::{BufMut, BytesMut};
 use deadpool::managed::Pool;
 use futures::{try_join, SinkExt, StreamExt};
 use ppaass_common::{
-    tcp_session_init::TcpSessionInitResponsePayload,
+    tcp_loop::TcpSessionInitResponsePayload,
     tcp_session_relay::{TcpSessionRelayPayload, TcpSessionRelayStatus},
-    PpaassMessageParts, PpaassMessagePayload, PpaassMessagePayloadEncryption, PpaassMessagePayloadEncryptionSelector, PpaassMessagePayloadParts,
-    PpaassMessagePayloadType, PpaassMessageProxyPayloadTypeValue, PpaassMessageUtil, PpaassNetAddress,
+    PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayload, PpaassMessagePayloadEncryption, PpaassMessagePayloadEncryptionSelector,
+    PpaassMessagePayloadParts, PpaassMessagePayloadType, PpaassMessageProxyPayloadTypeValue, PpaassNetAddress,
 };
 
 use std::{
@@ -79,7 +79,7 @@ where
                     pooled_proxy_connection_id_a2p,
                     pretty_hex::pretty_hex(&client_data)
                 );
-                let agent_message = PpaassMessageUtil::create_tcp_session_relay_data(
+                let agent_message = PpaassMessageGenerator::create_tcp_session_relay_data(
                     user_token.as_ref(),
                     session_key_a2p.as_ref(),
                     src_address.clone(),
@@ -91,7 +91,7 @@ where
                 let mut proxy_connection_write = proxy_connection_write.lock().await;
                 proxy_connection_write.send(agent_message).await?;
             }
-            let agent_relay_complete_message = PpaassMessageUtil::create_tcp_session_relay_complete(
+            let agent_relay_complete_message = PpaassMessageGenerator::create_tcp_session_relay_complete(
                 user_token.as_ref(),
                 session_key_a2p.as_ref(),
                 src_address.clone(),
@@ -242,7 +242,7 @@ where
             },
         };
 
-        let tcp_session_init_request = match PpaassMessageUtil::create_agent_tcp_session_initialize_request(
+        let tcp_session_init_request = match PpaassMessageGenerator::create_agent_tcp_session_initialize_request(
             &user_token,
             src_address.clone(),
             dest_address.clone(),

@@ -16,7 +16,7 @@ mod crypto;
 
 mod manager;
 mod server;
-mod tunnel;
+mod connection;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
     let default_log_level = "info".to_string();
     let log_level = proxy_server_log_config.get_level().as_ref().unwrap_or(&default_log_level);
     let log_file_appender = tracing_appender::rolling::daily(log_dir, log_file);
-    let log_level_filter = LevelFilter::from_str(&log_level).expect("Fail to initialize log filter");
+    let log_level_filter = LevelFilter::from_str(log_level).expect("Fail to initialize log filter");
     let (non_blocking, _appender_guard) = tracing_appender::non_blocking(log_file_appender);
     let subscriber = Registry::default()
         .with(

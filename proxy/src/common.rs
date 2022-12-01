@@ -6,8 +6,6 @@ use tracing_subscriber::fmt::{format::Writer, time::FormatTime};
 
 use crate::crypto::ProxyServerRsaCryptoFetcher;
 
-pub(crate) type AgentMessageFramed = PpaassMessageFramed<TcpStream, ProxyServerRsaCryptoFetcher>;
-
 pub(crate) struct ProxyServerPayloadEncryptionSelector {}
 
 impl PpaassMessagePayloadEncryptionSelector for ProxyServerPayloadEncryptionSelector {}
