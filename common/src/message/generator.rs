@@ -1,5 +1,5 @@
 use crate::{
-    domain_resolve::{DomainResolveRequestPayload, DomainResolveResponsePayload},
+    domain_resolve::{DomainResolveRequestPayload, DomainResolveResponsePayload, DomainResolveResponseType},
     heartbeat::{HeartbeatRequestPayload, HeartbeatResponsePayload},
     tcp_loop::{TcpLoopInitRequestPayload, TcpLoopInitResponsePayload, TcpLoopInitResponseType},
     PpaassMessage, PpaassMessageAgentPayload, PpaassMessageAgentPayloadType, PpaassMessagePayloadEncryption, PpaassMessageProxyPayload,
@@ -46,8 +46,9 @@ impl PpaassMessageGenerator {
             request_id: request_id.as_ref().to_string(),
             domain_name: domain_name.as_ref().to_string(),
             resolved_ip_addresses: Some(resolved_ip_addresses),
+            response_type: DomainResolveResponseType::Fail,
         };
-        let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::DomainNameResolveSuccess, domain_resolve_response.try_into()?);
+        let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::DomainNameResolve, domain_resolve_response.try_into()?);
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
         Ok(message)
     }
@@ -59,8 +60,9 @@ impl PpaassMessageGenerator {
             request_id: request_id.as_ref().to_string(),
             domain_name: domain_name.as_ref().to_string(),
             resolved_ip_addresses: None,
+            response_type: DomainResolveResponseType::Fail,
         };
-        let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::DomainNameResolveFail, domain_resolve_response.try_into()?);
+        let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::DomainNameResolve, domain_resolve_response.try_into()?);
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
         Ok(message)
     }
@@ -84,7 +86,7 @@ impl PpaassMessageGenerator {
             dest_address,
             response_type: TcpLoopInitResponseType::Success,
         };
-        let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::TcpLoopInitSuccess, tcp_loop_init_response.try_into()?);
+        let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::TcpLoopInit, tcp_loop_init_response.try_into()?);
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
         Ok(message)
     }
@@ -99,7 +101,7 @@ impl PpaassMessageGenerator {
             dest_address,
             response_type: TcpLoopInitResponseType::Fail,
         };
-        let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::TcpLoopInitFail, tcp_loop_init_response.try_into()?);
+        let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::TcpLoopInit, tcp_loop_init_response.try_into()?);
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
         Ok(message)
     }

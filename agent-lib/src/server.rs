@@ -47,21 +47,22 @@ impl AgentServer {
                 continue;
             }
             debug!("Accept client tcp connection on address: {}", client_socket_address);
+            let configuration = self.configuration.clone();
+            let proxy_connection_pool = proxy_connection_pool.clone();
+            let rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
+            tokio::spawn(async move {
+                let flow = match FlowDispatcher::dispatch(client_tcp_stream, client_socket_address).await {
+                    Err(e) => {
+                        error!("Fail to dispatch client tcp connection to concrete flow because of error: {e:?}");
+                        return;
+                    },
+                    Ok(v) => v,
+                };
 
-            let flow = match FlowDispatcher::dispatch(client_tcp_stream, client_socket_address).await {
-                Err(e) => {
-                    error!("Fail to dispatch client tcp connection to concrete flow because of error: {e:?}");
-                    continue;
-                },
-                Ok(v) => v,
-            };
-
-            if let Err(e) = flow
-                .exec(proxy_connection_pool.clone(), self.configuration.clone(), rsa_crypto_fetcher.clone())
-                .await
-            {
-                error!("Fail to execute client flow because of error: {e:?}");
-            };
+                if let Err(e) = flow.exec(proxy_connection_pool, configuration, rsa_crypto_fetcher).await {
+                    error!("Fail to execute client flow because of error: {e:?}");
+                };
+            });
         }
     }
 }

@@ -2,8 +2,9 @@ use bytes::{BufMut, BytesMut};
 use deadpool::managed::Pool;
 use futures::{try_join, SinkExt, StreamExt};
 use ppaass_common::{
-    tcp_loop::TcpLoopInitResponsePayload, PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryption, PpaassMessagePayloadEncryptionSelector,
-    PpaassMessageProxyPayload, PpaassMessageProxyPayloadParts, PpaassMessageProxyPayloadType, PpaassNetAddress,
+    tcp_loop::{TcpLoopInitResponsePayload, TcpLoopInitResponseType},
+    PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryption, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload,
+    PpaassMessageProxyPayloadParts, PpaassMessageProxyPayloadType, PpaassNetAddress,
 };
 
 use std::{
@@ -143,8 +144,8 @@ where
             PpaassMessageGenerator::generate_tcp_loop_init_request(&user_token, src_address.clone(), dest_address.clone(), payload_encryption.clone())?;
 
         let (mut proxy_connection_read, mut proxy_connection_write) = proxy_connection.split();
-        proxy_connection_write.send(tcp_loop_init_request).await?;
 
+        proxy_connection_write.send(tcp_loop_init_request).await?;
         let proxy_message = proxy_connection_read
             .next()
             .await
@@ -159,14 +160,27 @@ where
         } = proxy_message.split();
         let PpaassMessageProxyPayloadParts { payload_type, data } = TryInto::<PpaassMessageProxyPayload>::try_into(proxy_message_payload_bytes)?.split();
         let tcp_loop_init_response = match payload_type {
-            PpaassMessageProxyPayloadType::TcpLoopInitFail => {
-                return Err(anyhow::anyhow!("Receive fail response from proxy for tcp loop init."));
-            },
-            PpaassMessageProxyPayloadType::TcpLoopInitSuccess => TryInto::<TcpLoopInitResponsePayload>::try_into(data)?,
+            PpaassMessageProxyPayloadType::TcpLoopInit => TryInto::<TcpLoopInitResponsePayload>::try_into(data)?,
             _ => {
                 return Err(anyhow::anyhow!("Receive invalid response from proxy for tcp loop init."));
             },
         };
+
+        let TcpLoopInitResponsePayload {
+            loop_key,
+            src_address,
+            dest_address,
+            response_type,
+        } = tcp_loop_init_response;
+
+        match response_type {
+            TcpLoopInitResponseType::Success => {
+                debug!("Agent connection receive init tcp loop init response: {loop_key}");
+            },
+            TcpLoopInitResponseType::Fail => {
+                return Err(anyhow::anyhow!("Fail to do tcp lopp init"));
+            },
+        }
 
         let socks5_init_success_result = Socks5InitCommandResultContent::new(Socks5InitCommandResultStatus::Succeeded, Some(dest_address.clone().into()));
         init_framed.send(socks5_init_success_result).await?;

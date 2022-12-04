@@ -38,7 +38,7 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
     id: String,
-    message_framed: PpaassMessageFramed<T, R>,
+    agent_message_framed: PpaassMessageFramed<T, R>,
     agent_address: PpaassNetAddress,
     configuration: Arc<ProxyServerConfig>,
 }
@@ -52,7 +52,7 @@ where
         let message_framed = PpaassMessageFramed::new(agent_io, configuration.get_compress(), 1024 * 64, rsa_fetcher);
         Self {
             id: generate_uuid(),
-            message_framed,
+            agent_message_framed: message_framed,
             agent_address,
             configuration,
         }
@@ -62,10 +62,10 @@ where
         let connection_id = self.id;
         let agent_address = self.agent_address;
         debug!("Agent connection [{connection_id}] associated with agent address: {agent_address:?}");
-        let message_framed = self.message_framed;
-        let (mut message_framed_write, mut message_framed_read) = message_framed.split();
+        let agent_message_framed = self.agent_message_framed;
+        let (mut agent_message_framed_write, mut agent_message_framed_read) = agent_message_framed.split();
         loop {
-            let agent_message = message_framed_read.next().await;
+            let agent_message = agent_message_framed_read.next().await;
             let Some(agent_message) = agent_message else {
                 error!("Agent connection [{connection_id}] closed in agent side, close the proxy side also.");
                 return Ok(());
@@ -90,14 +90,15 @@ where
 
             match payload_type {
                 PpaassMessageAgentPayloadType::IdleHeartbeat => {
-                    if let Err(e) = handle_idle_heartbeat(agent_address.clone(), user_token, agent_message_payload_data, &mut message_framed_write).await {
+                    if let Err(e) = handle_idle_heartbeat(agent_address.clone(), user_token, agent_message_payload_data, &mut agent_message_framed_write).await
+                    {
                         error!("Agent connection [{connection_id}] fail to handle idle heartbeat because of error: {e:?}");
                         continue;
                     };
                     continue;
                 },
                 PpaassMessageAgentPayloadType::DomainNameResolve => {
-                    if let Err(e) = handle_domain_name_resolve(user_token, agent_message_payload_data, &mut message_framed_write).await {
+                    if let Err(e) = handle_domain_name_resolve(user_token, agent_message_payload_data, &mut agent_message_framed_write).await {
                         error!("Agent connection [{connection_id}] fail to handle domain resolve because of error: {e:?}");
                         continue;
                     };
@@ -108,8 +109,8 @@ where
                     let src_address = tcp_loop_init_request.src_address;
                     let dest_address = tcp_loop_init_request.dest_address;
                     let tcp_loop = TcpLoop::new(
-                        message_framed_read,
-                        message_framed_write,
+                        agent_message_framed_read,
+                        agent_message_framed_write,
                         user_token.clone(),
                         agent_address.clone(),
                         src_address.clone(),

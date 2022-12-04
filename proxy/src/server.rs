@@ -32,14 +32,16 @@ impl ProxyServer {
                 error!("Fail to accept agent tcp connection.");
                 continue;
             };
-            agent_tcp_stream.set_nodelay(true).context("fail to set no delay on agent tcp connection")?;
+            agent_tcp_stream.set_nodelay(true).context("Fail to set no delay on agent tcp connection")?;
             debug!("Accept agent tcp connection on address: {}", agent_socket_address);
             let proxy_server_rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();
-            let tpc_tunnel = AgentConnection::new(agent_tcp_stream, agent_socket_address.into(), configuration, proxy_server_rsa_crypto_fetcher);
-            if let Err(e) = tpc_tunnel.exec().await {
-                error!("Fail to execute tunnel because of error: {e:?}");
-            };
+            tokio::spawn(async move {
+                let tpc_tunnel = AgentConnection::new(agent_tcp_stream, agent_socket_address.into(), configuration, proxy_server_rsa_crypto_fetcher);
+                if let Err(e) = tpc_tunnel.exec().await {
+                    error!("Fail to execute tunnel because of error: {e:?}");
+                };
+            });
         }
     }
 }

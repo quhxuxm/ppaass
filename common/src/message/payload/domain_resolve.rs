@@ -28,11 +28,19 @@ impl TryFrom<DomainResolveRequestPayload> for Vec<u8> {
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub enum DomainResolveResponseType {
+    Success,
+    Fail,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DomainResolveResponsePayload {
     pub request_id: String,
     pub domain_name: String,
     #[serde(with = "option_vec_array_u8_l4_to_base64")]
     pub resolved_ip_addresses: Option<Vec<[u8; 4]>>,
+    pub response_type: DomainResolveResponseType,
 }
 
 impl TryFrom<Vec<u8>> for DomainResolveResponsePayload {

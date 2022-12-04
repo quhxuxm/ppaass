@@ -70,7 +70,7 @@ where
 
                 if !PPAASS_FLAG.eq(&ppaass_flag) {
                     return Err(anyhow::anyhow!(
-                        "fail to decode input ppaass message because of it dose not begin with ppaass flag"
+                        "Fail to decode input ppaass message because of it dose not begin with ppaass flag"
                     ));
                 }
                 let compressed = src.get_u8() == 1;
@@ -121,14 +121,14 @@ where
         let decrypt_payload_bytes = match payload_encryption {
             PpaassMessagePayloadEncryption::Plain => payload_bytes,
             PpaassMessagePayloadEncryption::Aes(ref encryption_token) => {
-                let original_encryption_token = rsa_crypto.decrypt(encryption_token).context("fail to descrypt aes encryption token with rsa")?;
-                decrypt_with_aes(&original_encryption_token, &payload_bytes).context("fail to decrypt aes data")?
+                let original_encryption_token = rsa_crypto.decrypt(encryption_token).context("Fail to descrypt aes encryption token with rsa")?;
+                decrypt_with_aes(&original_encryption_token, &payload_bytes).context("Fail to decrypt aes data")?
             },
             PpaassMessagePayloadEncryption::Blowfish(ref encryption_token) => {
                 let original_encryption_token = rsa_crypto
                     .decrypt(encryption_token)
-                    .context("fail to descrypt blowfish encryption token with rsa")?;
-                decrypt_with_blowfish(&original_encryption_token, &payload_bytes).context("fail to descrypt blowfish data")?
+                    .context("Fail to descrypt blowfish encryption token with rsa")?;
+                decrypt_with_blowfish(&original_encryption_token, &payload_bytes).context("Fail to descrypt blowfish data")?
             },
         };
         self.status = DecodeStatus::Head;
@@ -168,19 +168,19 @@ where
         let rsa_crypto = self
             .rsa_crypto_fetcher
             .fetch(&user_token)
-            .context(format!("fail to fetch rsa crypto for user: {user_token}"))?
-            .context(format!("rsa crypto not exist for user: {user_token}"))?;
+            .context(format!("Fail to fetch rsa crypto for user: {user_token}"))?
+            .context(format!("Rsa crypto not exist for user: {user_token}"))?;
         let (encrypted_payload_bytes, encrypted_payload_encryption_type) = match payload_encryption {
             PpaassMessagePayloadEncryption::Plain => (payload_bytes, PpaassMessagePayloadEncryption::Plain),
             PpaassMessagePayloadEncryption::Aes(ref original_token) => {
-                let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token).context("fail to encrypt aes encryption token with rsa")?;
+                let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token).context("Fail to encrypt aes encryption token with rsa")?;
                 let encrypted_payload_bytes = encrypt_with_aes(original_token, &payload_bytes);
                 (encrypted_payload_bytes, PpaassMessagePayloadEncryption::Aes(encrypted_payload_encryption_token))
             },
             PpaassMessagePayloadEncryption::Blowfish(ref original_token) => {
                 let encrypted_payload_encryption_token = rsa_crypto
                     .encrypt(original_token)
-                    .context("fail to encrypt blowfish encryption token with rsa")?;
+                    .context("Fail to encrypt blowfish encryption token with rsa")?;
                 let encrypted_payload_bytes = encrypt_with_blowfish(original_token, &payload_bytes);
                 (
                     encrypted_payload_bytes,
@@ -195,7 +195,7 @@ where
             payload_bytes: encrypted_payload_bytes,
         };
         let message_to_encode: PpaassMessage = message_parts_to_encode.into();
-        let result_bytes: Vec<u8> = message_to_encode.try_into().context("fail to encode message object to bytes")?;
+        let result_bytes: Vec<u8> = message_to_encode.try_into().context("Fail to encode message object to bytes")?;
         let result_bytes = if self.compress {
             compress(&result_bytes, None, true)?
         } else {

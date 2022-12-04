@@ -15,7 +15,7 @@ impl ProxyServerRsaCryptoFetcher {
     pub(crate) fn new(configuration: Arc<ProxyServerConfig>) -> Result<Self> {
         let mut result = Self { cache: HashMap::new() };
         let rsa_dir_path = configuration.get_rsa_dir();
-        let rsa_dir = std::fs::read_dir(&rsa_dir_path).context(format!("fail to read rsa directory: {rsa_dir_path}"))?;
+        let rsa_dir = std::fs::read_dir(&rsa_dir_path).context(format!("Fail to read rsa directory: {rsa_dir_path}"))?;
         rsa_dir.for_each(|entry| {
             let Ok(entry) = entry else{
                 error!("fail to read {rsa_dir_path} directory");
