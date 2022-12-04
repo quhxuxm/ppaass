@@ -109,6 +109,7 @@ where
                     let src_address = tcp_loop_init_request.src_address;
                     let dest_address = tcp_loop_init_request.dest_address;
                     let tcp_loop = TcpLoop::new(
+                        agent_message_id,
                         agent_message_framed_read,
                         agent_message_framed_write,
                         user_token.clone(),
