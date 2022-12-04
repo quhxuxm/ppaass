@@ -25,8 +25,6 @@ use ppaass_common::{
 
 use tracing::{debug, error, info, trace};
 
-use self::udp_loop::UdpLoop;
-
 mod tcp_loop;
 mod udp_loop;
 
@@ -43,8 +41,6 @@ where
     message_framed: PpaassMessageFramed<T, R>,
     agent_address: PpaassNetAddress,
     configuration: Arc<ProxyServerConfig>,
-    tcp_loop_guards: Option<(JoinHandle<Result<(), anyhow::Error>>, JoinHandle<Result<(), anyhow::Error>>)>,
-    udp_loop: Option<UdpLoop>,
 }
 
 impl<T, R> AgentConnection<T, R>
@@ -59,12 +55,10 @@ where
             message_framed,
             agent_address,
             configuration,
-            tcp_loop_guards: None,
-            udp_loop: None,
         }
     }
 
-    pub(crate) async fn exec(mut self) -> Result<()> {
+    pub(crate) async fn exec(self) -> Result<()> {
         let connection_id = self.id;
         let agent_address = self.agent_address;
         debug!("Agent connection [{connection_id}] associated with agent address: {agent_address:?}");
@@ -103,14 +97,13 @@ where
                     continue;
                 },
                 PpaassMessageAgentPayloadType::DomainNameResolve => {
-                    if let Err(e) = handle_domain_name_resolve(agent_address.clone(), user_token, agent_message_payload_data, &mut message_framed_write).await {
+                    if let Err(e) = handle_domain_name_resolve(user_token, agent_message_payload_data, &mut message_framed_write).await {
                         error!("Agent connection [{connection_id}] fail to handle domain resolve because of error: {e:?}");
                         continue;
                     };
                     continue;
                 },
                 PpaassMessageAgentPayloadType::TcpLoopInit => {
-                    let _ = self.tcp_loop_guards.take();
                     let tcp_loop_init_request: TcpLoopInitRequestPayload = agent_message_payload_data.try_into()?;
                     let src_address = tcp_loop_init_request.src_address;
                     let dest_address = tcp_loop_init_request.dest_address;
@@ -123,8 +116,9 @@ where
                         dest_address.clone(),
                     )
                     .await?;
-                    let (agent_to_dest_guard, dest_to_agent_guard) = tcp_loop.start().await?;
-                    self.tcp_loop_guards = Some((agent_to_dest_guard, dest_to_agent_guard));
+                    let tcp_loop_key = tcp_loop.get_key().to_owned();
+                    debug!("Agent connection [{connection_id}] start tcp loop [{tcp_loop_key}]");
+                    tcp_loop.start().await?;
                     break;
                 },
                 PpaassMessageAgentPayloadType::UdpLoopInit => todo!(),
@@ -154,8 +148,7 @@ where
 }
 
 async fn handle_domain_name_resolve<T, R>(
-    agent_address: PpaassNetAddress, user_token: String, agent_message_payload_data: Vec<u8>,
-    message_framed_write: &mut SplitSink<PpaassMessageFramed<T, R>, PpaassMessage>,
+    user_token: String, agent_message_payload_data: Vec<u8>, message_framed_write: &mut SplitSink<PpaassMessageFramed<T, R>, PpaassMessage>,
 ) -> Result<()>
 where
     T: AsyncRead + AsyncWrite + Unpin,

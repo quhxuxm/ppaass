@@ -128,7 +128,7 @@ where
         self.key.as_str()
     }
 
-    pub(crate) async fn start(self) -> Result<(JoinHandle<Result<(), anyhow::Error>>, JoinHandle<Result<(), anyhow::Error>>)> {
+    pub(crate) async fn start(self) -> Result<()> {
         let dest_tcp_stream = self.dest_tcp_stream;
         let (dest_tcp_stream_read, dest_tcp_stream_write) = tokio::io::split(dest_tcp_stream);
         let agent_message_framed_write = self.agent_message_framed_write;
@@ -136,6 +136,7 @@ where
         let user_token = self.user_token;
         let dest_to_agent_guard = Self::start_dest_to_agent_task(agent_message_framed_write, dest_tcp_stream_read, &user_token);
         let agent_to_dest_guard = Self::start_agent_to_dest_task(agent_message_framed_read, dest_tcp_stream_write);
-        Ok((dest_to_agent_guard, agent_to_dest_guard))
+        let _ = tokio::try_join!(dest_to_agent_guard, agent_to_dest_guard)?;
+        Ok(())
     }
 }

@@ -7,8 +7,8 @@ use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::ClientFlow;
-use crate::pool::ProxyConnectionManager;
-use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher};
+
+use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, pool::ProxyConnectionPool};
 use anyhow::Result;
 use deadpool::managed::Pool;
 
@@ -29,8 +29,7 @@ where
     }
 
     pub(crate) async fn exec(
-        self, proxy_message_framed_pool: Pool<ProxyConnectionManager>, configuration: Arc<AgentServerConfig>,
-        rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
+        self, proxy_connection_pool: ProxyConnectionPool, configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
     ) -> Result<()> {
         todo!()
     }

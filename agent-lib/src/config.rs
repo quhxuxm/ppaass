@@ -16,7 +16,7 @@ pub struct AgentServerConfig {
     /// Whether enable compressing
     compress: Option<bool>,
     /// The client connection pool size.
-    client_max_connection_number: Option<usize>,
+    proxy_connection_number: Option<usize>,
     /// The timeout to accept client connection pool size.
     client_tcp_connection_accept_timout_seconds: Option<u64>,
     /// The proxy addresses
@@ -78,8 +78,8 @@ impl AgentServerConfig {
         self.compress.unwrap_or(false)
     }
 
-    pub fn get_client_max_connection_number(&self) -> usize {
-        self.client_max_connection_number.unwrap_or(1024)
+    pub fn get_proxy_connection_number(&self) -> usize {
+        self.proxy_connection_number.unwrap_or(1024)
     }
 
     pub fn get_client_tcp_connection_accept_timout_seconds(&self) -> u64 {

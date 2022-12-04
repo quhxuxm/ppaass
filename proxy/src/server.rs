@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher, connection::AgentConnection};
+use crate::{config::ProxyServerConfig, connection::AgentConnection, crypto::ProxyServerRsaCryptoFetcher};
 
 use anyhow::{Context, Result};
 use tokio::net::TcpListener;
@@ -23,7 +23,6 @@ impl ProxyServer {
             format!("0.0.0.0:{port}")
         };
         let rsa_crypto_fetcher = Arc::new(ProxyServerRsaCryptoFetcher::new(self.configuration.clone())?);
-        let agent_connection_buffer_size = self.configuration.get_agent_connection_buffer_size();
         info!("Proxy server start to serve request on address: {server_bind_addr}.");
         let tcp_listener = TcpListener::bind(&server_bind_addr)
             .await

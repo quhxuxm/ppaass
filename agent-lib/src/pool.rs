@@ -2,52 +2,37 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::{fmt::Debug, str::FromStr};
 
-use anyhow::Context;
-use async_trait::async_trait;
-use deadpool::managed::{Manager, Object, Pool, RecycleResult};
+use anyhow::Result;
 use futures::{
     stream::{SplitSink, SplitStream},
     StreamExt,
 };
-
-use ppaass_common::generate_uuid;
-use ppaass_common::PpaassMessageFramed;
-
-use anyhow::Result;
-use ppaass_common::PpaassMessage;
 use tokio::{net::TcpStream, sync::Mutex};
 use tracing::{debug, error};
+
+use ppaass_common::generate_uuid;
+use ppaass_common::PpaassMessage;
+use ppaass_common::PpaassMessageFramed;
 
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher};
 
 pub(crate) type ProxyMessageFramed = PpaassMessageFramed<TcpStream, AgentServerRsaCryptoFetcher>;
-pub(crate) type ProxyMessageFramedWriter = SplitSink<ProxyMessageFramed, PpaassMessage>;
-pub(crate) type ProxyMessageFramedReader = SplitStream<ProxyMessageFramed>;
-pub(crate) type PooledProxyConnection = Object<ProxyConnectionManager>;
-pub(crate) type ProxyConnectionPool = Pool<ProxyConnectionManager>;
-
-#[derive(Debug)]
-pub(crate) struct PooledProxyConnectionError {
-    pub(crate) pooled_proxy_connection: Option<PooledProxyConnection>,
-    pub(crate) source: anyhow::Error,
-}
+pub(crate) type ProxyMessageFramedWrite = SplitSink<ProxyMessageFramed, PpaassMessage>;
+pub(crate) type ProxyMessageFramedRead = SplitStream<ProxyMessageFramed>;
 
 pub(crate) struct ProxyConnection {
     id: String,
-    reader: Arc<Mutex<ProxyMessageFramedReader>>,
-    writer: Arc<Mutex<ProxyMessageFramedWriter>>,
+    read: ProxyMessageFramedRead,
+    write: ProxyMessageFramedWrite,
 }
 
 impl ProxyConnection {
-    pub(crate) fn get_id(&self) -> &String {
+    pub(crate) fn get_id(&self) -> &str {
         &self.id
     }
-    pub(crate) fn clone_reader(&self) -> Arc<Mutex<ProxyMessageFramedReader>> {
-        self.reader.clone()
-    }
 
-    pub(crate) fn clone_writer(&self) -> Arc<Mutex<ProxyMessageFramedWriter>> {
-        self.writer.clone()
+    pub(crate) fn split(self) -> (ProxyMessageFramedRead, ProxyMessageFramedWrite) {
+        (self.read, self.write)
     }
 }
 
@@ -58,14 +43,15 @@ impl Debug for ProxyConnection {
 }
 
 #[derive(Debug)]
-pub(crate) struct ProxyConnectionManager {
+pub(crate) struct ProxyConnectionPool {
+    proxy_addresses: Vec<SocketAddr>,
+    connections: Arc<Mutex<Vec<ProxyConnection>>>,
     configuration: Arc<AgentServerConfig>,
     rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
-    proxy_addresses: Vec<SocketAddr>,
 }
 
-impl ProxyConnectionManager {
-    pub(crate) fn new(configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>) -> Self {
+impl ProxyConnectionPool {
+    pub(crate) async fn new(configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>) -> Result<Self> {
         let proxy_addresses_configuration = configuration
             .get_proxy_addresses()
             .expect("Fail to parse proxy addresses from configuration file");
@@ -85,37 +71,66 @@ impl ProxyConnectionManager {
             error!("No available proxy address for runtime to use.");
             panic!("No available proxy address for runtime to use.")
         }
-        Self {
-            configuration,
-            rsa_crypto_fetcher,
+
+        let connections = Arc::new(Mutex::new(Vec::new()));
+        let pool = Self {
             proxy_addresses,
+            connections,
+            configuration: configuration.clone(),
+            rsa_crypto_fetcher: rsa_crypto_fetcher.clone(),
+        };
+        pool.feed_connections().await?;
+        Ok(pool)
+    }
+
+    async fn feed_connections(&self) -> Result<()> {
+        let proxy_connection_number = self.configuration.get_proxy_connection_number();
+        let connections_out = self.connections.clone();
+        let mut connections = connections_out.lock().await;
+        debug!("Begin to feed proxy connections");
+        loop {
+            let current_connection_len = connections.len();
+            if current_connection_len >= proxy_connection_number {
+                break;
+            }
+            for _ in current_connection_len..proxy_connection_number {
+                let proxy_addresses = self.proxy_addresses.clone();
+                let configuration = self.configuration.clone();
+                let rsa_crypto_fetcher = self.rsa_crypto_fetcher.clone();
+                let proxy_tcp_stream = match TcpStream::connect(proxy_addresses.as_slice()).await {
+                    Ok(proxy_tcp_stream) => proxy_tcp_stream,
+                    Err(e) => {
+                        error!("Fail to feed proxy connection because of error.");
+                        continue;
+                    },
+                };
+                debug!("Success connect to proxy when feed connection pool.");
+                let proxy_message_framed = PpaassMessageFramed::new(proxy_tcp_stream, configuration.get_compress(), 1024 * 64, rsa_crypto_fetcher.clone());
+                let (proxy_message_framed_write, proxy_message_framed_read) = proxy_message_framed.split();
+                let connection = ProxyConnection {
+                    id: generate_uuid(),
+                    read: proxy_message_framed_read,
+                    write: proxy_message_framed_write,
+                };
+                connections.push(connection);
+            }
         }
-    }
-}
-
-#[async_trait]
-impl Manager for ProxyConnectionManager {
-    type Type = ProxyConnection;
-    type Error = anyhow::Error;
-
-    async fn create(&self) -> Result<Self::Type, Self::Error> {
-        let proxy_tcp_stream = TcpStream::connect(self.proxy_addresses.as_slice()).await?;
-        let ppaass_message_framed = PpaassMessageFramed::new(proxy_tcp_stream, self.configuration.get_compress(), 1024 * 64, self.rsa_crypto_fetcher.clone())
-            .context("fail to create ppaass message framed")?;
-        let (ppaass_message_framed_write, ppaass_message_framed_read) = ppaass_message_framed.split();
-        Ok(ProxyConnection {
-            id: generate_uuid(),
-            reader: Arc::new(Mutex::new(ppaass_message_framed_read)),
-            writer: Arc::new(Mutex::new(ppaass_message_framed_write)),
-        })
-    }
-
-    async fn recycle(&self, proxy_connection: &mut Self::Type) -> RecycleResult<Self::Error> {
-        debug!("Proxy connection [{}] recycled.", proxy_connection.id);
         Ok(())
     }
 
-    fn detach(&self, proxy_connection: &mut Self::Type) {
-        debug!("Proxy connection [{}] detached.", proxy_connection.id);
+    pub(crate) async fn take_connection(&self) -> Result<ProxyConnection> {
+        loop {
+            let mut connections = self.connections.lock().await;
+            let connection = connections.pop();
+            match connection {
+                Some(connection) => {
+                    debug!("Success to take connection from pool.");
+                    return Ok(connection);
+                },
+                None => {
+                    self.feed_connections().await?;
+                },
+            }
+        }
     }
 }

@@ -20,7 +20,7 @@ pub enum TcpLoopInitResponseType {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TcpLoopInitResponsePayload {
-    pub session_key: String,
+    pub loop_key: String,
     pub src_address: PpaassNetAddress,
     pub dest_address: PpaassNetAddress,
     pub response_type: TcpLoopInitResponseType,

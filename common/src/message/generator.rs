@@ -75,11 +75,11 @@ impl PpaassMessageGenerator {
     }
 
     pub fn generate_tcp_loop_init_success_response(
-        session_key: impl AsRef<str>, user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress,
+        loop_key: impl AsRef<str>, user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress,
         payload_encryption: PpaassMessagePayloadEncryption,
     ) -> Result<PpaassMessage> {
         let tcp_loop_init_response = TcpLoopInitResponsePayload {
-            session_key: session_key.as_ref().to_owned(),
+            loop_key: loop_key.as_ref().to_owned(),
             src_address,
             dest_address,
             response_type: TcpLoopInitResponseType::Success,
@@ -90,11 +90,11 @@ impl PpaassMessageGenerator {
     }
 
     pub fn generate_tcp_loop_init_fail_response(
-        session_key: impl AsRef<str>, user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress,
+        loop_key: impl AsRef<str>, user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress,
         payload_encryption: PpaassMessagePayloadEncryption,
     ) -> Result<PpaassMessage> {
         let tcp_loop_init_response = TcpLoopInitResponsePayload {
-            session_key: session_key.as_ref().to_owned(),
+            loop_key: loop_key.as_ref().to_owned(),
             src_address,
             dest_address,
             response_type: TcpLoopInitResponseType::Fail,
