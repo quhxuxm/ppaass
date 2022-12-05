@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use anyhow::Result;
 
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
-use tracing::error;
+use tracing::{debug, error};
 
 use super::ClientFlow;
 
@@ -13,24 +13,32 @@ const SOCKS_V4: u8 = 4;
 pub(crate) struct FlowDispatcher;
 
 impl FlowDispatcher {
-    pub(crate) async fn dispatch<T>(mut stream: T, client_socket_address: SocketAddr) -> Result<ClientFlow<T>>
+    pub(crate) async fn dispatch<T>(mut client_io: T, client_socket_address: SocketAddr) -> Result<ClientFlow<T>>
     where
         T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
     {
-        let protocol = stream.read_u8().await?;
+        let protocol = client_io.read_u8().await?;
         match protocol {
             SOCKS_V5 => {
                 // For socks5 protocol
-                Ok(ClientFlow::Socks5 { stream, client_socket_address })
+                debug!("Client tcp connection [{client_socket_address}] begin to serve socks 5 protocol");
+                Ok(ClientFlow::Socks5 {
+                    client_io,
+                    client_socket_address,
+                })
             },
             SOCKS_V4 => {
                 // For socks4 protocol
-                error!("Do not support socks v4 protocol");
-                return Err(anyhow::anyhow!("do not support socks v4"));
+                error!("Client tcp connection [{client_socket_address}] do not support socks v4 protocol");
+                Err(anyhow::anyhow!("do not support socks v4"))
             },
             _ => {
                 // For http protocol
-                Ok(ClientFlow::Http { stream, client_socket_address })
+                debug!("Client tcp connection [{client_socket_address}] begin to serve http protocol");
+                Ok(ClientFlow::Http {
+                    client_io,
+                    client_socket_address,
+                })
             },
         }
     }
