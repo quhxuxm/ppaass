@@ -199,7 +199,12 @@ where
 
         let (mut proxy_connection_read, mut proxy_connection_write) = proxy_connection.split();
 
-        proxy_connection_write.send(tcp_loop_init_request).await?;
+        if let Err(e) = proxy_connection_write.send(tcp_loop_init_request).await {
+            error!("Client tcp connection [{client_sockst_address}] fail to send tcp loop init to proxy because of error: {e:?}");
+            return Err(anyhow::anyhow!(format!(
+                "Client tcp connection [{client_sockst_address}] receive invalid message from proxy, payload type: {payload_type:?}"
+            )));
+        };
         let proxy_message = proxy_connection_read
             .next()
             .await
