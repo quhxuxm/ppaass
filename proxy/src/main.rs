@@ -14,9 +14,9 @@ mod config;
 mod constant;
 mod crypto;
 
+mod connection;
 mod manager;
 mod server;
-mod connection;
 
 #[tokio::main]
 async fn main() -> Result<()> {

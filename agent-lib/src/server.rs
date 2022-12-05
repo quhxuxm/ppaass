@@ -22,14 +22,14 @@ impl AgentServer {
                 "::1:{}",
                 self.configuration
                     .get_port()
-                    .context("can not get port from agent configuration file (ip v6)")?
+                    .context("Can not get port from agent configuration file (ip v6)")?
             )
         } else {
             format!(
                 "0.0.0.0:{}",
                 self.configuration
                     .get_port()
-                    .context("can not get port from agent configuration file (ip v4)")?
+                    .context("Can not get port from agent configuration file (ip v4)")?
             )
         };
         let rsa_crypto_fetcher = Arc::new(AgentServerRsaCryptoFetcher::new(self.configuration.clone())?);
@@ -41,8 +41,8 @@ impl AgentServer {
             .context("Fail to bind tcp listener for agent server")?;
         let proxy_connection_pool = Arc::new(ProxyConnectionPool::new(self.configuration.clone(), rsa_crypto_fetcher.clone()).await?);
         loop {
-            let (client_tcp_stream, client_socket_address) = tcp_listener.accept().await.context("Fail to accept client tcp connection because if error.")?;
-            if let Err(e) = client_tcp_stream.set_nodelay(true).context("Fail to set client tcp stream to no delay") {
+            let (client_io, client_socket_address) = tcp_listener.accept().await.context("Fail to accept client tcp connection because if error.")?;
+            if let Err(e) = client_io.set_nodelay(true).context("Fail to set client tcp stream to no delay") {
                 error!("Fail to set no delay on client tcp connection because of error: {e:?}");
                 continue;
             }
@@ -51,17 +51,21 @@ impl AgentServer {
             let proxy_connection_pool = proxy_connection_pool.clone();
             let rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
             tokio::spawn(async move {
-                let flow = match FlowDispatcher::dispatch(client_tcp_stream, client_socket_address).await {
+                let flow = match FlowDispatcher::dispatch(client_io, client_socket_address).await {
                     Err(e) => {
-                        error!("Fail to dispatch client tcp connection to concrete flow because of error: {e:?}");
+                        error!(
+                            "Client tcp connection [{client_socket_address}] fail to dispatch client tcp connection to concrete flow because of error: {e:?}"
+                        );
                         return;
                     },
                     Ok(v) => v,
                 };
 
                 if let Err(e) = flow.exec(proxy_connection_pool, configuration, rsa_crypto_fetcher).await {
-                    error!("Fail to execute client flow because of error: {e:?}");
+                    error!("Client tcp connection [{client_socket_address}] fail to execute client flow because of error: {e:?}");
+                    return;
                 };
+                debug!("Client tcp connection [{client_socket_address}] complete to serve.")
             });
         }
     }

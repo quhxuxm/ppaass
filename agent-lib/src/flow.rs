@@ -18,8 +18,8 @@ pub(crate) enum ClientFlow<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
-    Http { stream: T, client_socket_address: SocketAddr },
-    Socks5 { stream: T, client_socket_address: SocketAddr },
+    Http { client_io: T, client_socket_address: SocketAddr },
+    Socks5 { client_io: T, client_socket_address: SocketAddr },
 }
 
 impl<T> ClientFlow<T>
@@ -30,13 +30,19 @@ where
         self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
     ) -> Result<()> {
         match self {
-            ClientFlow::Http { stream, client_socket_address } => {
+            ClientFlow::Http {
+                client_io,
+                client_socket_address,
+            } => {
                 todo!()
             },
-            ClientFlow::Socks5 { stream, client_socket_address } => {
-                let mut socks5_flow = Socks5Flow::new(stream, client_socket_address);
+            ClientFlow::Socks5 {
+                client_io,
+                client_socket_address,
+            } => {
+                let socks5_flow = Socks5Flow::new(client_io, client_socket_address);
                 if let Err(e) = socks5_flow.exec(proxy_connection_pool, configuration, rsa_crypto_fetcher).await {
-                    error!("Error happen on socks5 flow for proxy connection: {e:?}");
+                    error!("Client tcp connection [{client_socket_address}] error happen on socks5 flow for proxy connection: {e:?}");
                     return Err(e);
                 };
             },
