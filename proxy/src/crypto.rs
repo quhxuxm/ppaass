@@ -51,7 +51,7 @@ impl ProxyServerRsaCryptoFetcher {
 }
 
 impl RsaCryptoFetcher for ProxyServerRsaCryptoFetcher {
-    fn fetch(&self, user_token: impl AsRef<str>) -> Result<Option<&ppaass_common::RsaCrypto>> {
+    fn fetch(&self, user_token: impl AsRef<str>) -> Result<Option<&RsaCrypto>> {
         Ok(self.cache.get(user_token.as_ref()))
     }
 }

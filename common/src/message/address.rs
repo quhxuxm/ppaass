@@ -3,6 +3,7 @@ use crate::serializer::array_u8_l4_to_base64;
 use anyhow::Context;
 use bytes::Buf;
 use serde_derive::{Deserialize, Serialize};
+use tracing::error;
 
 use std::fmt::{Display, Formatter};
 use std::net::{IpAddr, SocketAddr};
@@ -88,11 +89,15 @@ impl TryFrom<&PpaassNetAddress> for Vec<SocketAddr> {
                 Ok(vec![socket_addr])
             },
             PpaassNetAddress::Domain { host, port } => {
-                let address_string = format!("{}:{}", host, port);
-                let addresses = address_string
-                    .to_socket_addrs()
-                    .context(format!("fail to parse domain name, host: {host}, port: {port}"))?
-                    .collect::<Vec<_>>();
+                let address_string = format!("{host}:{port}");
+                let addresses = match address_string.to_socket_addrs() {
+                    Ok(v) => v,
+                    Err(e) => {
+                        error!("Fail to parse domain name \"{host}:{port}\" because of error: {e:?}");
+                        return Err(anyhow::anyhow!(e));
+                    },
+                };
+                let addresses = addresses.collect::<Vec<_>>();
                 Ok(addresses)
             },
         }

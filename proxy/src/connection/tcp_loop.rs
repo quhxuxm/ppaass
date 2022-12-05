@@ -7,7 +7,10 @@ use futures_util::SinkExt;
 use ppaass_common::{generate_uuid, PpaassMessageParts, RsaCryptoFetcher};
 use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
 
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::{
+    error,
+    net::{SocketAddr, ToSocketAddrs},
+};
 
 use tokio::io::AsyncWriteExt;
 use tokio::{
@@ -19,7 +22,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use tracing::{debug, error};
+use tracing::{debug, error, trace};
 
 use super::{AgentMessageFramedRead, AgentMessageFramedWrite};
 
@@ -55,7 +58,7 @@ where
         let user_token = user_token.as_ref().to_owned();
         let socket_address = dest_address.to_socket_addrs().context("Convert destination address to socket address")?;
         let socket_address = socket_address.collect::<Vec<SocketAddr>>();
-        let dest_tcp_stream = match TcpStream::connect(socket_address.as_slice()).await.context("Connect to destination fail") {
+        let dest_tcp_stream = match TcpStream::connect(socket_address.as_slice()).await {
             Ok(stream) => stream,
             Err(e) => {
                 error!("Agent connection [{agent_connection_id}] fail connect to dest address because of error: {e:?}");
@@ -78,10 +81,14 @@ where
             dest_address.clone(),
             payload_encryption_token,
         )?;
-        agent_message_framed_write
-            .send(tcp_initialize_success_message)
-            .await
-            .context("Agent connection [{agent_connection_id}] fail to send tcp initialize success message to agent")?;
+        if let Err(e) = agent_message_framed_write.send(tcp_initialize_success_message).await {
+            error!("Agent connection [{agent_connection_id}] fail to send tcp initialize success message to agent because of error: {e:?}");
+            return Err(anyhow::anyhow!(e));
+        };
+        if let Err(e) = agent_message_framed_write.flush().await {
+            error!("Agent connection [{agent_connection_id}] fail to send tcp initialize success message to agent(flush) because of error: {e:?}");
+            return Err(anyhow::anyhow!(e));
+        };
 
         Ok(Self {
             key,
@@ -101,11 +108,12 @@ where
         let key = tcp_loop_key.as_ref().to_owned();
         let agent_connection_id = agent_connection_id.as_ref().to_owned();
         tokio::spawn(async move {
+            debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] start to relay destination data to agent.");
             let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
             loop {
                 let key = key.clone();
                 let agent_connection_id = agent_connection_id.clone();
-                let mut buf = Vec::with_capacity(1024 * 64);
+                let mut buf = Vec::new();
                 let size = match dest_tcp_stream_read.read(&mut buf).await {
                     Ok(v) => v,
                     Err(e) => {
@@ -118,9 +126,17 @@ where
                     return Ok(());
                 }
                 let buf = &buf[..size];
+                debug!(
+                    "Agent connection [{agent_connection_id}] tcp loop [{key}] read destination data:\n{}\n",
+                    pretty_hex::pretty_hex(&buf)
+                );
                 let tcp_relay = PpaassMessageGenerator::generate_raw_data(&user_token, payload_encryption_token.clone(), buf.to_vec())?;
                 if let Err(e) = agent_message_framed_write.send(tcp_relay).await {
                     error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay destination data to agent because of error: {e:?}");
+                    return Err(anyhow::anyhow!(e));
+                };
+                if let Err(e) = agent_message_framed_write.flush().await {
+                    error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay destination data to agent(flush) because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
                 };
             }
@@ -133,6 +149,7 @@ where
     ) -> JoinHandle<Result<()>> {
         let key = tcp_loop_key.as_ref().to_owned();
         let agent_connection_id = agent_connection_id.as_ref().to_owned();
+        debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] start to relay agent data to destination.");
         tokio::spawn(async move {
             loop {
                 let key = key.clone();
@@ -150,8 +167,18 @@ where
                     },
                 };
                 let PpaassMessageParts { payload_bytes, .. } = agent_message.split();
+                debug!(
+                    "Agent connection [{agent_connection_id}] tcp loop [{key}] read agent data:\n{}\n",
+                    pretty_hex::pretty_hex(&payload_bytes)
+                );
                 if let Err(e) = dest_tcp_stream_write.write_all(&payload_bytes).await {
                     error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay agent message to destination becuase of error: {e:?}");
+                    return Err(anyhow::anyhow!(e));
+                };
+                if let Err(e) = dest_tcp_stream_write.flush().await {
+                    error!(
+                        "Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay agent message to destination(flush) becuase of error: {e:?}"
+                    );
                     return Err(anyhow::anyhow!(e));
                 };
             }
@@ -178,7 +205,9 @@ where
             &user_token,
         );
         let agent_to_dest_guard = Self::start_agent_to_dest_task(agent_connection_id.clone(), key.clone(), agent_message_framed_read, dest_tcp_stream_write);
-        let _ = tokio::try_join!(dest_to_agent_guard, agent_to_dest_guard)?;
+        if let Err(e) = tokio::try_join!(dest_to_agent_guard, agent_to_dest_guard) {
+            error!("Agent connection [{agent_connection_id}] for tcp loop [{key}] fail to do relay process becuase of error: {e:?}")
+        };
         Ok(())
     }
 }

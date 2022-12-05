@@ -128,6 +128,7 @@ impl ProxyConnectionPool {
                     return Ok(connection);
                 },
                 None => {
+                    drop(connections);
                     self.feed_connections().await?;
                 },
             }

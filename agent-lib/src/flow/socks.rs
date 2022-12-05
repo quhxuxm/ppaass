@@ -59,11 +59,12 @@ where
         U: AsRef<str> + Send + Debug + Display + Clone + 'static,
     {
         let (mut client_io_read, mut client_io_write) = tokio::io::split(client_io);
-        let tcp_loop_key_a2p = tcp_loop_key.as_ref().to_owned().clone();
+        let tcp_loop_key_a2p = tcp_loop_key.as_ref().to_owned();
 
         let a2p_guard = tokio::spawn(async move {
+            debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] start to relay from agent to proxy.");
             loop {
-                let mut buf = Vec::with_capacity(1024 * 64);
+                let mut buf = Vec::new();
                 let size = match client_io_read.read(&mut buf).await {
                     Ok(v) => v,
                     Err(e) => {
@@ -77,18 +78,27 @@ where
                     debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] complete to read from client.");
                     break;
                 }
+                debug!(
+                    "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] read client data:\n{}\n",
+                    pretty_hex::pretty_hex(&buf)
+                );
                 let agent_message = PpaassMessageGenerator::generate_raw_data(user_token.as_ref(), payload_encryption.clone(), buf[..size].to_vec())?;
                 if let Err(e) = proxy_message_framed_write.send(agent_message).await {
-                    error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to relay client data to proxy.");
+                    error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to relay client data to proxy because of error: {e:?}");
+                    return Err(anyhow::anyhow!(e));
+                };
+                if let Err(e) = proxy_message_framed_write.flush().await {
+                    error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to relay client data to proxy(flush) because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
                 };
             }
             Ok::<_, anyhow::Error>(())
         });
 
-        let tcp_loop_key_p2a = tcp_loop_key.as_ref().to_owned().clone();
+        let tcp_loop_key_p2a = tcp_loop_key.as_ref().to_owned();
 
         let p2a_guard = tokio::spawn(async move {
+            debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] start to relay from proxy to agent.");
             while let Some(proxy_message) = proxy_message_framed_read.next().await {
                 if let Err(e) = proxy_message {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to read from proxy because of error: {e:?}");
@@ -101,14 +111,27 @@ where
                     payload_encryption,
                     payload_bytes,
                 } = proxy_message.split();
+                debug!(
+                    "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] read proxy data:\n{}\n",
+                    pretty_hex::pretty_hex(&payload_bytes)
+                );
                 if let Err(e) = client_io_write.write_all(&payload_bytes).await {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to relay to proxy because of error: {e:?}");
+                    return Err(anyhow::anyhow!(e));
+                };
+                if let Err(e) = client_io_write.flush().await {
+                    error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to relay to proxy(flush) because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
                 };
             }
             Ok::<_, anyhow::Error>(())
         });
-        try_join!(a2p_guard, p2a_guard)?;
+        if let Err(e) = try_join!(a2p_guard, p2a_guard) {
+            error!(
+                "Client tcp connection [{client_socket_address}] for tcp loop [{}] fail to do relay process because of error: {e:?}",
+                tcp_loop_key.as_ref()
+            );
+        };
         Ok(())
     }
 
@@ -134,7 +157,14 @@ where
         let Socks5AuthCommandContentParts { methods } = auth_message.split();
         debug!("Client tcp connection [{client_sockst_address}] start socks5 authenticate process, authenticate methods in request: {methods:?}");
         let auth_response = Socks5AuthCommandResultContent::new(message::Socks5AuthMethod::NoAuthenticationRequired);
-        auth_framed.send(auth_response).await?;
+        if let Err(e) = auth_framed.send(auth_response).await {
+            error!("Client tcp connection [{client_sockst_address}] fail reply auth success in socks5 flow.");
+            return Err(e);
+        };
+        if let Err(e) = auth_framed.flush().await {
+            error!("Client tcp connection [{client_sockst_address}] fail reply auth(flush) success in socks5 flow.");
+            return Err(e);
+        };
         let FramedParts { io: client_io, .. } = auth_framed.into_parts();
         let mut init_framed = Framed::new(client_io, Socks5InitCommandContentCodec);
         let init_message = init_framed
@@ -209,9 +239,9 @@ where
                 debug!("Client tcp connection [{client_sockst_address}] receive init tcp loop init response: {loop_key}");
             },
             TcpLoopInitResponseType::Fail => {
-                error!("Client tcp connection [{client_sockst_address}] fail to do tcp lopp init");
+                error!("Client tcp connection [{client_sockst_address}] fail to do tcp loop init, tcp loop key: [{loop_key}]");
                 return Err(anyhow::anyhow!(format!(
-                    "Client tcp connection [{client_sockst_address}] fail to do tcp lopp init"
+                    "Client tcp connection [{client_sockst_address}] fail to do tcp loop init, tcp loop key: [{loop_key}]"
                 )));
             },
         }
@@ -219,18 +249,21 @@ where
         let socks5_init_success_result = Socks5InitCommandResultContent::new(Socks5InitCommandResultStatus::Succeeded, Some(dest_address.clone().into()));
 
         if let Err(e) = init_framed.send(socks5_init_success_result).await {
-            error!("Client tcp connection [{client_sockst_address}] fail replay init success in socks5 flow.");
+            error!("Client tcp connection [{client_sockst_address}] fail reply init success in socks5 flow, tcp loop key: [{loop_key}].");
             return Err(e);
         };
-
+        if let Err(e) = init_framed.flush().await {
+            error!("Client tcp connection [{client_sockst_address}] fail reply(flush) init success in socks5 flow, tcp loop key: [{loop_key}].");
+            return Err(e);
+        };
         let FramedParts { io: client_io, .. } = init_framed.into_parts();
-        debug!("Client tcp connection [{client_sockst_address}] success to do sock5 handshake begin to relay.");
+        debug!("Client tcp connection [{client_sockst_address}] success to do sock5 handshake begin to relay, tcp loop key: [{loop_key}].");
 
         Self::relay(
             client_io,
             client_sockst_address,
-            user_token,
             loop_key,
+            user_token,
             src_address,
             dest_address,
             payload_encryption,

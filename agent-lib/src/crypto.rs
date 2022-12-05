@@ -14,7 +14,7 @@ impl AgentServerRsaCryptoFetcher {
     pub(crate) fn new(configuration: Arc<AgentServerConfig>) -> Result<Self> {
         let mut result = Self { cache: HashMap::new() };
         let rsa_dir_path = configuration.get_rsa_dir().context("fail to get rsa directory from configuration file")?;
-        let rsa_dir = std::fs::read_dir(&rsa_dir_path).context("fail to read rsa directory")?;
+        let rsa_dir = std::fs::read_dir(rsa_dir_path).context("fail to read rsa directory")?;
         rsa_dir.for_each(|entry| {
             let Ok(entry) =  entry else{
                 error!("fail to read {rsa_dir_path} directory because of error.");
