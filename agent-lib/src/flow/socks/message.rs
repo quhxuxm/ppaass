@@ -197,7 +197,7 @@ impl From<Socks5Address> for Bytes {
             Socks5Address::Domain(addr_content, port) => {
                 result.put_u8(3);
                 result.put_u8(addr_content.len() as u8);
-                result.put_slice(&addr_content.as_bytes());
+                result.put_slice(addr_content.as_bytes());
                 result.put_u16(port);
             },
         }

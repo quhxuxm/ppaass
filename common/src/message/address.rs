@@ -47,7 +47,7 @@ impl Iterator for SocketAddrIter {
     fn next(&mut self) -> Option<Self::Item> {
         let result = self.elements.get(self.index);
         self.index += 1;
-        result.map(|item| *item)
+        result.copied()
     }
 }
 
@@ -137,11 +137,11 @@ impl Display for PpaassNetAddress {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             PpaassNetAddress::IpV4 { ip, port } => {
-                let ipv4_addr = Ipv4Addr::from(ip.clone());
+                let ipv4_addr = Ipv4Addr::from(*ip);
                 write!(f, "{ipv4_addr}:{port}")
             },
             PpaassNetAddress::IpV6 { ip, port } => {
-                let ipv6_addr = Ipv6Addr::from(ip.clone());
+                let ipv6_addr = Ipv6Addr::from(*ip);
                 write!(f, "{ipv6_addr}:{port}")
             },
             PpaassNetAddress::Domain { host, port } => {
