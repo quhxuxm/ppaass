@@ -14,7 +14,6 @@ pub trait PpaassMessagePayloadEncryptionSelector {
         match encryption_token {
             None => PpaassMessagePayloadEncryption::Plain,
             Some(encryption_token) => PpaassMessagePayloadEncryption::Aes(encryption_token),
-            // Some(encryption_token) => PpaassMessagePayloadEncryption::Plain,
         }
     }
 }

@@ -8,7 +8,7 @@ fn serialize_byte_array<S: Serializer>(v: &[u8], s: S) -> Result<S::Ok, S::Error
 
 fn deserialize_byte_array<'de, D: Deserializer<'de>, const N: usize>(d: D) -> Result<[u8; N], D::Error> {
     let base64 = String::deserialize(d)?;
-    let decode_result = base64::decode(base64.as_bytes()).map_err(|e| serde::de::Error::custom(e))?;
+    let decode_result = base64::decode(base64.as_bytes()).map_err(serde::de::Error::custom)?;
     if decode_result.len() != N {
         return Err(serde::de::Error::custom("The length of the result is not equale to 4."));
     }
@@ -19,7 +19,7 @@ fn deserialize_byte_array<'de, D: Deserializer<'de>, const N: usize>(d: D) -> Re
 
 fn deserialize_byte_vec<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
     let base64 = String::deserialize(d)?;
-    let result = base64::decode(base64.as_bytes()).map_err(|e| serde::de::Error::custom(e))?;
+    let result = base64::decode(base64.as_bytes()).map_err(serde::de::Error::custom)?;
     Ok(result)
 }
 
@@ -29,7 +29,7 @@ pub(crate) mod vec_u8_to_base64 {
 
     use super::{deserialize_byte_vec, serialize_byte_array};
 
-    pub fn serialize<S: Serializer>(v: &Vec<u8>, s: S) -> Result<S::Ok, S::Error> {
+    pub fn serialize<S: Serializer>(v: &[u8], s: S) -> Result<S::Ok, S::Error> {
         serialize_byte_array(v, s)
     }
 

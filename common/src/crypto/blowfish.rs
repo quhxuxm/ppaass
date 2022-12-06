@@ -16,7 +16,7 @@ pub fn encrypt_with_blowfish(encryption_token: &[u8], target: &[u8]) -> Vec<u8> 
 
 pub fn decrypt_with_blowfish(encryption_token: &[u8], target: &[u8]) -> Result<Vec<u8>> {
     let decryptor = BlowfishDecryptor::new(encryption_token.into());
-    Ok(decryptor
+    decryptor
         .decrypt_padded_vec_mut::<PaddingMode>(target)
-        .context("padding error happen when decrypt blowfish data")?)
+        .context("padding error happen when decrypt blowfish data")
 }

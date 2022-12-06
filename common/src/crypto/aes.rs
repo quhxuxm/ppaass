@@ -17,7 +17,7 @@ pub fn encrypt_with_aes(encryption_token: &[u8], target: &[u8]) -> Vec<u8> {
 
 pub fn decrypt_with_aes(encryption_token: &[u8], target: &[u8]) -> Result<Vec<u8>> {
     let decryptor = AesDecryptor::new(encryption_token.into());
-    Ok(decryptor
+    decryptor
         .decrypt_padded_vec_mut::<PaddingMode>(target)
-        .context("padding error happen when decrypt aes data")?)
+        .context("padding error happen when decrypt aes data")
 }
