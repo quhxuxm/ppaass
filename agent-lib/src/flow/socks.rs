@@ -124,6 +124,7 @@ where
                     return Err(anyhow::anyhow!(e));
                 };
             }
+            debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] complete to relay from proxy to agent.");
             Ok::<_, anyhow::Error>(())
         });
         if let Err(e) = try_join!(a2p_guard, p2a_guard) {
