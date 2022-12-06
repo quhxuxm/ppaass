@@ -1,4 +1,4 @@
-use crate::common::ProxyServerPayloadEncryptionSelector;
+use crate::{common::ProxyServerPayloadEncryptionSelector, config::ProxyServerConfig};
 use anyhow::{Context, Result};
 
 use bytes::BytesMut;
@@ -12,7 +12,10 @@ use ppaass_common::{generate_uuid, PpaassMessageParts, RsaCryptoFetcher};
 use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
 use tokio_util::codec::{BytesCodec, Framed};
 
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::{
+    net::{SocketAddr, ToSocketAddrs},
+    sync::Arc,
+};
 
 use tokio::task::JoinHandle;
 use tokio::{
@@ -24,6 +27,8 @@ use tracing::{debug, error};
 
 use super::{AgentMessageFramedRead, AgentMessageFramedWrite};
 
+type DestTcpMessageFramedRead = SplitStream<Framed<TcpStream, BytesCodec>>;
+type DestTcpMessageFramedWrite = SplitSink<Framed<TcpStream, BytesCodec>, BytesMut>;
 #[derive(Debug)]
 pub(crate) struct TcpLoop<T, R>
 where
@@ -36,6 +41,7 @@ where
     key: String,
     user_token: String,
     agent_connection_id: String,
+    configuration: Arc<ProxyServerConfig>,
 }
 
 impl<T, R> TcpLoop<T, R>
@@ -49,7 +55,7 @@ where
     pub(crate) async fn new(
         agent_connection_id: impl AsRef<str>, agent_message_framed_read: AgentMessageFramedRead<T, R>,
         mut agent_message_framed_write: AgentMessageFramedWrite<T, R>, user_token: impl AsRef<str>, agent_address: PpaassNetAddress,
-        src_address: PpaassNetAddress, dest_address: PpaassNetAddress,
+        src_address: PpaassNetAddress, dest_address: PpaassNetAddress, configuration: Arc<ProxyServerConfig>,
     ) -> Result<Self> {
         let agent_connection_id = agent_connection_id.as_ref().to_owned();
         let key = Self::generate_key(&agent_address, &src_address, &dest_address);
@@ -95,12 +101,13 @@ where
             dest_tcp_stream,
             user_token,
             agent_connection_id,
+            configuration,
         })
     }
 
     fn start_dest_to_agent_task(
         agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_message_framed_write: AgentMessageFramedWrite<T, R>,
-        mut dest_tcp_framed_read: SplitStream<Framed<TcpStream, BytesCodec>>, user_token: impl AsRef<str>,
+        mut dest_tcp_framed_read: DestTcpMessageFramedRead, user_token: impl AsRef<str>,
     ) -> JoinHandle<Result<()>> {
         let user_token = user_token.as_ref().to_owned();
         let key = tcp_loop_key.as_ref().to_owned();
@@ -137,7 +144,7 @@ where
 
     fn start_agent_to_dest_task(
         agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_message_framed_read: AgentMessageFramedRead<T, R>,
-        mut dest_tcp_framed_write: SplitSink<Framed<TcpStream, BytesCodec>, BytesMut>,
+        mut dest_tcp_framed_write: DestTcpMessageFramedWrite,
     ) -> JoinHandle<Result<()>> {
         let key = tcp_loop_key.as_ref().to_owned();
         let agent_connection_id = agent_connection_id.as_ref().to_owned();
@@ -179,7 +186,7 @@ where
 
     pub(crate) async fn start(self) -> Result<()> {
         let dest_tcp_stream = self.dest_tcp_stream;
-        let dest_tcp_framed = Framed::new(dest_tcp_stream, BytesCodec::new());
+        let dest_tcp_framed = Framed::with_capacity(dest_tcp_stream, BytesCodec::new(), self.configuration.get_dest_tcp_framed_buffer_size());
         let (dest_tcp_framed_write, dest_tcp_framed_read) = dest_tcp_framed.split();
         let agent_message_framed_write = self.agent_message_framed_write;
         let agent_message_framed_read = self.agent_message_framed_read;

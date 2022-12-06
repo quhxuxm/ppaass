@@ -48,7 +48,7 @@ impl ProxyServerManager {
             result.set_rsa_dir(dir.as_str());
         }
         if let Some(thread_number) = arguments.thread_number {
-            result.set_thread_number(thread_number);
+            result.set_proxy_server_worker_thread_number(thread_number);
         }
         result.set_ipv6(arguments.ip_v6.unwrap_or(false));
         self.start_config_monitor(config_file_path.to_owned(), config_file_content).await?;
@@ -134,7 +134,7 @@ impl ProxyServerManager {
         server_runtime_builder.enable_all();
         server_runtime_builder.thread_name("proxy-server-runtime");
         // server_runtime_builder.worker_threads(config.get_thread_number());
-        server_runtime_builder.worker_threads(256);
+        server_runtime_builder.worker_threads(config.get_proxy_server_worker_thread_number());
         let server_runtime = server_runtime_builder.build().context("fail to build proxy server runtime.")?;
         Self::start_proxy_server(config.clone(), &server_runtime).await?;
         self.start_command_monitor(config, server_runtime_builder, server_runtime).await?;

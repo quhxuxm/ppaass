@@ -1,6 +1,6 @@
 use serde_derive::{Deserialize, Serialize};
 
-use crate::constant::{DEFAULT_PROXY_SERVER_PORT, DEFAULT_RSA_DIR, DEFAULT_THREAD_NUMBER};
+use crate::constant::{DEFAULT_PROXY_SERVER_PORT, DEFAULT_PROXY_SERVER_WORKER_THREAD_NUMBER, DEFAULT_RSA_DIR};
 
 pub const DEFAULT_PROXY_LOG_CONFIG_FILE: &str = "./ppaass-proxy-log.toml";
 
@@ -14,15 +14,12 @@ pub(crate) struct ProxyServerConfig {
     /// files for each user
     rsa_dir: Option<String>,
     /// The threads number
-    thread_number: Option<usize>,
+    proxy_server_worker_thread_number: Option<usize>,
     /// Whether enable compressing
     compress: Option<bool>,
     /// The buffer size for one agent connection
-    agent_connection_buffer_size: Option<usize>,
-    /// The agent connection pool size.
-    agent_max_connection_number: Option<usize>,
-    /// The timeout to accept agent connection pool size.
-    agent_tcp_connection_accept_timout_seconds: Option<u64>,
+    message_framed_buffer_size: Option<usize>,
+    dest_tcp_framed_buffer_size: Option<usize>,
 }
 
 impl ProxyServerConfig {
@@ -50,12 +47,12 @@ impl ProxyServerConfig {
         self.rsa_dir.as_ref().unwrap_or(&DEFAULT_RSA_DIR.to_string()).to_string()
     }
 
-    pub(crate) fn set_thread_number(&mut self, thread_number: usize) {
-        self.thread_number = Some(thread_number)
+    pub(crate) fn set_proxy_server_worker_thread_number(&mut self, thread_number: usize) {
+        self.proxy_server_worker_thread_number = Some(thread_number)
     }
 
-    pub(crate) fn get_thread_number(&self) -> usize {
-        self.thread_number.unwrap_or(DEFAULT_THREAD_NUMBER)
+    pub(crate) fn get_proxy_server_worker_thread_number(&self) -> usize {
+        self.proxy_server_worker_thread_number.unwrap_or(DEFAULT_PROXY_SERVER_WORKER_THREAD_NUMBER)
     }
 
     pub(crate) fn set_compress(&mut self, compress: bool) {
@@ -66,16 +63,12 @@ impl ProxyServerConfig {
         self.compress.unwrap_or(false)
     }
 
-    pub(crate) fn get_agent_connection_buffer_size(&self) -> usize {
-        self.agent_connection_buffer_size.unwrap_or(1024 * 64)
+    pub(crate) fn get_message_framed_buffer_size(&self) -> usize {
+        self.message_framed_buffer_size.unwrap_or(1024 * 64)
     }
 
-    pub(crate) fn get_agent_max_connection_number(&self) -> usize {
-        self.agent_max_connection_number.unwrap_or(1024)
-    }
-
-    pub(crate) fn get_agent_tcp_connection_accept_timout_seconds(&self) -> u64 {
-        self.agent_tcp_connection_accept_timout_seconds.unwrap_or(20)
+    pub(crate) fn get_dest_tcp_framed_buffer_size(&self) -> usize {
+        self.dest_tcp_framed_buffer_size.unwrap_or(1024 * 64)
     }
 }
 

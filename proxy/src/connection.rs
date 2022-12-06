@@ -9,10 +9,7 @@ use ppaass_common::{
     generate_uuid, PpaassMessage, PpaassMessageAgentPayload, PpaassMessageAgentPayloadParts, PpaassMessageAgentPayloadType, PpaassMessageFramed,
     PpaassNetAddress, RsaCryptoFetcher,
 };
-use tokio::{
-    io::{AsyncRead, AsyncWrite},
-    task::JoinHandle,
-};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::config::ProxyServerConfig;
 use crate::{common::ProxyServerPayloadEncryptionSelector, connection::tcp_loop::TcpLoop};
@@ -49,7 +46,12 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
     pub(crate) fn new(agent_io: T, agent_address: PpaassNetAddress, configuration: Arc<ProxyServerConfig>, rsa_fetcher: Arc<R>) -> Self {
-        let message_framed = PpaassMessageFramed::new(agent_io, configuration.get_compress(), 1024 * 64, rsa_fetcher);
+        let message_framed = PpaassMessageFramed::new(
+            agent_io,
+            configuration.get_compress(),
+            configuration.get_message_framed_buffer_size(),
+            rsa_fetcher,
+        );
         Self {
             id: generate_uuid(),
             agent_message_framed: message_framed,
@@ -60,6 +62,7 @@ where
 
     pub(crate) async fn exec(self) -> Result<()> {
         let connection_id = self.id;
+        let configuraiton = self.configuration;
         let agent_address = self.agent_address;
         debug!("Agent connection [{connection_id}] associated with agent address: {agent_address:?}");
         let agent_message_framed = self.agent_message_framed;
@@ -116,6 +119,7 @@ where
                         agent_address.clone(),
                         src_address.clone(),
                         dest_address.clone(),
+                        configuraiton,
                     )
                     .await?;
                     let tcp_loop_key = tcp_loop.get_key().to_owned();
