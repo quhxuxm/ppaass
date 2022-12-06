@@ -202,9 +202,15 @@ where
         if let Err(e) = proxy_connection_write.send(tcp_loop_init_request).await {
             error!("Client tcp connection [{client_sockst_address}] fail to send tcp loop init to proxy because of error: {e:?}");
             return Err(anyhow::anyhow!(format!(
-                "Client tcp connection [{client_sockst_address}] receive invalid message from proxy, payload type: {payload_type:?}"
+                "Client tcp connection [{client_sockst_address}] fail to send tcp loop init request to proxy because of error: {e:?}"
             )));
         };
+        if let Err(e) = proxy_connection_write.flush().await {
+            error!("Client tcp connection [{client_sockst_address}] fail to send tcp loop init to proxy(flush) because of error: {e:?}");
+            return Err(anyhow::anyhow!(format!(
+                "Client tcp connection [{client_sockst_address}] fail to send tcp loop init request to proxy(flush) because of error: {e:?}"
+            )));
+        }
         let proxy_message = proxy_connection_read
             .next()
             .await
