@@ -13,7 +13,7 @@ use std::{
     sync::Arc,
 };
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use tokio_util::codec::{Framed, FramedParts};
+use tokio_util::codec::{BytesCodec, Framed, FramedParts};
 use tracing::{debug, error};
 
 use self::message::Socks5InitCommandResultStatus;
@@ -58,14 +58,14 @@ where
     where
         U: AsRef<str> + Send + Debug + Display + Clone + 'static,
     {
-        let (mut client_io_read, mut client_io_write) = tokio::io::split(client_io);
+        let client_io_framed = Framed::new(client_io, BytesCodec::new());
+        let (mut client_io_framed_write, mut client_io_framed_read) = client_io_framed.split::<BytesMut>();
         let tcp_loop_key_a2p = tcp_loop_key.as_ref().to_owned();
 
         let a2p_guard = tokio::spawn(async move {
             debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] start to relay from agent to proxy.");
-            loop {
-                let mut buf = Vec::new();
-                let size = match client_io_read.read(&mut buf).await {
+            while let Some(client_message) = client_io_framed_read.next().await {
+                let client_message = match client_message {
                     Ok(v) => v,
                     Err(e) => {
                         error!(
@@ -74,15 +74,11 @@ where
                         return Err(anyhow::anyhow!(e));
                     },
                 };
-                if size == 0 {
-                    debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] complete to read from client.");
-                    break;
-                }
                 debug!(
                     "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] read client data:\n{}\n",
-                    pretty_hex::pretty_hex(&buf)
+                    pretty_hex::pretty_hex(&client_message)
                 );
-                let agent_message = PpaassMessageGenerator::generate_raw_data(user_token.as_ref(), payload_encryption.clone(), buf[..size].to_vec())?;
+                let agent_message = PpaassMessageGenerator::generate_raw_data(user_token.as_ref(), payload_encryption.clone(), client_message.to_vec())?;
                 if let Err(e) = proxy_message_framed_write.send(agent_message).await {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to relay client data to proxy because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
@@ -92,6 +88,7 @@ where
                     return Err(anyhow::anyhow!(e));
                 };
             }
+            debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] complete to read from client.");
             Ok::<_, anyhow::Error>(())
         });
 
@@ -115,11 +112,12 @@ where
                     "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] read proxy data:\n{}\n",
                     pretty_hex::pretty_hex(&payload_bytes)
                 );
-                if let Err(e) = client_io_write.write_all(&payload_bytes).await {
+
+                if let Err(e) = client_io_framed_write.send(BytesMut::from_iter(payload_bytes)).await {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to relay to proxy because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
                 };
-                if let Err(e) = client_io_write.flush().await {
+                if let Err(e) = client_io_framed_write.flush().await {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to relay to proxy(flush) because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
                 };

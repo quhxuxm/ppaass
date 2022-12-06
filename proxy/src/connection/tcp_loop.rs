@@ -1,28 +1,26 @@
 use crate::common::ProxyServerPayloadEncryptionSelector;
 use anyhow::{Context, Result};
 
-use futures::StreamExt;
+use bytes::BytesMut;
+use futures::{
+    stream::{SplitSink, SplitStream},
+    StreamExt,
+};
 
 use futures_util::SinkExt;
 use ppaass_common::{generate_uuid, PpaassMessageParts, RsaCryptoFetcher};
 use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
+use tokio_util::codec::{BytesCodec, Framed};
 
-use std::{
-    error,
-    net::{SocketAddr, ToSocketAddrs},
-};
+use std::net::{SocketAddr, ToSocketAddrs};
 
-use tokio::io::AsyncWriteExt;
+use tokio::task::JoinHandle;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpStream,
 };
-use tokio::{
-    io::{AsyncReadExt, ReadHalf, WriteHalf},
-    task::JoinHandle,
-};
 
-use tracing::{debug, error, trace};
+use tracing::{debug, error};
 
 use super::{AgentMessageFramedRead, AgentMessageFramedWrite};
 
@@ -102,7 +100,7 @@ where
 
     fn start_dest_to_agent_task(
         agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_message_framed_write: AgentMessageFramedWrite<T, R>,
-        mut dest_tcp_stream_read: ReadHalf<TcpStream>, user_token: impl AsRef<str>,
+        mut dest_tcp_framed_read: SplitStream<Framed<TcpStream, BytesCodec>>, user_token: impl AsRef<str>,
     ) -> JoinHandle<Result<()>> {
         let user_token = user_token.as_ref().to_owned();
         let key = tcp_loop_key.as_ref().to_owned();
@@ -110,27 +108,19 @@ where
         tokio::spawn(async move {
             debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] start to relay destination data to agent.");
             let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-            loop {
-                let key = key.clone();
-                let agent_connection_id = agent_connection_id.clone();
-                let mut buf = Vec::new();
-                let size = match dest_tcp_stream_read.read(&mut buf).await {
+            while let Some(dest_message) = dest_tcp_framed_read.next().await {
+                let dest_message = match dest_message {
                     Ok(v) => v,
                     Err(e) => {
                         error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to read destination data because of error: {e:?}");
                         return Err(anyhow::anyhow!(e));
                     },
                 };
-                if size == 0 {
-                    debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] read destination data complete.");
-                    return Ok(());
-                }
-                let buf = &buf[..size];
                 debug!(
                     "Agent connection [{agent_connection_id}] tcp loop [{key}] read destination data:\n{}\n",
-                    pretty_hex::pretty_hex(&buf)
+                    pretty_hex::pretty_hex(&dest_message)
                 );
-                let tcp_relay = PpaassMessageGenerator::generate_raw_data(&user_token, payload_encryption_token.clone(), buf.to_vec())?;
+                let tcp_relay = PpaassMessageGenerator::generate_raw_data(&user_token, payload_encryption_token.clone(), dest_message.to_vec())?;
                 if let Err(e) = agent_message_framed_write.send(tcp_relay).await {
                     error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay destination data to agent because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
@@ -140,25 +130,20 @@ where
                     return Err(anyhow::anyhow!(e));
                 };
             }
+            debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] read destination data complete.");
+            Ok(())
         })
     }
 
     fn start_agent_to_dest_task(
         agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_message_framed_read: AgentMessageFramedRead<T, R>,
-        mut dest_tcp_stream_write: WriteHalf<TcpStream>,
+        mut dest_tcp_framed_write: SplitSink<Framed<TcpStream, BytesCodec>, BytesMut>,
     ) -> JoinHandle<Result<()>> {
         let key = tcp_loop_key.as_ref().to_owned();
         let agent_connection_id = agent_connection_id.as_ref().to_owned();
         debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] start to relay agent data to destination.");
         tokio::spawn(async move {
-            loop {
-                let key = key.clone();
-                let agent_connection_id = agent_connection_id.clone();
-                let agent_message = agent_message_framed_read.next().await;
-                let Some(agent_message) = agent_message else{
-                    debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] complete read agent data.");
-                    return Ok(());
-                };
+            while let Some(agent_message) = agent_message_framed_read.next().await {
                 let agent_message = match agent_message {
                     Ok(v) => v,
                     Err(e) => {
@@ -171,17 +156,20 @@ where
                     "Agent connection [{agent_connection_id}] tcp loop [{key}] read agent data:\n{}\n",
                     pretty_hex::pretty_hex(&payload_bytes)
                 );
-                if let Err(e) = dest_tcp_stream_write.write_all(&payload_bytes).await {
+                let payload_bytes = BytesMut::from_iter(payload_bytes);
+                if let Err(e) = dest_tcp_framed_write.send(payload_bytes).await {
                     error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay agent message to destination becuase of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
                 };
-                if let Err(e) = dest_tcp_stream_write.flush().await {
+                if let Err(e) = dest_tcp_framed_write.flush().await {
                     error!(
                         "Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay agent message to destination(flush) becuase of error: {e:?}"
                     );
                     return Err(anyhow::anyhow!(e));
                 };
             }
+            debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] complete read agent data.");
+            Ok(())
         })
     }
 
@@ -191,7 +179,8 @@ where
 
     pub(crate) async fn start(self) -> Result<()> {
         let dest_tcp_stream = self.dest_tcp_stream;
-        let (dest_tcp_stream_read, dest_tcp_stream_write) = tokio::io::split(dest_tcp_stream);
+        let dest_tcp_framed = Framed::new(dest_tcp_stream, BytesCodec::new());
+        let (dest_tcp_framed_write, dest_tcp_framed_read) = dest_tcp_framed.split();
         let agent_message_framed_write = self.agent_message_framed_write;
         let agent_message_framed_read = self.agent_message_framed_read;
         let user_token = self.user_token;
@@ -201,10 +190,10 @@ where
             agent_connection_id.clone(),
             key.clone(),
             agent_message_framed_write,
-            dest_tcp_stream_read,
+            dest_tcp_framed_read,
             &user_token,
         );
-        let agent_to_dest_guard = Self::start_agent_to_dest_task(agent_connection_id.clone(), key.clone(), agent_message_framed_read, dest_tcp_stream_write);
+        let agent_to_dest_guard = Self::start_agent_to_dest_task(agent_connection_id.clone(), key.clone(), agent_message_framed_read, dest_tcp_framed_write);
         if let Err(e) = tokio::try_join!(dest_to_agent_guard, agent_to_dest_guard) {
             error!("Agent connection [{agent_connection_id}] for tcp loop [{key}] fail to do relay process becuase of error: {e:?}")
         };
