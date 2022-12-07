@@ -57,8 +57,7 @@ pub(crate) struct UdpDiagram {
 }
 
 impl From<Bytes> for UdpDiagram {
-    fn from(bytes: Bytes) -> Self {
-        let mut bytes = Bytes::from(bytes);
+    fn from(mut bytes: Bytes) -> Self {
         let source_port = bytes.get_u16();
         let target_port = bytes.get_u16();
         let length = bytes.get_u16();
