@@ -83,10 +83,6 @@ where
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to relay client data to proxy because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
                 };
-                if let Err(e) = proxy_message_framed_write.flush().await {
-                    error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to relay client data to proxy(flush) because of error: {e:?}");
-                    return Err(anyhow::anyhow!(e));
-                };
             }
             debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] complete to read from client.");
             Ok::<_, anyhow::Error>(())
@@ -115,10 +111,6 @@ where
 
                 if let Err(e) = client_io_framed_write.send(BytesMut::from_iter(payload_bytes)).await {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to relay to proxy because of error: {e:?}");
-                    return Err(anyhow::anyhow!(e));
-                };
-                if let Err(e) = client_io_framed_write.flush().await {
-                    error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to relay to proxy(flush) because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
                 };
             }
@@ -160,10 +152,7 @@ where
             error!("Client tcp connection [{client_sockst_address}] fail reply auth success in socks5 flow.");
             return Err(e);
         };
-        if let Err(e) = auth_framed.flush().await {
-            error!("Client tcp connection [{client_sockst_address}] fail reply auth(flush) success in socks5 flow.");
-            return Err(e);
-        };
+
         let FramedParts { io: client_io, .. } = auth_framed.into_parts();
         let mut init_framed = Framed::new(client_io, Socks5InitCommandContentCodec);
         let init_message = init_framed
@@ -204,12 +193,7 @@ where
                 "Client tcp connection [{client_sockst_address}] fail to send tcp loop init request to proxy because of error: {e:?}"
             )));
         };
-        if let Err(e) = proxy_connection_write.flush().await {
-            error!("Client tcp connection [{client_sockst_address}] fail to send tcp loop init to proxy(flush) because of error: {e:?}");
-            return Err(anyhow::anyhow!(format!(
-                "Client tcp connection [{client_sockst_address}] fail to send tcp loop init request to proxy(flush) because of error: {e:?}"
-            )));
-        }
+
         let proxy_message = proxy_connection_read
             .next()
             .await
@@ -262,10 +246,7 @@ where
             error!("Client tcp connection [{client_sockst_address}] fail reply init success in socks5 flow, tcp loop key: [{loop_key}].");
             return Err(e);
         };
-        if let Err(e) = init_framed.flush().await {
-            error!("Client tcp connection [{client_sockst_address}] fail reply(flush) init success in socks5 flow, tcp loop key: [{loop_key}].");
-            return Err(e);
-        };
+
         let FramedParts { io: client_io, .. } = init_framed.into_parts();
         debug!("Client tcp connection [{client_sockst_address}] success to do sock5 handshake begin to relay, tcp loop key: [{loop_key}].");
 
