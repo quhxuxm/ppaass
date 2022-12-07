@@ -1,6 +1,7 @@
 agent_connection_buffer_size = 65536
 agent_server_worker_thread_number = 128
 compress = false
+idle_proxy_heartbeat_interval = 20
 ipv6 = false
 message_framed_buffer_size = 65536
 port = 10081

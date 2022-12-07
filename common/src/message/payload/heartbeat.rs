@@ -11,7 +11,7 @@ impl TryFrom<Vec<u8>> for HeartbeatRequestPayload {
     type Error = anyhow::Error;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        serde_json::from_slice(&value).context("fail generate HeartbeatRequestPayload from input bytes")
+        serde_json::from_slice(&value).context("Fail to generate HeartbeatRequestPayload from input bytes")
     }
 }
 
@@ -19,7 +19,7 @@ impl TryFrom<HeartbeatRequestPayload> for Vec<u8> {
     type Error = anyhow::Error;
 
     fn try_from(value: HeartbeatRequestPayload) -> Result<Self, Self::Error> {
-        serde_json::to_vec(&value).context("fail generate bytes from HeartbeatRequestPayload")
+        serde_json::to_vec(&value).context("Fail to generate bytes from HeartbeatRequestPayload")
     }
 }
 
@@ -33,7 +33,7 @@ impl TryFrom<Vec<u8>> for HeartbeatResponsePayload {
     type Error = anyhow::Error;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        serde_json::from_slice(&value).context("fail generate HeartbeatResponsePayload from input bytes")
+        serde_json::from_slice(&value).context("Fail to generate HeartbeatResponsePayload from input bytes")
     }
 }
 
@@ -41,6 +41,6 @@ impl TryFrom<HeartbeatResponsePayload> for Vec<u8> {
     type Error = anyhow::Error;
 
     fn try_from(value: HeartbeatResponsePayload) -> Result<Self, Self::Error> {
-        serde_json::to_vec(&value).context("fail generate bytes from HeartbeatResponsePayload")
+        serde_json::to_vec(&value).context("Fail to generate bytes from HeartbeatResponsePayload")
     }
 }

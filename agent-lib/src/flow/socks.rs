@@ -25,7 +25,7 @@ use crate::{
         codec::{Socks5AuthCommandContentCodec, Socks5InitCommandContentCodec},
         message::{Socks5AuthCommandContentParts, Socks5AuthCommandResultContent, Socks5InitCommandContentParts, Socks5InitCommandResultContent},
     },
-    pool::{ProxyConnectionPool, ProxyMessageFramedRead, ProxyMessageFramedWrite},
+    pool::{ProxyConnectionPart, ProxyConnectionPool, ProxyMessageFramedRead, ProxyMessageFramedWrite},
     AgentServerPayloadEncryptionTypeSelector,
 };
 use anyhow::{Context, Result};
@@ -185,7 +185,13 @@ where
         let tcp_loop_init_request =
             PpaassMessageGenerator::generate_tcp_loop_init_request(&user_token, src_address.clone(), dest_address.clone(), payload_encryption.clone())?;
 
-        let (mut proxy_connection_read, mut proxy_connection_write) = proxy_connection.split();
+        let ProxyConnectionPart {
+            id: proxy_connection_id,
+            read: mut proxy_connection_read,
+            write: mut proxy_connection_write,
+        } = proxy_connection.split();
+
+        debug!("Client tcp connection [{client_sockst_address}] take proxy connectopn [proxy_connection_id] to do proxy");
 
         if let Err(e) = proxy_connection_write.send(tcp_loop_init_request).await {
             error!("Client tcp connection [{client_sockst_address}] fail to send tcp loop init to proxy because of error: {e:?}");

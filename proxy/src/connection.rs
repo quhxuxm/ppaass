@@ -138,10 +138,10 @@ where
 {
     let heartbeat_request: HeartbeatRequestPayload = agent_message_payload_data.try_into()?;
     let timestamp_in_request = heartbeat_request.timestamp;
-    trace!("Receive agent heartbeat message, agent address: {agent_address}, timestamp: {timestamp_in_request}");
+    debug!("Receive agent heartbeat message, agent address: {agent_address}, timestamp: {timestamp_in_request}");
     let heartbeat_response_success_payload_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
     let heartbeat_response_success = PpaassMessageGenerator::generate_heartbeat_response(&user_token, heartbeat_response_success_payload_encryption)?;
-    info!("Send heartbeat response: {heartbeat_response_success:?}");
+    debug!("Send heartbeat response: {heartbeat_response_success:?}");
     message_framed_write.send(heartbeat_response_success).await?;
     Ok(())
 }

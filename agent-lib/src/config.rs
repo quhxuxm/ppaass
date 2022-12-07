@@ -22,6 +22,7 @@ pub struct AgentServerConfig {
     /// The proxy addresses
     proxy_addresses: Option<Vec<String>>,
     message_framed_buffer_size: Option<usize>,
+    idle_proxy_heartbeat_interval: Option<u64>,
 }
 
 impl AgentServerConfig {
@@ -89,6 +90,10 @@ impl AgentServerConfig {
 
     pub fn get_message_framed_buffer_size(&self) -> usize {
         self.message_framed_buffer_size.unwrap_or(65536)
+    }
+
+    pub fn get_idle_proxy_heartbeat_interval(&self) -> u64 {
+        self.idle_proxy_heartbeat_interval.unwrap_or(20)
     }
 }
 

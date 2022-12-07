@@ -1,24 +1,33 @@
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::{fmt::Debug, str::FromStr};
+use std::{net::SocketAddr, time::Duration};
 
 use anyhow::Result;
 use futures::{
     stream::{SplitSink, SplitStream},
-    StreamExt,
+    SinkExt, StreamExt,
 };
 use tokio::{net::TcpStream, sync::Mutex};
 use tracing::{debug, error};
 
-use ppaass_common::generate_uuid;
-use ppaass_common::PpaassMessage;
-use ppaass_common::PpaassMessageFramed;
+use ppaass_common::{
+    generate_uuid, heartbeat::HeartbeatResponsePayload, PpaassMessageGenerator, PpaassMessageProxyPayload, PpaassMessageProxyPayloadParts,
+    PpaassMessageProxyPayloadType,
+};
+use ppaass_common::{PpaassMessage, PpaassMessagePayloadEncryptionSelector};
+use ppaass_common::{PpaassMessageFramed, PpaassMessageParts};
 
-use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher};
+use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, AgentServerPayloadEncryptionTypeSelector};
 
 pub(crate) type ProxyMessageFramed = PpaassMessageFramed<TcpStream, AgentServerRsaCryptoFetcher>;
 pub(crate) type ProxyMessageFramedWrite = SplitSink<ProxyMessageFramed, PpaassMessage>;
 pub(crate) type ProxyMessageFramedRead = SplitStream<ProxyMessageFramed>;
+
+pub(crate) struct ProxyConnectionPart {
+    pub(crate) id: String,
+    pub(crate) read: ProxyMessageFramedRead,
+    pub(crate) write: ProxyMessageFramedWrite,
+}
 
 pub(crate) struct ProxyConnection {
     id: String,
@@ -27,12 +36,22 @@ pub(crate) struct ProxyConnection {
 }
 
 impl ProxyConnection {
-    pub(crate) fn get_id(&self) -> &str {
-        &self.id
+    pub(crate) fn split(self) -> ProxyConnectionPart {
+        ProxyConnectionPart {
+            id: self.id,
+            read: self.read,
+            write: self.write,
+        }
     }
+}
 
-    pub(crate) fn split(self) -> (ProxyMessageFramedRead, ProxyMessageFramedWrite) {
-        (self.read, self.write)
+impl From<ProxyConnectionPart> for ProxyConnection {
+    fn from(part: ProxyConnectionPart) -> Self {
+        Self {
+            id: part.id,
+            read: part.read,
+            write: part.write,
+        }
     }
 }
 
@@ -80,7 +99,88 @@ impl ProxyConnectionPool {
             rsa_crypto_fetcher: rsa_crypto_fetcher.clone(),
         };
         pool.feed_connections().await?;
+        pool.start_idle_heartbeat().await?;
         Ok(pool)
+    }
+
+    async fn start_idle_heartbeat(&self) -> Result<()> {
+        let connections = self.connections.clone();
+        let user_token = self.configuration.get_user_token().to_owned().expect("User token not configured.");
+        let idle_proxy_heartbeat_interval = self.configuration.get_idle_proxy_heartbeat_interval();
+        tokio::spawn(async move {
+            let mut heart_beat_interval = tokio::time::interval(Duration::from_secs(idle_proxy_heartbeat_interval));
+            loop {
+                heart_beat_interval.tick().await;
+                let mut connections = connections.lock().await;
+
+                let mut connection_heartbeat_tasks = Vec::new();
+                while let Some(connection) = connections.pop() {
+                    let user_token = user_token.clone();
+                    let connection_heartbeat_task = tokio::spawn(async move {
+                        let ProxyConnectionPart { id, mut read, mut write } = connection.split();
+                        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(&user_token, Some(generate_uuid().as_bytes().to_vec()));
+                        let idle_heartbeat_request = match PpaassMessageGenerator::generate_heartbeat_request(user_token.clone(), payload_encryption) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                error!("Fail to do idle heartbeat for proxy connection {id} because of error: {e:?}");
+                                return Err(e);
+                            },
+                        };
+                        if let Err(e) = write.send(idle_heartbeat_request).await {
+                            error!("Fail to do idle heartbeat for proxy connection {id} because of error: {e:?}");
+                            return Err(e);
+                        };
+                        let idle_heartbeat_response = tokio::time::timeout(Duration::from_secs(5), read.next()).await;
+                        let idle_heartbeat_response = match idle_heartbeat_response {
+                            Err(e) => {
+                                error!("Fail to do idle heartbeat for proxy connection {id} because of timeout.");
+                                return Err(anyhow::anyhow!("Fail to do idle heartbeat for proxy connection {id} because of timeout."));
+                            },
+                            Ok(None) => {
+                                error!("Fail to do idle heartbeat for proxy connection {id} because of no response.");
+                                return Err(anyhow::anyhow!("Fail to do idle heartbeat for proxy connection {id} because of no response."));
+                            },
+                            Ok(Some(Ok(v))) => v,
+                            Ok(Some(Err(e))) => {
+                                error!("Fail to do idle heartbeat for proxy connection {id} because of error: {e:?}");
+                                return Err(e);
+                            },
+                        };
+                        let PpaassMessageParts { payload_bytes, .. } = idle_heartbeat_response.split();
+                        let PpaassMessageProxyPayloadParts { payload_type, data } = match TryInto::<PpaassMessageProxyPayload>::try_into(payload_bytes) {
+                            Ok(v) => v.split(),
+                            Err(e) => {
+                                error!("Fail to do idle heartbeat for proxy connection {id} because of error: {e:?}");
+                                return Err(e);
+                            },
+                        };
+                        if PpaassMessageProxyPayloadType::IdleHeartbeat != payload_type {
+                            error!("Fail to do idle heartbeat for proxy connection {id} because of invalid payload type: {payload_type:?}");
+                            return Err(anyhow::anyhow!(
+                                "Fail to do idle heartbeat for proxy connection {id} because of invalid payload type: {payload_type:?}"
+                            ));
+                        }
+                        let idle_heartbeat_response: HeartbeatResponsePayload = match data.try_into() {
+                            Ok(v) => v,
+                            Err(e) => {
+                                error!("Fail to do idle heartbeat for proxy connection {id} because of error: {e:?}");
+                                return Err(e);
+                            },
+                        };
+                        debug!("Success to do idle heartbeat for proxy connection {id}: {idle_heartbeat_response:?}");
+                        Ok(ProxyConnection::from(ProxyConnectionPart { id, read, write }))
+                    });
+                    connection_heartbeat_tasks.push(connection_heartbeat_task);
+                }
+                let connection_heartbeat_tasks_result = futures::future::join_all(connection_heartbeat_tasks).await;
+                for heartbeat_task_result in connection_heartbeat_tasks_result {
+                    if let Ok(Ok(connection)) = heartbeat_task_result {
+                        connections.push(connection);
+                    }
+                }
+            }
+        });
+        Ok(())
     }
 
     async fn feed_connections(&self) -> Result<()> {
