@@ -12,7 +12,7 @@ pub struct AgentServerConfig {
     /// files for each user
     rsa_dir: Option<String>,
     /// The threads number
-    thread_number: Option<usize>,
+    agent_server_worker_thread_number: Option<usize>,
     /// Whether enable compressing
     compress: Option<bool>,
     /// The client connection pool size.
@@ -21,6 +21,7 @@ pub struct AgentServerConfig {
     client_tcp_connection_accept_timout_seconds: Option<u64>,
     /// The proxy addresses
     proxy_addresses: Option<Vec<String>>,
+    message_framed_buffer_size: Option<usize>,
 }
 
 impl AgentServerConfig {
@@ -62,12 +63,12 @@ impl AgentServerConfig {
         self.rsa_dir.as_ref()
     }
 
-    pub fn set_thread_number(&mut self, thread_number: usize) {
-        self.thread_number = Some(thread_number)
+    pub fn set_agent_server_worker_thread_number(&mut self, thread_number: usize) {
+        self.agent_server_worker_thread_number = Some(thread_number)
     }
 
-    pub fn get_thread_number(&self) -> usize {
-        self.thread_number.unwrap_or(128)
+    pub fn get_agent_server_worker_thread_number(&self) -> usize {
+        self.agent_server_worker_thread_number.unwrap_or(128)
     }
 
     pub fn set_compress(&mut self, compress: bool) {
@@ -84,6 +85,10 @@ impl AgentServerConfig {
 
     pub fn get_client_tcp_connection_accept_timout_seconds(&self) -> u64 {
         self.client_tcp_connection_accept_timout_seconds.unwrap_or(20)
+    }
+
+    pub fn get_message_framed_buffer_size(&self) -> usize {
+        self.message_framed_buffer_size.unwrap_or(65536)
     }
 }
 

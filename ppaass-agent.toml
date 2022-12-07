@@ -1,9 +1,10 @@
 agent_connection_buffer_size = 65536
+agent_server_worker_thread_number = 128
 compress = false
 ipv6 = false
+message_framed_buffer_size = 65536
 port = 10081
 proxy_addresses = ["127.0.0.1:9090"]
+proxy_connection_number = 8
 rsa_dir = "./resources/rsa/"
-thread_number = 2048
 user_token = "user1"
-proxy_connection_number = 4

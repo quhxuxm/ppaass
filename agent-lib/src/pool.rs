@@ -85,6 +85,7 @@ impl ProxyConnectionPool {
 
     async fn feed_connections(&self) -> Result<()> {
         let proxy_connection_number = self.configuration.get_proxy_connection_number();
+        let message_framed_buffer_size = self.configuration.get_message_framed_buffer_size();
         let connections_out = self.connections.clone();
         let mut connections = connections_out.lock().await;
         debug!("Begin to feed proxy connections");
@@ -100,12 +101,17 @@ impl ProxyConnectionPool {
                 let proxy_tcp_stream = match TcpStream::connect(proxy_addresses.as_slice()).await {
                     Ok(proxy_tcp_stream) => proxy_tcp_stream,
                     Err(e) => {
-                        error!("Fail to feed proxy connection because of error.");
+                        error!("Fail to feed proxy connection because of error: {e:?}");
                         continue;
                     },
                 };
                 debug!("Success connect to proxy when feed connection pool.");
-                let proxy_message_framed = PpaassMessageFramed::new(proxy_tcp_stream, configuration.get_compress(), 1024 * 64, rsa_crypto_fetcher.clone());
+                let proxy_message_framed = PpaassMessageFramed::new(
+                    proxy_tcp_stream,
+                    configuration.get_compress(),
+                    message_framed_buffer_size,
+                    rsa_crypto_fetcher.clone(),
+                );
                 let (proxy_message_framed_write, proxy_message_framed_read) = proxy_message_framed.split();
                 let connection = ProxyConnection {
                     id: generate_uuid(),

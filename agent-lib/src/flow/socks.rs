@@ -12,7 +12,7 @@ use std::{
     net::SocketAddr,
     sync::Arc,
 };
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::{BytesCodec, Framed, FramedParts};
 use tracing::{debug, error};
 
