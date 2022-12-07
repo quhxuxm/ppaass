@@ -173,11 +173,11 @@ impl ProxyConnectionPool {
                     connection_heartbeat_tasks.push(connection_heartbeat_task);
                 }
                 let connection_heartbeat_tasks_result = futures::future::join_all(connection_heartbeat_tasks).await;
-                for heartbeat_task_result in connection_heartbeat_tasks_result {
+                connection_heartbeat_tasks_result.into_iter().for_each(|heartbeat_task_result| {
                     if let Ok(Ok(connection)) = heartbeat_task_result {
                         connections.push(connection);
                     }
-                }
+                });
             }
         });
         Ok(())
