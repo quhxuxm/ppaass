@@ -20,7 +20,7 @@ use ppaass_common::{
     PpaassMessagePayloadEncryptionSelector,
 };
 
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, trace};
 
 mod tcp_loop;
 mod udp_loop;
