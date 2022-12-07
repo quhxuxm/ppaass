@@ -132,7 +132,7 @@ impl ProxyConnectionPool {
                         };
                         let idle_heartbeat_response = tokio::time::timeout(Duration::from_secs(5), read.next()).await;
                         let idle_heartbeat_response = match idle_heartbeat_response {
-                            Err(e) => {
+                            Err(_) => {
                                 error!("Fail to do idle heartbeat for proxy connection {id} because of timeout.");
                                 return Err(anyhow::anyhow!("Fail to do idle heartbeat for proxy connection {id} because of timeout."));
                             },
