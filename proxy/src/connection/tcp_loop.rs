@@ -204,10 +204,6 @@ where
                     error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay destination data to agent because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
                 };
-                if let Err(e) = agent_message_framed_write.flush().await {
-                    error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay destination data to agent(flush) because of error: {e:?}");
-                    return Err(anyhow::anyhow!(e));
-                };
             }
             debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] read destination data complete.");
             Ok(())
@@ -238,12 +234,6 @@ where
                 let payload_bytes = BytesMut::from_iter(payload_bytes);
                 if let Err(e) = dest_tcp_framed_write.send(payload_bytes).await {
                     error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay agent message to destination becuase of error: {e:?}");
-                    return Err(anyhow::anyhow!(e));
-                };
-                if let Err(e) = dest_tcp_framed_write.flush().await {
-                    error!(
-                        "Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay agent message to destination(flush) becuase of error: {e:?}"
-                    );
                     return Err(anyhow::anyhow!(e));
                 };
             }
