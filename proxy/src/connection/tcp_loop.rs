@@ -29,40 +29,88 @@ use super::{AgentMessageFramedRead, AgentMessageFramedWrite};
 
 type DestTcpMessageFramedRead = SplitStream<Framed<TcpStream, BytesCodec>>;
 type DestTcpMessageFramedWrite = SplitSink<Framed<TcpStream, BytesCodec>, BytesMut>;
-#[derive(Debug)]
-pub(crate) struct TcpLoop<T, R>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send,
-{
-    dest_tcp_stream: TcpStream,
-    agent_message_framed_read: AgentMessageFramedRead<T, R>,
-    agent_message_framed_write: AgentMessageFramedWrite<T, R>,
-    key: String,
-    user_token: String,
-    agent_connection_id: String,
-    configuration: Arc<ProxyServerConfig>,
-}
 
-impl<T, R> TcpLoop<T, R>
+pub(crate) struct TcpLoopBuilder<T, R>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
-    fn generate_key(agent_address: &PpaassNetAddress, src_address: &PpaassNetAddress, dest_address: &PpaassNetAddress) -> String {
-        format!("[{agent_address}]::[{src_address}=>{dest_address}]")
+    agent_connection_id: Option<String>,
+    agent_message_framed_read: Option<AgentMessageFramedRead<T, R>>,
+    agent_message_framed_write: Option<AgentMessageFramedWrite<T, R>>,
+    user_token: Option<String>,
+    agent_address: Option<PpaassNetAddress>,
+    src_address: Option<PpaassNetAddress>,
+    dest_address: Option<PpaassNetAddress>,
+}
+
+impl<T, R> TcpLoopBuilder<T, R>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    R: RsaCryptoFetcher + Send + Sync + 'static,
+{
+    pub(crate) fn new() -> Self {
+        Self {
+            agent_connection_id: None,
+            agent_message_framed_read: None,
+            agent_message_framed_write: None,
+            user_token: None,
+            agent_address: None,
+            src_address: None,
+            dest_address: None,
+        }
     }
-    pub(crate) async fn new(
-        agent_connection_id: impl AsRef<str>, agent_message_framed_read: AgentMessageFramedRead<T, R>,
-        mut agent_message_framed_write: AgentMessageFramedWrite<T, R>, user_token: impl AsRef<str>, agent_address: PpaassNetAddress,
-        src_address: PpaassNetAddress, dest_address: PpaassNetAddress, configuration: Arc<ProxyServerConfig>,
-    ) -> Result<Self> {
-        let agent_connection_id = agent_connection_id.as_ref().to_owned();
-        let key = Self::generate_key(&agent_address, &src_address, &dest_address);
-        let user_token = user_token.as_ref().to_owned();
-        let socket_address = dest_address.to_socket_addrs().context("Convert destination address to socket address")?;
-        let socket_address = socket_address.collect::<Vec<SocketAddr>>();
-        let dest_tcp_stream = match TcpStream::connect(socket_address.as_slice()).await {
+    pub(crate) fn agent_connection_id(mut self, agent_connection_id: impl AsRef<str>) -> TcpLoopBuilder<T, R> {
+        self.agent_connection_id = Some(agent_connection_id.as_ref().to_owned());
+        self
+    }
+
+    pub(crate) fn user_token(mut self, user_token: impl AsRef<str>) -> TcpLoopBuilder<T, R> {
+        self.user_token = Some(user_token.as_ref().to_owned());
+        self
+    }
+
+    pub(crate) fn agent_address(mut self, agent_address: PpaassNetAddress) -> TcpLoopBuilder<T, R> {
+        self.agent_address = Some(agent_address);
+        self
+    }
+
+    pub(crate) fn src_address(mut self, src_address: PpaassNetAddress) -> TcpLoopBuilder<T, R> {
+        self.src_address = Some(src_address);
+        self
+    }
+
+    pub(crate) fn dest_address(mut self, dest_address: PpaassNetAddress) -> TcpLoopBuilder<T, R> {
+        self.dest_address = Some(dest_address);
+        self
+    }
+
+    pub(crate) fn agent_message_framed_read(mut self, agent_message_framed_read: AgentMessageFramedRead<T, R>) -> TcpLoopBuilder<T, R> {
+        self.agent_message_framed_read = Some(agent_message_framed_read);
+        self
+    }
+
+    pub(crate) fn agent_message_framed_write(mut self, agent_message_framed_write: AgentMessageFramedWrite<T, R>) -> TcpLoopBuilder<T, R> {
+        self.agent_message_framed_write = Some(agent_message_framed_write);
+        self
+    }
+
+    pub(crate) async fn build(self, configuration: Arc<ProxyServerConfig>) -> Result<TcpLoop<T, R>> {
+        let agent_connection_id = self.agent_connection_id.context("Agent connection id not assigned for tcp loop builder")?;
+        let agent_address = self.agent_address.context("Agent address not assigned for tcp loop builder")?;
+        let src_address = self.src_address.context("Source address not assigned for tcp loop builder")?;
+        let dest_address = self.dest_address.context("Destination address not assigned for tcp loop builder")?;
+        let user_token = self.user_token.context("User token not assigned for tcp loop builder")?;
+        let key = TcpLoop::<T, R>::generate_key(&agent_address, &src_address, &dest_address);
+        let mut agent_message_framed_write = self
+            .agent_message_framed_write
+            .context("Agent message framed write not assigned for tcp loop builder")?;
+        let agent_message_framed_read = self
+            .agent_message_framed_read
+            .context("Agent message framed read not assigned for tcp loop builder")?;
+        let dest_socket_address = dest_address.to_socket_addrs().context("Convert destination address to socket address")?;
+        let dest_socket_address = dest_socket_address.collect::<Vec<SocketAddr>>();
+        let dest_tcp_stream = match TcpStream::connect(dest_socket_address.as_slice()).await {
             Ok(stream) => stream,
             Err(e) => {
                 error!("Agent connection [{agent_connection_id}] fail connect to dest address because of error: {e:?}");
@@ -94,7 +142,7 @@ where
             return Err(anyhow::anyhow!(e));
         };
 
-        Ok(Self {
+        Ok(TcpLoop {
             key,
             agent_message_framed_read,
             agent_message_framed_write,
@@ -104,7 +152,31 @@ where
             configuration,
         })
     }
+}
 
+#[derive(Debug)]
+pub(crate) struct TcpLoop<T, R>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    R: RsaCryptoFetcher + Send + Sync + 'static,
+{
+    dest_tcp_stream: TcpStream,
+    agent_message_framed_read: AgentMessageFramedRead<T, R>,
+    agent_message_framed_write: AgentMessageFramedWrite<T, R>,
+    key: String,
+    user_token: String,
+    agent_connection_id: String,
+    configuration: Arc<ProxyServerConfig>,
+}
+
+impl<T, R> TcpLoop<T, R>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    R: RsaCryptoFetcher + Send + Sync + 'static,
+{
+    fn generate_key(agent_address: &PpaassNetAddress, src_address: &PpaassNetAddress, dest_address: &PpaassNetAddress) -> String {
+        format!("[{agent_address}]::[{src_address}=>{dest_address}]")
+    }
     fn start_dest_to_agent_task(
         agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_message_framed_write: AgentMessageFramedWrite<T, R>,
         mut dest_tcp_framed_read: DestTcpMessageFramedRead, user_token: impl AsRef<str>,

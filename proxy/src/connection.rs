@@ -11,8 +11,8 @@ use ppaass_common::{
 };
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::config::ProxyServerConfig;
-use crate::{common::ProxyServerPayloadEncryptionSelector, connection::tcp_loop::TcpLoop};
+use crate::common::ProxyServerPayloadEncryptionSelector;
+use crate::{config::ProxyServerConfig, connection::tcp_loop::TcpLoopBuilder};
 use anyhow::Result;
 use ppaass_common::tcp_loop::TcpLoopInitRequestPayload;
 use ppaass_common::{
@@ -62,7 +62,7 @@ where
 
     pub(crate) async fn exec(self) -> Result<()> {
         let connection_id = self.id;
-        let configuraiton = self.configuration;
+        let configuration = self.configuration;
         let agent_address = self.agent_address;
         debug!("Agent connection [{connection_id}] associated with agent address: {agent_address:?}");
         let agent_message_framed = self.agent_message_framed;
@@ -80,12 +80,7 @@ where
                     return Err(anyhow::anyhow!(e));
                 },
             };
-            let PpaassMessageParts {
-                id: agent_message_id,
-                user_token,
-                payload_bytes,
-                ..
-            } = agent_message.split();
+            let PpaassMessageParts { user_token, payload_bytes, .. } = agent_message.split();
             let PpaassMessageAgentPayloadParts {
                 payload_type,
                 data: agent_message_payload_data,
@@ -111,17 +106,15 @@ where
                     let tcp_loop_init_request: TcpLoopInitRequestPayload = agent_message_payload_data.try_into()?;
                     let src_address = tcp_loop_init_request.src_address;
                     let dest_address = tcp_loop_init_request.dest_address;
-                    let tcp_loop = TcpLoop::new(
-                        agent_message_id,
-                        agent_message_framed_read,
-                        agent_message_framed_write,
-                        user_token.clone(),
-                        agent_address.clone(),
-                        src_address.clone(),
-                        dest_address.clone(),
-                        configuraiton,
-                    )
-                    .await?;
+                    let tcp_loop_builder = TcpLoopBuilder::new()
+                        .agent_address(agent_address)
+                        .agent_connection_id(&connection_id)
+                        .agent_message_framed_write(agent_message_framed_write)
+                        .agent_message_framed_read(agent_message_framed_read)
+                        .user_token(user_token)
+                        .src_address(src_address)
+                        .dest_address(dest_address);
+                    let tcp_loop = tcp_loop_builder.build(configuration).await?;
                     let tcp_loop_key = tcp_loop.get_key().to_owned();
                     debug!("Agent connection [{connection_id}] start tcp loop [{tcp_loop_key}]");
                     tcp_loop.start().await?;
