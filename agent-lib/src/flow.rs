@@ -26,9 +26,7 @@ impl<T> ClientFlow<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
-    pub(crate) async fn exec(
-        self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
-    ) -> Result<()> {
+    pub(crate) async fn exec(self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>) -> Result<()> {
         match self {
             ClientFlow::Http {
                 client_io,
@@ -41,7 +39,7 @@ where
                 client_socket_address,
             } => {
                 let socks5_flow = Socks5Flow::new(client_io, client_socket_address);
-                if let Err(e) = socks5_flow.exec(proxy_connection_pool, configuration, rsa_crypto_fetcher).await {
+                if let Err(e) = socks5_flow.exec(proxy_connection_pool, configuration).await {
                     error!("Client tcp connection [{client_socket_address}] error happen on socks5 flow for proxy connection: {e:?}");
                     return Err(e);
                 };

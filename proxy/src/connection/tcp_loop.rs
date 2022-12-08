@@ -15,13 +15,14 @@ use tokio_util::codec::{BytesCodec, Framed};
 use std::{
     net::{SocketAddr, ToSocketAddrs},
     sync::Arc,
+    time::Duration,
 };
 
-use tokio::task::JoinHandle;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpStream,
 };
+use tokio::{task::JoinHandle, time::timeout};
 
 use tracing::{debug, error};
 
@@ -110,9 +111,27 @@ where
             .context("Agent message framed read not assigned for tcp loop builder")?;
         let dest_socket_address = dest_address.to_socket_addrs().context("Convert destination address to socket address")?;
         let dest_socket_address = dest_socket_address.collect::<Vec<SocketAddr>>();
-        let dest_tcp_stream = match TcpStream::connect(dest_socket_address.as_slice()).await {
-            Ok(stream) => stream,
-            Err(e) => {
+        let dest_tcp_stream = match timeout(
+            Duration::from_secs(configuration.get_dest_connect_timeout()),
+            TcpStream::connect(dest_socket_address.as_slice()),
+        )
+        .await
+        {
+            Err(_) => {
+                error!("Agent connection [{agent_connection_id}] fail connect to dest address because of timeout.");
+                let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
+                let tcp_initialize_fail_message =
+                    PpaassMessageGenerator::generate_tcp_loop_init_fail_response(&key, &user_token, src_address, dest_address, payload_encryption_token)?;
+                agent_message_framed_write
+                    .send(tcp_initialize_fail_message)
+                    .await
+                    .context("Agent connection [{agent_connection_id}] fail to send tcp initialize fail message to agent")?;
+                return Err(anyhow::anyhow!(
+                    "Agent connection [{agent_connection_id}] fail connect to dest address because of timeout."
+                ));
+            },
+            Ok(Ok(stream)) => stream,
+            Ok(Err(e)) => {
                 error!("Agent connection [{agent_connection_id}] fail connect to dest address because of error: {e:?}");
                 let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
                 let tcp_initialize_fail_message =
@@ -179,7 +198,7 @@ where
     }
     fn start_dest_to_agent_task(
         agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_message_framed_write: AgentMessageFramedWrite<T, R>,
-        mut dest_tcp_framed_read: DestTcpMessageFramedRead, user_token: impl AsRef<str>,
+        mut dest_tcp_framed_read: DestTcpMessageFramedRead, user_token: impl AsRef<str>, configuration: Arc<ProxyServerConfig>,
     ) -> JoinHandle<Result<()>> {
         let user_token = user_token.as_ref().to_owned();
         let key = tcp_loop_key.as_ref().to_owned();
@@ -187,10 +206,20 @@ where
         tokio::spawn(async move {
             debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] start to relay destination data to agent.");
             let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-            while let Some(dest_message) = dest_tcp_framed_read.next().await {
-                let dest_message = match dest_message {
-                    Ok(v) => v,
-                    Err(e) => {
+            loop {
+                let dest_message = match timeout(Duration::from_secs(configuration.get_dest_read_timeout()), dest_tcp_framed_read.next()).await {
+                    Err(_) => {
+                        error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to read destination data because of timeout");
+                        return Err(anyhow::anyhow!(
+                            "Agent connection [{agent_connection_id}] tcp loop [{key}] fail to read destination data because of timeout"
+                        ));
+                    },
+                    Ok(None) => {
+                        debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] read destination data complete.");
+                        break;
+                    },
+                    Ok(Some(Ok(dest_message))) => dest_message,
+                    Ok(Some(Err(e))) => {
                         error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to read destination data because of error: {e:?}");
                         return Err(anyhow::anyhow!(e));
                     },
@@ -205,7 +234,7 @@ where
                     return Err(anyhow::anyhow!(e));
                 };
             }
-            debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] read destination data complete.");
+
             Ok(())
         })
     }
@@ -261,6 +290,7 @@ where
             agent_message_framed_write,
             dest_tcp_framed_read,
             &user_token,
+            self.configuration.clone(),
         );
         let agent_to_dest_guard = Self::start_agent_to_dest_task(agent_connection_id.clone(), key.clone(), agent_message_framed_read, dest_tcp_framed_write);
         if let Err(e) = tokio::try_join!(dest_to_agent_guard, agent_to_dest_guard) {

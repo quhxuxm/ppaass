@@ -23,6 +23,8 @@ pub struct AgentServerConfig {
     proxy_addresses: Option<Vec<String>>,
     message_framed_buffer_size: Option<usize>,
     idle_proxy_heartbeat_interval: Option<u64>,
+    take_proxy_conection_timeout: Option<u64>,
+    client_read_timeout: Option<u64>,
 }
 
 impl AgentServerConfig {
@@ -94,6 +96,12 @@ impl AgentServerConfig {
 
     pub fn get_idle_proxy_heartbeat_interval(&self) -> u64 {
         self.idle_proxy_heartbeat_interval.unwrap_or(20)
+    }
+    pub fn get_take_proxy_conection_timeout(&self) -> u64 {
+        self.take_proxy_conection_timeout.unwrap_or(5)
+    }
+    pub fn get_client_read_timeout(&self) -> u64 {
+        self.client_read_timeout.unwrap_or(5)
     }
 }
 

@@ -49,7 +49,6 @@ impl AgentServer {
             debug!("Accept client tcp connection on address: {}", client_socket_address);
             let configuration = self.configuration.clone();
             let proxy_connection_pool = proxy_connection_pool.clone();
-            let rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
             tokio::spawn(async move {
                 let flow = match FlowDispatcher::dispatch(client_io, client_socket_address).await {
                     Err(e) => {
@@ -61,7 +60,7 @@ impl AgentServer {
                     Ok(v) => v,
                 };
 
-                if let Err(e) = flow.exec(proxy_connection_pool, configuration, rsa_crypto_fetcher).await {
+                if let Err(e) = flow.exec(proxy_connection_pool, configuration).await {
                     error!("Client tcp connection [{client_socket_address}] fail to execute client flow because of error: {e:?}");
                     return;
                 };

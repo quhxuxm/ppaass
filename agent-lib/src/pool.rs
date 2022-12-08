@@ -4,10 +4,15 @@ use std::{net::SocketAddr, time::Duration};
 
 use anyhow::Result;
 use futures::{
+    future::join_all,
     stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
 };
-use tokio::{net::TcpStream, sync::Mutex};
+use tokio::{
+    net::TcpStream,
+    sync::{Mutex, OwnedSemaphorePermit, Semaphore},
+    time::timeout,
+};
 use tracing::{debug, error};
 
 use ppaass_common::{
@@ -27,12 +32,14 @@ pub(crate) struct ProxyConnectionPart {
     pub(crate) id: String,
     pub(crate) read: ProxyMessageFramedRead,
     pub(crate) write: ProxyMessageFramedWrite,
+    pub(crate) guard: Option<OwnedSemaphorePermit>,
 }
 
 pub(crate) struct ProxyConnection {
     id: String,
     read: ProxyMessageFramedRead,
     write: ProxyMessageFramedWrite,
+    guard: Option<OwnedSemaphorePermit>,
 }
 
 impl ProxyConnection {
@@ -41,6 +48,7 @@ impl ProxyConnection {
             id: self.id,
             read: self.read,
             write: self.write,
+            guard: self.guard,
         }
     }
 }
@@ -51,6 +59,7 @@ impl From<ProxyConnectionPart> for ProxyConnection {
             id: part.id,
             read: part.read,
             write: part.write,
+            guard: part.guard,
         }
     }
 }
@@ -67,6 +76,7 @@ pub(crate) struct ProxyConnectionPool {
     connections: Arc<Mutex<Vec<ProxyConnection>>>,
     configuration: Arc<AgentServerConfig>,
     rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
+    connection_number_semaphore: Arc<Semaphore>,
 }
 
 impl ProxyConnectionPool {
@@ -92,11 +102,13 @@ impl ProxyConnectionPool {
         }
 
         let connections = Arc::new(Mutex::new(Vec::new()));
+        let connection_number_semaphore = Arc::new(Semaphore::new(configuration.get_proxy_connection_number()));
         let pool = Self {
             proxy_addresses,
             connections,
             configuration: configuration.clone(),
             rsa_crypto_fetcher: rsa_crypto_fetcher.clone(),
+            connection_number_semaphore,
         };
         pool.feed_connections().await?;
         pool.start_idle_heartbeat().await?;
@@ -117,7 +129,12 @@ impl ProxyConnectionPool {
                 while let Some(connection) = connections.pop() {
                     let user_token = user_token.clone();
                     let connection_heartbeat_task = tokio::spawn(async move {
-                        let ProxyConnectionPart { id, mut read, mut write } = connection.split();
+                        let ProxyConnectionPart {
+                            id,
+                            mut read,
+                            mut write,
+                            guard,
+                        } = connection.split();
                         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(&user_token, Some(generate_uuid().as_bytes().to_vec()));
                         let idle_heartbeat_request = match PpaassMessageGenerator::generate_heartbeat_request(user_token.clone(), payload_encryption) {
                             Ok(v) => v,
@@ -130,7 +147,7 @@ impl ProxyConnectionPool {
                             error!("Fail to do idle heartbeat for proxy connection {id} because of error: {e:?}");
                             return Err(e);
                         };
-                        let idle_heartbeat_response = tokio::time::timeout(Duration::from_secs(5), read.next()).await;
+                        let idle_heartbeat_response = timeout(Duration::from_secs(5), read.next()).await;
                         let idle_heartbeat_response = match idle_heartbeat_response {
                             Err(_) => {
                                 error!("Fail to do idle heartbeat for proxy connection {id} because of timeout.");
@@ -168,11 +185,11 @@ impl ProxyConnectionPool {
                             },
                         };
                         debug!("Success to do idle heartbeat for proxy connection {id}: {idle_heartbeat_response:?}");
-                        Ok(ProxyConnection::from(ProxyConnectionPart { id, read, write }))
+                        Ok(ProxyConnection::from(ProxyConnectionPart { id, read, write, guard }))
                     });
                     connection_heartbeat_tasks.push(connection_heartbeat_task);
                 }
-                let connection_heartbeat_tasks_result = futures::future::join_all(connection_heartbeat_tasks).await;
+                let connection_heartbeat_tasks_result = join_all(connection_heartbeat_tasks).await;
                 connection_heartbeat_tasks_result.into_iter().for_each(|heartbeat_task_result| {
                     if let Ok(Ok(connection)) = heartbeat_task_result {
                         connections.push(connection);
@@ -217,6 +234,7 @@ impl ProxyConnectionPool {
                     id: generate_uuid(),
                     read: proxy_message_framed_read,
                     write: proxy_message_framed_write,
+                    guard: None,
                 };
                 connections.push(connection);
             }
@@ -225,17 +243,41 @@ impl ProxyConnectionPool {
     }
 
     pub(crate) async fn take_connection(&self) -> Result<ProxyConnection> {
+        let connection_number_semaphore = self.connection_number_semaphore.clone();
+
+        let guard = match timeout(
+            Duration::from_secs(self.configuration.get_take_proxy_conection_timeout()),
+            connection_number_semaphore.acquire_owned(),
+        )
+        .await
+        {
+            Ok(Ok(v)) => {
+                debug!("Proxy connection semaphore remaining: {}", self.connection_number_semaphore.available_permits());
+                v
+            },
+            Ok(Err(e)) => {
+                error!("Fail to take proxy connection from pool because of error: {e:?}");
+                return Err(anyhow::anyhow!(e));
+            },
+            Err(_) => {
+                error!("Fail to take proxy connection from pool because of timeout.");
+                return Err(anyhow::anyhow!("Fail to take proxy connection from pool because of timeout."));
+            },
+        };
         loop {
             let mut connections = self.connections.lock().await;
             let connection = connections.pop();
             match connection {
-                Some(connection) => {
+                Some(mut connection) => {
                     debug!("Success to take connection from pool.");
+                    connection.guard = Some(guard);
                     return Ok(connection);
                 },
                 None => {
                     drop(connections);
-                    self.feed_connections().await?;
+                    if let Err(e) = self.feed_connections().await {
+                        error!("Error happen when feed proxy connection pool on take connection: {e:?}")
+                    };
                 },
             }
         }

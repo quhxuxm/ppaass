@@ -22,6 +22,8 @@ pub(crate) struct ProxyServerConfig {
     dest_tcp_framed_buffer_size: Option<usize>,
     max_agent_connection_number: Option<usize>,
     agent_connection_accept_timeout: Option<u64>,
+    dest_connect_timeout: Option<u64>,
+    dest_read_timeout: Option<u64>,
 }
 
 impl ProxyServerConfig {
@@ -79,6 +81,12 @@ impl ProxyServerConfig {
 
     pub(crate) fn get_agent_connection_accept_timeout(&self) -> u64 {
         self.agent_connection_accept_timeout.unwrap_or(20)
+    }
+    pub(crate) fn get_dest_connect_timeout(&self) -> u64 {
+        self.dest_connect_timeout.unwrap_or(20)
+    }
+    pub(crate) fn get_dest_read_timeout(&self) -> u64 {
+        self.dest_read_timeout.unwrap_or(20)
     }
 }
 
