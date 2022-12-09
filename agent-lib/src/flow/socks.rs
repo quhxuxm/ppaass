@@ -64,7 +64,7 @@ where
         let (mut client_io_framed_write, mut client_io_framed_read) = client_io_framed.split::<BytesMut>();
         let tcp_loop_key_a2p = tcp_loop_key.as_ref().to_owned();
 
-        let a2p_guard = tokio::spawn(async move {
+        let mut a2p_guard = tokio::spawn(async move {
             debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] start to relay from agent to proxy.");
             loop {
                 let client_message = match timeout(Duration::from_secs(configuration.get_client_read_timeout()), client_io_framed_read.next()).await {
@@ -103,7 +103,7 @@ where
 
         let tcp_loop_key_p2a = tcp_loop_key.as_ref().to_owned();
 
-        let p2a_guard = tokio::spawn(async move {
+        let mut p2a_guard = tokio::spawn(async move {
             debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] start to relay from proxy to agent.");
             while let Some(proxy_message) = proxy_message_framed_read.next().await {
                 if let Err(e) = proxy_message {
@@ -125,7 +125,9 @@ where
             debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] complete to relay from proxy to agent.");
             Ok::<_, anyhow::Error>(())
         });
-        if let Err(e) = try_join!(a2p_guard, p2a_guard) {
+        if let Err(e) = try_join!(&mut a2p_guard, &mut p2a_guard) {
+            a2p_guard.abort();
+            p2a_guard.abort();
             error!(
                 "Client tcp connection [{client_socket_address}] for tcp loop [{}] fail to do relay process because of error: {e:?}",
                 tcp_loop_key.as_ref()
@@ -265,7 +267,7 @@ where
         Self::relay(
             client_io,
             client_sockst_address,
-            loop_key,
+            loop_key.clone(),
             user_token,
             payload_encryption,
             proxy_connection_read,
@@ -273,6 +275,7 @@ where
             configuration,
         )
         .await?;
+        debug!("Client tcp connection [{client_sockst_address}] complete sock5 relay, tcp loop key: [{loop_key}].");
         Ok(())
     }
 }

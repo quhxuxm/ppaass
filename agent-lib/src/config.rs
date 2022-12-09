@@ -17,6 +17,7 @@ pub struct AgentServerConfig {
     compress: Option<bool>,
     /// The client connection pool size.
     proxy_connection_number: Option<usize>,
+    proxy_connection_number_semaphore: Option<usize>,
     /// The timeout to accept client connection pool size.
     client_tcp_connection_accept_timout_seconds: Option<u64>,
     /// The proxy addresses
@@ -102,6 +103,10 @@ impl AgentServerConfig {
     }
     pub fn get_client_read_timeout(&self) -> u64 {
         self.client_read_timeout.unwrap_or(5)
+    }
+    pub fn get_proxy_connection_number_semaphore(&self) -> usize {
+        let proxy_connection_number = self.get_proxy_connection_number();
+        self.proxy_connection_number_semaphore.unwrap_or(proxy_connection_number)
     }
 }
 

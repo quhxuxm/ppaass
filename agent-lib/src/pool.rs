@@ -11,7 +11,7 @@ use futures::{
 use tokio::{
     net::TcpStream,
     sync::{Mutex, OwnedSemaphorePermit, Semaphore},
-    time::timeout,
+    time::{interval, timeout},
 };
 use tracing::{debug, error};
 
@@ -102,7 +102,7 @@ impl ProxyConnectionPool {
         }
 
         let connections = Arc::new(Mutex::new(Vec::new()));
-        let connection_number_semaphore = Arc::new(Semaphore::new(configuration.get_proxy_connection_number()));
+        let connection_number_semaphore = Arc::new(Semaphore::new(configuration.get_proxy_connection_number_semaphore()));
         let pool = Self {
             proxy_addresses,
             connections,
@@ -120,7 +120,7 @@ impl ProxyConnectionPool {
         let user_token = self.configuration.get_user_token().to_owned().expect("User token not configured.");
         let idle_proxy_heartbeat_interval = self.configuration.get_idle_proxy_heartbeat_interval();
         tokio::spawn(async move {
-            let mut heart_beat_interval = tokio::time::interval(Duration::from_secs(idle_proxy_heartbeat_interval));
+            let mut heart_beat_interval = interval(Duration::from_secs(idle_proxy_heartbeat_interval));
             loop {
                 heart_beat_interval.tick().await;
                 let mut connections = connections.lock().await;

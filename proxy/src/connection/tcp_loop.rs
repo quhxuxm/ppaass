@@ -196,7 +196,7 @@ where
     fn generate_key(agent_address: &PpaassNetAddress, src_address: &PpaassNetAddress, dest_address: &PpaassNetAddress) -> String {
         format!("[{agent_address}]::[{src_address}=>{dest_address}]")
     }
-    fn start_dest_to_agent_task(
+    fn start_dest_to_agent_relay(
         agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_message_framed_write: AgentMessageFramedWrite<T, R>,
         mut dest_tcp_framed_read: DestTcpMessageFramedRead, user_token: impl AsRef<str>, configuration: Arc<ProxyServerConfig>,
     ) -> JoinHandle<Result<()>> {
@@ -215,7 +215,7 @@ where
                         ));
                     },
                     Ok(None) => {
-                        debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] read destination data complete.");
+                        debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] complete relay destination data to agent.");
                         break;
                     },
                     Ok(Some(Ok(dest_message))) => dest_message,
@@ -239,7 +239,7 @@ where
         })
     }
 
-    fn start_agent_to_dest_task(
+    fn start_agent_to_dest_relay(
         agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_message_framed_read: AgentMessageFramedRead<T, R>,
         mut dest_tcp_framed_write: DestTcpMessageFramedWrite,
     ) -> JoinHandle<Result<()>> {
@@ -266,7 +266,7 @@ where
                     return Err(anyhow::anyhow!(e));
                 };
             }
-            debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] complete read agent data.");
+            debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] complete relay agent data to destination.");
             Ok(())
         })
     }
@@ -284,7 +284,7 @@ where
         let user_token = self.user_token;
         let key = self.key;
         let agent_connection_id = self.agent_connection_id;
-        let dest_to_agent_guard = Self::start_dest_to_agent_task(
+        let mut dest_to_agent_relay_guard = Self::start_dest_to_agent_relay(
             agent_connection_id.clone(),
             key.clone(),
             agent_message_framed_write,
@@ -292,8 +292,11 @@ where
             &user_token,
             self.configuration.clone(),
         );
-        let agent_to_dest_guard = Self::start_agent_to_dest_task(agent_connection_id.clone(), key.clone(), agent_message_framed_read, dest_tcp_framed_write);
-        if let Err(e) = tokio::try_join!(dest_to_agent_guard, agent_to_dest_guard) {
+        let mut agent_to_dest_relay_guard =
+            Self::start_agent_to_dest_relay(agent_connection_id.clone(), key.clone(), agent_message_framed_read, dest_tcp_framed_write);
+        if let Err(e) = tokio::try_join!(&mut dest_to_agent_relay_guard, &mut agent_to_dest_relay_guard) {
+            dest_to_agent_relay_guard.abort();
+            agent_to_dest_relay_guard.abort();
             error!("Agent connection [{agent_connection_id}] for tcp loop [{key}] fail to do relay process becuase of error: {e:?}")
         };
         Ok(())
