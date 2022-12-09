@@ -26,6 +26,7 @@ pub struct AgentServerConfig {
     idle_proxy_heartbeat_interval: Option<u64>,
     take_proxy_conection_timeout: Option<u64>,
     client_read_timeout: Option<u64>,
+    client_io_buffer_size: Option<usize>,
 }
 
 impl AgentServerConfig {
@@ -107,6 +108,9 @@ impl AgentServerConfig {
     pub fn get_proxy_connection_number_semaphore(&self) -> usize {
         let proxy_connection_number = self.get_proxy_connection_number();
         self.proxy_connection_number_semaphore.unwrap_or(proxy_connection_number)
+    }
+    pub fn get_client_io_buffer_size(&self) -> usize {
+        self.client_io_buffer_size.unwrap_or(1024 * 64)
     }
 }
 

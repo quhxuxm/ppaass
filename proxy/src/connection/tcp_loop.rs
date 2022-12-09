@@ -19,17 +19,17 @@ use std::{
 };
 
 use tokio::{
-    io::{AsyncRead, AsyncWrite},
-    net::TcpStream,
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
+    net::{
+        tcp::{OwnedReadHalf, OwnedWriteHalf},
+        TcpStream,
+    },
 };
 use tokio::{task::JoinHandle, time::timeout};
 
 use tracing::{debug, error};
 
 use super::{AgentMessageFramedRead, AgentMessageFramedWrite};
-
-type DestTcpMessageFramedRead = SplitStream<Framed<TcpStream, BytesCodec>>;
-type DestTcpMessageFramedWrite = SplitSink<Framed<TcpStream, BytesCodec>, BytesMut>;
 
 pub(crate) struct TcpLoopBuilder<T, R>
 where
@@ -165,7 +165,7 @@ where
             key,
             agent_message_framed_read,
             agent_message_framed_write,
-            dest_tcp_stream,
+            dest_io: dest_tcp_stream,
             user_token,
             agent_connection_id,
             configuration,
@@ -179,7 +179,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
-    dest_tcp_stream: TcpStream,
+    dest_io: TcpStream,
     agent_message_framed_read: AgentMessageFramedRead<T, R>,
     agent_message_framed_write: AgentMessageFramedWrite<T, R>,
     key: String,
@@ -198,7 +198,7 @@ where
     }
     fn start_dest_to_agent_relay(
         agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_message_framed_write: AgentMessageFramedWrite<T, R>,
-        mut dest_tcp_framed_read: DestTcpMessageFramedRead, user_token: impl AsRef<str>, configuration: Arc<ProxyServerConfig>,
+        mut dest_io_read: OwnedReadHalf, user_token: impl AsRef<str>, configuration: Arc<ProxyServerConfig>,
     ) -> JoinHandle<Result<()>> {
         let user_token = user_token.as_ref().to_owned();
         let key = tcp_loop_key.as_ref().to_owned();
@@ -207,19 +207,25 @@ where
             debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] start to relay destination data to agent.");
             let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
             loop {
-                let dest_message = match timeout(Duration::from_secs(configuration.get_dest_read_timeout()), dest_tcp_framed_read.next()).await {
+                let mut dest_message = Vec::with_capacity(configuration.get_dest_io_buffer_size());
+                match timeout(
+                    Duration::from_secs(configuration.get_dest_read_timeout()),
+                    dest_io_read.read_buf(&mut dest_message),
+                )
+                .await
+                {
                     Err(_) => {
                         error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to read destination data because of timeout");
                         return Err(anyhow::anyhow!(
                             "Agent connection [{agent_connection_id}] tcp loop [{key}] fail to read destination data because of timeout"
                         ));
                     },
-                    Ok(None) => {
+                    Ok(Ok(0)) => {
                         debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] complete relay destination data to agent.");
                         break;
                     },
-                    Ok(Some(Ok(dest_message))) => dest_message,
-                    Ok(Some(Err(e))) => {
+                    Ok(Ok(dest_message)) => dest_message,
+                    Ok(Err(e)) => {
                         error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to read destination data because of error: {e:?}");
                         return Err(anyhow::anyhow!(e));
                     },
@@ -241,7 +247,7 @@ where
 
     fn start_agent_to_dest_relay(
         agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_message_framed_read: AgentMessageFramedRead<T, R>,
-        mut dest_tcp_framed_write: DestTcpMessageFramedWrite,
+        mut dest_io_write: OwnedWriteHalf,
     ) -> JoinHandle<Result<()>> {
         let key = tcp_loop_key.as_ref().to_owned();
         let agent_connection_id = agent_connection_id.as_ref().to_owned();
@@ -261,8 +267,14 @@ where
                     pretty_hex::pretty_hex(&payload_bytes)
                 );
                 let payload_bytes = BytesMut::from_iter(payload_bytes);
-                if let Err(e) = dest_tcp_framed_write.send(payload_bytes).await {
+                if let Err(e) = dest_io_write.write_all(&payload_bytes).await {
                     error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay agent message to destination becuase of error: {e:?}");
+                    return Err(anyhow::anyhow!(e));
+                };
+                if let Err(e) = dest_io_write.flush().await {
+                    error!(
+                        "Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay agent message to destination becuase of error(flush): {e:?}"
+                    );
                     return Err(anyhow::anyhow!(e));
                 };
             }
@@ -276,9 +288,8 @@ where
     }
 
     pub(crate) async fn start(self) -> Result<()> {
-        let dest_tcp_stream = self.dest_tcp_stream;
-        let dest_tcp_framed = Framed::with_capacity(dest_tcp_stream, BytesCodec::new(), self.configuration.get_dest_tcp_framed_buffer_size());
-        let (dest_tcp_framed_write, dest_tcp_framed_read) = dest_tcp_framed.split();
+        let dest_io = self.dest_io;
+        let (dest_io_read, dest_io_write) = dest_io.into_split();
         let agent_message_framed_write = self.agent_message_framed_write;
         let agent_message_framed_read = self.agent_message_framed_read;
         let user_token = self.user_token;
@@ -288,12 +299,11 @@ where
             agent_connection_id.clone(),
             key.clone(),
             agent_message_framed_write,
-            dest_tcp_framed_read,
+            dest_io_read,
             &user_token,
             self.configuration.clone(),
         );
-        let mut agent_to_dest_relay_guard =
-            Self::start_agent_to_dest_relay(agent_connection_id.clone(), key.clone(), agent_message_framed_read, dest_tcp_framed_write);
+        let mut agent_to_dest_relay_guard = Self::start_agent_to_dest_relay(agent_connection_id.clone(), key.clone(), agent_message_framed_read, dest_io_write);
         if let Err(e) = tokio::try_join!(&mut dest_to_agent_relay_guard, &mut agent_to_dest_relay_guard) {
             dest_to_agent_relay_guard.abort();
             agent_to_dest_relay_guard.abort();

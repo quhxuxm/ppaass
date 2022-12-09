@@ -1,5 +1,6 @@
 agent_connection_buffer_size = 65536
 agent_server_worker_thread_number = 128
+client_io_buffer_size = 65536
 compress = false
 idle_proxy_heartbeat_interval = 20
 ipv6 = false
@@ -7,7 +8,7 @@ message_framed_buffer_size = 65536
 port = 10081
 proxy_addresses = ["127.0.0.1:9090"]
 proxy_connection_number = 16
-proxy_connection_number_semaphore = 65535
+proxy_connection_number_semaphore = 16
 rsa_dir = "./resources/rsa/"
 take_proxy_conection_timeout = 20
 user_token = "user1"

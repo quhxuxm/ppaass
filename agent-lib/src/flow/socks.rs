@@ -14,10 +14,10 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    io::{AsyncRead, AsyncWrite},
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     time::timeout,
 };
-use tokio_util::codec::{BytesCodec, Framed, FramedParts};
+use tokio_util::codec::{Framed, FramedParts};
 use tracing::{debug, error};
 
 use self::message::Socks5InitCommandResultStatus;
@@ -60,14 +60,19 @@ where
     where
         U: AsRef<str> + Send + Debug + Display + Clone + 'static,
     {
-        let client_io_framed = Framed::new(client_io, BytesCodec::new());
-        let (mut client_io_framed_write, mut client_io_framed_read) = client_io_framed.split::<BytesMut>();
+        let (mut client_io_read, mut client_io_write) = tokio::io::split(client_io);
         let tcp_loop_key_a2p = tcp_loop_key.as_ref().to_owned();
 
         let mut a2p_guard = tokio::spawn(async move {
             debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] start to relay from agent to proxy.");
             loop {
-                let client_message = match timeout(Duration::from_secs(configuration.get_client_read_timeout()), client_io_framed_read.next()).await {
+                let mut client_message = Vec::with_capacity(configuration.get_client_io_buffer_size());
+                match timeout(
+                    Duration::from_secs(configuration.get_client_read_timeout()),
+                    client_io_read.read_buf(&mut client_message),
+                )
+                .await
+                {
                     Err(_) => {
                         error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to read from client because of timeout");
                         return Err(anyhow::anyhow!(format!(
@@ -75,12 +80,12 @@ where
                             client_socket_address, tcp_loop_key_a2p
                         )));
                     },
-                    Ok(None) => {
+                    Ok(Ok(0)) => {
                         debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] complete to read from client.");
                         break;
                     },
-                    Ok(Some(Ok(client_message))) => client_message,
-                    Ok(Some(Err(e))) => {
+                    Ok(Ok(client_message)) => client_message,
+                    Ok(Err(e)) => {
                         error!(
                             "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to read from client because of error: {e:?}"
                         );
@@ -111,14 +116,20 @@ where
                     return Err(e);
                 }
                 let proxy_message = proxy_message.expect("Should not panic when read proxy message");
-                let PpaassMessageParts { payload_bytes, .. } = proxy_message.split();
+                let PpaassMessageParts {
+                    payload_bytes: proxy_message_payload_bytes,
+                    ..
+                } = proxy_message.split();
                 debug!(
                     "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] read proxy data:\n{}\n",
-                    pretty_hex::pretty_hex(&payload_bytes)
+                    pretty_hex::pretty_hex(&proxy_message_payload_bytes)
                 );
-
-                if let Err(e) = client_io_framed_write.send(BytesMut::from_iter(payload_bytes)).await {
+                if let Err(e) = client_io_write.write_all(&proxy_message_payload_bytes).await {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to relay to proxy because of error: {e:?}");
+                    return Err(anyhow::anyhow!(e));
+                };
+                if let Err(e) = client_io_write.flush().await {
+                    error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to relay to proxy because of error(flush): {e:?}");
                     return Err(anyhow::anyhow!(e));
                 };
             }
