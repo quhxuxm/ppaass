@@ -83,14 +83,14 @@ where
             DecodeStatus::Data(body_is_compressed, body_length) => (body_is_compressed, body_length),
         };
         if src.remaining() < body_length as usize {
-            debug!(
+            trace!(
                 "Input message is not enough to decode body, continue read, buffer remaining: {}, body length: {body_length}.",
                 src.remaining(),
             );
             src.reserve(body_length as usize);
             return Ok(None);
         }
-        debug!(
+        trace!(
             "Input message has enough bytes to decode body, buffer remaining: {}, body length: {body_length}.",
             src.remaining(),
         );
@@ -98,7 +98,7 @@ where
         let body_bytes = src.split_to(body_length as usize);
         trace!("Input message body bytes:\n\n{}\n\n", pretty_hex(&body_bytes));
         let encrypted_message: PpaassMessage = if body_is_compressed {
-            debug!("Input message body is compressed.");
+            trace!("Input message body is compressed.");
             let decompress_result = decompress(body_bytes.chunk(), None)?;
             decompress_result.try_into().context("Fail to decompress bytes of the PpaassMessage")?
         } else {

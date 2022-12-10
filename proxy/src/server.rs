@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use crate::{config::ProxyServerConfig, connection::AgentConnection, crypto::ProxyServerRsaCryptoFetcher};
 
 use anyhow::{Context, Result};
-use tokio::{net::TcpListener, sync::Semaphore};
+use tokio::{net::TcpListener, sync::Semaphore, time::timeout};
 use tracing::{debug, error, info};
 
 pub(crate) struct ProxyServer {
@@ -47,7 +47,7 @@ impl ProxyServer {
             let proxy_server_rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();
             tokio::spawn(async move {
-                let _agent_connection_number_guard = match tokio::time::timeout(
+                let _agent_connection_number_guard = match timeout(
                     Duration::from_secs(agent_connection_accept_timeout),
                     max_agent_connection_number_semaphore.acquire(),
                 )
@@ -64,6 +64,7 @@ impl ProxyServer {
                     },
                 };
                 let agent_connection = AgentConnection::new(agent_tcp_stream, agent_socket_address.into(), configuration, proxy_server_rsa_crypto_fetcher);
+
                 if let Err(e) = agent_connection.exec().await {
                     error!("Fail to execute agent connection because of error: {e:?}");
                 };

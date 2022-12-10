@@ -2,15 +2,11 @@ use crate::{common::ProxyServerPayloadEncryptionSelector, config::ProxyServerCon
 use anyhow::{Context, Result};
 
 use bytes::BytesMut;
-use futures::{
-    stream::{SplitSink, SplitStream},
-    StreamExt,
-};
+use futures::StreamExt;
 
 use futures_util::SinkExt;
 use ppaass_common::{generate_uuid, PpaassMessageParts, RsaCryptoFetcher};
 use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
-use tokio_util::codec::{BytesCodec, Framed};
 
 use std::{
     net::{SocketAddr, ToSocketAddrs},
@@ -27,7 +23,7 @@ use tokio::{
 };
 use tokio::{task::JoinHandle, time::timeout};
 
-use tracing::{debug, error};
+use tracing::{debug, error, trace};
 
 use super::{AgentMessageFramedRead, AgentMessageFramedWrite};
 
@@ -230,7 +226,7 @@ where
                         return Err(anyhow::anyhow!(e));
                     },
                 };
-                debug!(
+                trace!(
                     "Agent connection [{agent_connection_id}] tcp loop [{key}] read destination data:\n{}\n",
                     pretty_hex::pretty_hex(&dest_message)
                 );
@@ -262,7 +258,7 @@ where
                     },
                 };
                 let PpaassMessageParts { payload_bytes, .. } = agent_message.split();
-                debug!(
+                trace!(
                     "Agent connection [{agent_connection_id}] tcp loop [{key}] read agent data:\n{}\n",
                     pretty_hex::pretty_hex(&payload_bytes)
                 );
@@ -307,8 +303,10 @@ where
         if let Err(e) = tokio::try_join!(&mut dest_to_agent_relay_guard, &mut agent_to_dest_relay_guard) {
             dest_to_agent_relay_guard.abort();
             agent_to_dest_relay_guard.abort();
-            error!("Agent connection [{agent_connection_id}] for tcp loop [{key}] fail to do relay process becuase of error: {e:?}")
+            error!("Agent connection [{agent_connection_id}] for tcp loop [{key}] fail to do relay process becuase of error: {e:?}");
+            return Err(anyhow::anyhow!(e));
         };
+        debug!("Agent connection [{agent_connection_id}] for tcp loop [{key}] complete relay process.");
         Ok(())
     }
 }

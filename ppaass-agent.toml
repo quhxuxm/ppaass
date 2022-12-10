@@ -1,10 +1,11 @@
 agent_connection_buffer_size = 65536
 agent_server_worker_thread_number = 128
-client_io_buffer_size = 65536
+client_io_buffer_size = 524288
+client_read_timeout = 120
 compress = false
 idle_proxy_heartbeat_interval = 20
 ipv6 = false
-message_framed_buffer_size = 65536
+message_framed_buffer_size = 524288
 port = 10081
 proxy_addresses = ["127.0.0.1:9090"]
 proxy_connection_number = 16

@@ -260,7 +260,7 @@ impl ProxyConnectionPool {
                 return Err(anyhow::anyhow!(e));
             },
             Err(_) => {
-                error!("Fail to take proxy connection from pool because of timeout.");
+                error!("Fail to take proxy connection from pool because of semaphore timeout.");
                 return Err(anyhow::anyhow!("Fail to take proxy connection from pool because of timeout."));
             },
         };

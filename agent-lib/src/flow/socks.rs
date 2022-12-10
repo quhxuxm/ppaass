@@ -18,7 +18,7 @@ use tokio::{
     time::timeout,
 };
 use tokio_util::codec::{Framed, FramedParts};
-use tracing::{debug, error};
+use tracing::{debug, error, trace};
 
 use self::message::Socks5InitCommandResultStatus;
 
@@ -63,7 +63,7 @@ where
         let (mut client_io_read, mut client_io_write) = tokio::io::split(client_io);
         let tcp_loop_key_a2p = tcp_loop_key.as_ref().to_owned();
 
-        let mut a2p_guard = tokio::spawn(async move {
+        let mut client_to_proxy_relay_guard = tokio::spawn(async move {
             debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] start to relay from agent to proxy.");
             loop {
                 let mut client_message = Vec::with_capacity(configuration.get_client_io_buffer_size());
@@ -93,7 +93,7 @@ where
                     },
                 };
 
-                debug!(
+                trace!(
                     "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] read client data:\n{}\n",
                     pretty_hex::pretty_hex(&client_message)
                 );
@@ -108,7 +108,7 @@ where
 
         let tcp_loop_key_p2a = tcp_loop_key.as_ref().to_owned();
 
-        let mut p2a_guard = tokio::spawn(async move {
+        let mut proxy_to_client_relay_guard = tokio::spawn(async move {
             debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] start to relay from proxy to agent.");
             while let Some(proxy_message) = proxy_message_framed_read.next().await {
                 if let Err(e) = proxy_message {
@@ -120,7 +120,7 @@ where
                     payload_bytes: proxy_message_payload_bytes,
                     ..
                 } = proxy_message.split();
-                debug!(
+                trace!(
                     "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] read proxy data:\n{}\n",
                     pretty_hex::pretty_hex(&proxy_message_payload_bytes)
                 );
@@ -136,9 +136,9 @@ where
             debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] complete to relay from proxy to agent.");
             Ok::<_, anyhow::Error>(())
         });
-        if let Err(e) = try_join!(&mut a2p_guard, &mut p2a_guard) {
-            a2p_guard.abort();
-            p2a_guard.abort();
+        if let Err(e) = try_join!(&mut client_to_proxy_relay_guard, &mut proxy_to_client_relay_guard) {
+            client_to_proxy_relay_guard.abort();
+            proxy_to_client_relay_guard.abort();
             error!(
                 "Client tcp connection [{client_socket_address}] for tcp loop [{}] fail to do relay process because of error: {e:?}",
                 tcp_loop_key.as_ref()
