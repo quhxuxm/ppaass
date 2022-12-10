@@ -81,7 +81,7 @@ where
                         )));
                     },
                     Ok(Ok(0)) => {
-                        debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] complete to read from client.");
+                        debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] complete to relay from client to proxy.");
                         break;
                     },
                     Ok(Ok(client_message)) => client_message,
