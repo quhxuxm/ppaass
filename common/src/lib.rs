@@ -1,11 +1,8 @@
 mod crypto;
-mod framed;
 pub use crypto::*;
 
 use uuid::Uuid;
-pub(crate) mod codec;
-
-pub use framed::*;
+pub mod codec;
 
 mod message;
 mod serializer;

@@ -13,18 +13,19 @@ use tokio::{
     sync::{Mutex, OwnedSemaphorePermit, Semaphore},
     time::{interval, timeout},
 };
+use tokio_util::codec::Framed;
 use tracing::{debug, error};
 
+use ppaass_common::{codec::PpaassMessageCodec, PpaassMessageParts};
 use ppaass_common::{
     generate_uuid, heartbeat::HeartbeatResponsePayload, PpaassMessageGenerator, PpaassMessageProxyPayload, PpaassMessageProxyPayloadParts,
     PpaassMessageProxyPayloadType,
 };
 use ppaass_common::{PpaassMessage, PpaassMessagePayloadEncryptionSelector};
-use ppaass_common::{PpaassMessageFramed, PpaassMessageParts};
 
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, AgentServerPayloadEncryptionTypeSelector};
 
-pub(crate) type ProxyMessageFramed = PpaassMessageFramed<TcpStream, AgentServerRsaCryptoFetcher>;
+pub(crate) type ProxyMessageFramed = Framed<TcpStream, PpaassMessageCodec<AgentServerRsaCryptoFetcher>>;
 pub(crate) type ProxyMessageFramedWrite = SplitSink<ProxyMessageFramed, PpaassMessage>;
 pub(crate) type ProxyMessageFramedRead = SplitStream<ProxyMessageFramed>;
 
@@ -223,12 +224,8 @@ impl ProxyConnectionPool {
                     },
                 };
                 debug!("Success connect to proxy when feed connection pool.");
-                let proxy_message_framed = PpaassMessageFramed::new(
-                    proxy_tcp_stream,
-                    configuration.get_compress(),
-                    message_framed_buffer_size,
-                    rsa_crypto_fetcher.clone(),
-                );
+                let proxy_message_codec = PpaassMessageCodec::new(configuration.get_compress(), rsa_crypto_fetcher);
+                let proxy_message_framed = Framed::with_capacity(proxy_tcp_stream, proxy_message_codec, message_framed_buffer_size);
                 let (proxy_message_framed_write, proxy_message_framed_read) = proxy_message_framed.split();
                 let connection = ProxyConnection {
                     id: generate_uuid(),

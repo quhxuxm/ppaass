@@ -6,10 +6,11 @@ use futures::{
     SinkExt, StreamExt,
 };
 use ppaass_common::{
-    generate_uuid, PpaassMessage, PpaassMessageAgentPayload, PpaassMessageAgentPayloadParts, PpaassMessageAgentPayloadType, PpaassMessageFramed,
+    codec::PpaassMessageCodec, generate_uuid, PpaassMessage, PpaassMessageAgentPayload, PpaassMessageAgentPayloadParts, PpaassMessageAgentPayloadType,
     PpaassNetAddress, RsaCryptoFetcher,
 };
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio_util::codec::Framed;
 
 use crate::common::ProxyServerPayloadEncryptionSelector;
 use crate::{config::ProxyServerConfig, connection::tcp_loop::TcpLoopBuilder};
@@ -25,8 +26,8 @@ use tracing::{debug, error, trace};
 mod tcp_loop;
 mod udp_loop;
 
-type AgentMessageFramedRead<T, R> = SplitStream<PpaassMessageFramed<T, R>>;
-type AgentMessageFramedWrite<T, R> = SplitSink<PpaassMessageFramed<T, R>, PpaassMessage>;
+type AgentMessageFramedRead<T, R> = SplitStream<Framed<T, PpaassMessageCodec<R>>>;
+type AgentMessageFramedWrite<T, R> = SplitSink<Framed<T, PpaassMessageCodec<R>>, PpaassMessage>;
 
 #[derive(Debug)]
 pub(crate) struct AgentConnection<T, R>
@@ -35,7 +36,7 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
     id: String,
-    agent_message_framed: PpaassMessageFramed<T, R>,
+    agent_message_framed: Framed<T, PpaassMessageCodec<R>>,
     agent_address: PpaassNetAddress,
     configuration: Arc<ProxyServerConfig>,
 }
@@ -45,16 +46,12 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
-    pub(crate) fn new(agent_io: T, agent_address: PpaassNetAddress, configuration: Arc<ProxyServerConfig>, rsa_fetcher: Arc<R>) -> Self {
-        let message_framed = PpaassMessageFramed::new(
-            agent_io,
-            configuration.get_compress(),
-            configuration.get_message_framed_buffer_size(),
-            rsa_fetcher,
-        );
+    pub(crate) fn new(agent_io: T, agent_address: PpaassNetAddress, configuration: Arc<ProxyServerConfig>, rsa_crypto_fetcher: Arc<R>) -> Self {
+        let agent_message_codec = PpaassMessageCodec::new(configuration.get_compress(), rsa_crypto_fetcher);
+        let agent_message_framed = Framed::with_capacity(agent_io, agent_message_codec, configuration.get_message_framed_buffer_size());
         Self {
             id: generate_uuid(),
-            agent_message_framed: message_framed,
+            agent_message_framed,
             agent_address,
             configuration,
         }
@@ -130,7 +127,7 @@ where
 
 async fn handle_idle_heartbeat<T, R>(
     agent_address: PpaassNetAddress, user_token: String, agent_message_payload_data: Vec<u8>,
-    message_framed_write: &mut SplitSink<PpaassMessageFramed<T, R>, PpaassMessage>,
+    message_framed_write: &mut SplitSink<Framed<T, PpaassMessageCodec<R>>, PpaassMessage>,
 ) -> Result<()>
 where
     T: AsyncRead + AsyncWrite + Unpin,
@@ -147,7 +144,7 @@ where
 }
 
 async fn handle_domain_name_resolve<T, R>(
-    user_token: String, agent_message_payload_data: Vec<u8>, message_framed_write: &mut SplitSink<PpaassMessageFramed<T, R>, PpaassMessage>,
+    user_token: String, agent_message_payload_data: Vec<u8>, message_framed_write: &mut SplitSink<Framed<T, PpaassMessageCodec<R>>, PpaassMessage>,
 ) -> Result<()>
 where
     T: AsyncRead + AsyncWrite + Unpin,

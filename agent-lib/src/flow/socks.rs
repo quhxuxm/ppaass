@@ -133,6 +133,10 @@ where
                     return Err(anyhow::anyhow!(e));
                 };
             }
+            if let Err(e) = client_io_write.shutdown().await {
+                error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to shutdown client io because of error: {e:?}");
+                return Err(anyhow::anyhow!(e));
+            };
             debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] complete to relay from proxy to agent.");
             Ok::<_, anyhow::Error>(())
         });

@@ -7,7 +7,7 @@ use anyhow::Result;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::error;
 
-use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, pool::ProxyConnectionPool};
+use crate::{config::AgentServerConfig, pool::ProxyConnectionPool};
 
 use self::socks::Socks5Flow;
 
