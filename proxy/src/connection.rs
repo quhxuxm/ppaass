@@ -167,7 +167,6 @@ where
     fn drop(self: Pin<&mut Self>) {
         let mut this = self.project();
         let connection_id = this.agent_connection_id.clone();
-
         if let Some(mut agent_message_framed_write) = this.agent_message_framed_write.take() {
             tokio::spawn(async move {
                 if let Err(e) = agent_message_framed_write.close().await {

@@ -29,7 +29,7 @@ use crate::{
         message::{Socks5AuthCommandContentParts, Socks5AuthCommandResultContent, Socks5InitCommandContentParts, Socks5InitCommandResultContent},
     },
     pool::{ProxyConnectionPool, ProxyConnectionRead, ProxyConnectionWrite},
-    AgentServerPayloadEncryptionTypeSelector,
+    AgentServerPayloadEncryptionTypeSelector, SOCKS_V5,
 };
 use anyhow::{Context, Result};
 use ppaass_common::generate_uuid;
@@ -172,7 +172,7 @@ where
         let client_sockst_address = self.client_socket_address;
         let mut auth_framed_parts = FramedParts::new(client_io, Socks5AuthCommandContentCodec);
         let mut auth_initial_buf = BytesMut::new();
-        auth_initial_buf.put_u8(5);
+        auth_initial_buf.put_u8(SOCKS_V5);
         auth_framed_parts.read_buf = auth_initial_buf;
         let mut auth_framed = Framed::from_parts(auth_framed_parts);
         let auth_message = auth_framed
@@ -225,7 +225,7 @@ where
             PpaassMessageGenerator::generate_tcp_loop_init_request(&user_token, src_address.clone(), dest_address.clone(), payload_encryption.clone())?;
 
         let (mut proxy_connection_read, mut proxy_connection_write) = proxy_connection.split_framed()?;
-        let _proxy_connection_id = proxy_connection.id;
+        let proxy_connection_id = proxy_connection.id;
         let _proxy_connection_guard = match proxy_connection.guard {
             Some(v) => v,
             None => {
@@ -234,7 +234,7 @@ where
             },
         };
 
-        debug!("Client tcp connection [{client_sockst_address}] take proxy connectopn [_proxy_connection_id] to do proxy");
+        debug!("Client tcp connection [{client_sockst_address}] take proxy connectopn [{proxy_connection_id}] to do proxy");
 
         if let Err(e) = proxy_connection_write.send(tcp_loop_init_request).await {
             error!("Client tcp connection [{client_sockst_address}] fail to send tcp loop init to proxy because of error: {e:?}");

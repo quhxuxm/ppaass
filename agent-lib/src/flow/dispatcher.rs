@@ -5,10 +5,9 @@ use anyhow::Result;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tracing::{debug, error};
 
-use super::ClientFlow;
+use crate::{SOCKS_V4, SOCKS_V5};
 
-const SOCKS_V5: u8 = 5;
-const SOCKS_V4: u8 = 4;
+use super::ClientFlow;
 
 pub(crate) struct FlowDispatcher;
 
