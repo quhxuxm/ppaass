@@ -214,7 +214,7 @@ where
                         ));
                     },
                     Ok(Ok(0)) => {
-                        debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] complete relay destination data to agent.");
+                        debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] complete to relay destination data to agent.");
                         break;
                     },
                     Ok(Ok(dest_message)) => dest_message,
@@ -257,6 +257,9 @@ where
                     Ok(v) => v,
                     Err(e) => {
                         error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to read agent message because of error: {e:?}");
+                        if let Err(e) = dest_io_write.shutdown().await {
+                            error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to shutdown destination because of error: {e:?}");
+                        }
                         return Err(anyhow::anyhow!(e));
                     },
                 };
@@ -268,16 +271,25 @@ where
                 let payload_bytes = BytesMut::from_iter(payload_bytes);
                 if let Err(e) = dest_io_write.write_all(&payload_bytes).await {
                     error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay agent message to destination because of error: {e:?}");
+                    if let Err(e) = dest_io_write.shutdown().await {
+                        error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to shutdown destination because of error: {e:?}");
+                    }
                     return Err(anyhow::anyhow!(e));
                 };
                 if let Err(e) = dest_io_write.flush().await {
                     error!(
                         "Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay agent message to destination because of error(flush): {e:?}"
                     );
+                    if let Err(e) = dest_io_write.shutdown().await {
+                        error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to shutdown destination because of error: {e:?}");
+                    }
                     return Err(anyhow::anyhow!(e));
                 };
             }
-            debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] complete relay agent data to destination.");
+            debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] complete to relay agent data to destination.");
+            if let Err(e) = dest_io_write.shutdown().await {
+                error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to shutdown destination because of error: {e:?}");
+            }
             Ok(())
         })
     }

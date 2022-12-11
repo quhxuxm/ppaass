@@ -36,6 +36,10 @@ impl ProxyServer {
 
         let agent_connection_accept_timeout = self.configuration.get_agent_connection_accept_timeout();
         loop {
+            debug!(
+                "Agent connection number semaphore remaining: {}",
+                self.max_agent_connection_number_semaphore.available_permits()
+            );
             let max_agent_connection_number_semaphore = self.max_agent_connection_number_semaphore.clone();
             let _agent_connection_number_guard = match timeout(
                 Duration::from_secs(agent_connection_accept_timeout),

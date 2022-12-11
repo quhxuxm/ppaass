@@ -113,6 +113,11 @@ where
             while let Some(proxy_message) = proxy_connection_read.next().await {
                 if let Err(e) = proxy_message {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to read from proxy because of error: {e:?}");
+                    if let Err(e) = client_io_write.shutdown().await {
+                        error!(
+                            "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to shutdown client io because of error: {e:?}"
+                        );
+                    }
                     return Err(e);
                 }
                 let proxy_message = proxy_message.expect("Should not panic when read proxy message");
@@ -126,18 +131,29 @@ where
                 );
                 if let Err(e) = client_io_write.write_all(&proxy_message_payload_bytes).await {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to relay to proxy because of error: {e:?}");
+                    if let Err(e) = client_io_write.shutdown().await {
+                        error!(
+                            "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to shutdown client io because of error: {e:?}"
+                        );
+                    }
                     return Err(anyhow::anyhow!(e));
                 };
                 if let Err(e) = client_io_write.flush().await {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to relay to proxy because of error(flush): {e:?}");
+                    if let Err(e) = client_io_write.shutdown().await {
+                        error!(
+                            "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to shutdown client io because of error: {e:?}"
+                        );
+                    }
                     return Err(anyhow::anyhow!(e));
                 };
             }
+            debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] complete to relay from proxy to agent.");
             if let Err(e) = client_io_write.shutdown().await {
                 error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to shutdown client io because of error: {e:?}");
                 return Err(anyhow::anyhow!(e));
             };
-            debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] complete to relay from proxy to agent.");
+
             Ok::<_, anyhow::Error>(())
         });
         if let Err(e) = try_join!(&mut client_to_proxy_relay_guard, &mut proxy_to_client_relay_guard) {
@@ -210,7 +226,13 @@ where
 
         let (mut proxy_connection_read, mut proxy_connection_write) = proxy_connection.split_framed()?;
         let _proxy_connection_id = proxy_connection.id;
-        let _proxy_connection_guard = proxy_connection.guard;
+        let _proxy_connection_guard = match proxy_connection.guard {
+            Some(v) => v,
+            None => {
+                error!("Client tcp connection [{client_sockst_address}] fail to take guard.");
+                return Err(anyhow::anyhow!("Client tcp connection [{client_sockst_address}] fail to take guard."));
+            },
+        };
 
         debug!("Client tcp connection [{client_sockst_address}] take proxy connectopn [_proxy_connection_id] to do proxy");
 

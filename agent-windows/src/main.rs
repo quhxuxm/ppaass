@@ -5,7 +5,7 @@ use anyhow::Result;
 use common::AgentServerLogTimer;
 use ppaass_agent_lib::config::AgentServerLogConfig;
 use ppaass_agent_lib::{config::AgentServerConfig, server::AgentServer};
-use tokio::runtime::Builder;
+use tokio::{fs::read_to_string, runtime::Builder};
 use tracing::{error, metadata::LevelFilter, subscriber};
 use tracing_subscriber::{fmt::Layer, prelude::__tracing_subscriber_SubscriberExt, Registry};
 
@@ -14,7 +14,7 @@ mod constant;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let log_configuration_file_content = tokio::fs::read_to_string(constant::DEFAULT_AGENT_LOG_CONFIG_FILE).await.context(format!(
+    let log_configuration_file_content = read_to_string(constant::DEFAULT_AGENT_LOG_CONFIG_FILE).await.context(format!(
         "fail to read agent log configuration file: {}",
         constant::DEFAULT_AGENT_LOG_CONFIG_FILE
     ))?;
@@ -50,7 +50,7 @@ async fn main() -> Result<()> {
         .with(log_level_filter);
     subscriber::set_global_default(subscriber).expect("Fail to initialize tracing subscriber");
 
-    let agent_configuration_file = tokio::fs::read_to_string(constant::DEFAULT_AGENT_CONFIG_FILE_PATH)
+    let agent_configuration_file = read_to_string(constant::DEFAULT_AGENT_CONFIG_FILE_PATH)
         .await
         .context(format!("fail to read agent configuration file: {}", constant::DEFAULT_AGENT_CONFIG_FILE_PATH))?;
     let agent_server_config: AgentServerConfig = toml::from_str(&agent_configuration_file).context(format!(
