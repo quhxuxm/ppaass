@@ -234,26 +234,41 @@ impl ProxyConnectionPool {
                             Ok(v) => v,
                             Err(e) => {
                                 error!("Fail to do idle heartbeat for proxy connection {id} because of error: {e:?}");
+                                if let Err(e) = write.close().await {
+                                    error!("Fail to close idle proxy connection {id} because of error: {e:?}");
+                                }
                                 return Err(e);
                             },
                         };
                         if let Err(e) = write.send(idle_heartbeat_request).await {
                             error!("Fail to do idle heartbeat for proxy connection {id} because of error: {e:?}");
+                            if let Err(e) = write.close().await {
+                                error!("Fail to close idle proxy connection {id} because of error: {e:?}");
+                            }
                             return Err(e);
                         };
                         let idle_heartbeat_response = timeout(Duration::from_secs(5), read.next()).await;
                         let idle_heartbeat_response = match idle_heartbeat_response {
                             Err(_) => {
                                 error!("Fail to do idle heartbeat for proxy connection {id} because of timeout.");
+                                if let Err(e) = write.close().await {
+                                    error!("Fail to close idle proxy connection {id} because of error: {e:?}");
+                                }
                                 return Err(anyhow::anyhow!("Fail to do idle heartbeat for proxy connection {id} because of timeout."));
                             },
                             Ok(None) => {
                                 error!("Fail to do idle heartbeat for proxy connection {id} because of no response.");
+                                if let Err(e) = write.close().await {
+                                    error!("Fail to close idle proxy connection {id} because of error: {e:?}");
+                                }
                                 return Err(anyhow::anyhow!("Fail to do idle heartbeat for proxy connection {id} because of no response."));
                             },
                             Ok(Some(Ok(v))) => v,
                             Ok(Some(Err(e))) => {
                                 error!("Fail to do idle heartbeat for proxy connection {id} because of error: {e:?}");
+                                if let Err(e) = write.close().await {
+                                    error!("Fail to close idle proxy connection {id} because of error: {e:?}");
+                                }
                                 return Err(e);
                             },
                         };
@@ -262,11 +277,17 @@ impl ProxyConnectionPool {
                             Ok(v) => v.split(),
                             Err(e) => {
                                 error!("Fail to do idle heartbeat for proxy connection {id} because of error: {e:?}");
+                                if let Err(e) = write.close().await {
+                                    error!("Fail to close idle proxy connection {id} because of error: {e:?}");
+                                }
                                 return Err(e);
                             },
                         };
                         if PpaassMessageProxyPayloadType::IdleHeartbeat != payload_type {
                             error!("Fail to do idle heartbeat for proxy connection {id} because of invalid payload type: {payload_type:?}");
+                            if let Err(e) = write.close().await {
+                                error!("Fail to close idle proxy connection {id} because of error: {e:?}");
+                            }
                             return Err(anyhow::anyhow!(
                                 "Fail to do idle heartbeat for proxy connection {id} because of invalid payload type: {payload_type:?}"
                             ));
@@ -275,6 +296,9 @@ impl ProxyConnectionPool {
                             Ok(v) => v,
                             Err(e) => {
                                 error!("Fail to do idle heartbeat for proxy connection {id} because of error: {e:?}");
+                                if let Err(e) = write.close().await {
+                                    error!("Fail to close idle proxy connection {id} because of error: {e:?}");
+                                }
                                 return Err(e);
                             },
                         };

@@ -215,9 +215,6 @@ where
                     },
                     Ok(Ok(0)) => {
                         debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] complete relay destination data to agent.");
-                        if let Err(e) = agent_connection_write.close().await {
-                            return Err(anyhow::anyhow!(e));
-                        }
                         break;
                     },
                     Ok(Ok(dest_message)) => dest_message,
