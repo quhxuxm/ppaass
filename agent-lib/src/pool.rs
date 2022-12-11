@@ -50,7 +50,7 @@ impl Stream for ProxyConnectionRead {
     type Item = Result<PpaassMessage>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut this = self.project();
+        let this = self.project();
         this.proxy_message_framed_read.poll_next(cx)
     }
 }
@@ -91,7 +91,7 @@ impl Sink<PpaassMessage> for ProxyConnectionWrite {
     type Error = anyhow::Error;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let mut this = self.project();
+        let this = self.project();
         let proxy_message_framed_write = this.proxy_message_framed_write.as_pin_mut();
         match proxy_message_framed_write {
             Some(proxy_message_framed_write) => proxy_message_framed_write.poll_ready(cx),
@@ -100,7 +100,7 @@ impl Sink<PpaassMessage> for ProxyConnectionWrite {
     }
 
     fn start_send(self: Pin<&mut Self>, item: PpaassMessage) -> Result<(), Self::Error> {
-        let mut this = self.project();
+        let this = self.project();
         let proxy_message_framed_write = this.proxy_message_framed_write.as_pin_mut();
         match proxy_message_framed_write {
             Some(proxy_message_framed_write) => proxy_message_framed_write.start_send(item),
@@ -109,7 +109,7 @@ impl Sink<PpaassMessage> for ProxyConnectionWrite {
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let mut this = self.project();
+        let this = self.project();
         let proxy_message_framed_write = this.proxy_message_framed_write.as_pin_mut();
         match proxy_message_framed_write {
             Some(proxy_message_framed_write) => proxy_message_framed_write.poll_flush(cx),
@@ -118,7 +118,7 @@ impl Sink<PpaassMessage> for ProxyConnectionWrite {
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let mut this = self.project();
+        let this = self.project();
         let proxy_message_framed_write = this.proxy_message_framed_write.as_pin_mut();
         match proxy_message_framed_write {
             Some(proxy_message_framed_write) => proxy_message_framed_write.poll_close(cx),
