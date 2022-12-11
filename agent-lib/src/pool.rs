@@ -1,13 +1,18 @@
-use std::sync::Arc;
-use std::{fmt::Debug, str::FromStr};
+use std::{
+    fmt::Debug,
+    str::FromStr,
+    task::{Context, Poll},
+};
 use std::{net::SocketAddr, time::Duration};
+use std::{pin::Pin, sync::Arc};
 
 use anyhow::Result;
 use futures::{
     future::join_all,
     stream::{SplitSink, SplitStream},
-    SinkExt, StreamExt,
+    Sink, SinkExt, Stream, StreamExt,
 };
+use pin_project::{pin_project, pinned_drop};
 use tokio::{
     net::TcpStream,
     sync::{Mutex, OwnedSemaphorePermit, Semaphore},
@@ -25,42 +30,122 @@ use ppaass_common::{PpaassMessage, PpaassMessagePayloadEncryptionSelector};
 
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, AgentServerPayloadEncryptionTypeSelector};
 
-pub(crate) type ProxyMessageFramed = Framed<TcpStream, PpaassMessageCodec<AgentServerRsaCryptoFetcher>>;
-pub(crate) type ProxyMessageFramedWrite = SplitSink<ProxyMessageFramed, PpaassMessage>;
-pub(crate) type ProxyMessageFramedRead = SplitStream<ProxyMessageFramed>;
+type ProxyMessageFramed = Framed<TcpStream, PpaassMessageCodec<AgentServerRsaCryptoFetcher>>;
+type ProxyMessageFramedWrite = SplitSink<ProxyMessageFramed, PpaassMessage>;
+type ProxyMessageFramedRead = SplitStream<ProxyMessageFramed>;
 
-pub(crate) struct ProxyConnectionPart {
-    pub(crate) id: String,
-    pub(crate) read: ProxyMessageFramedRead,
-    pub(crate) write: ProxyMessageFramedWrite,
-    pub(crate) guard: Option<OwnedSemaphorePermit>,
+#[pin_project]
+pub(crate) struct ProxyConnectionRead {
+    #[pin]
+    proxy_message_framed_read: ProxyMessageFramedRead,
 }
 
-pub(crate) struct ProxyConnection {
-    id: String,
-    read: ProxyMessageFramedRead,
-    write: ProxyMessageFramedWrite,
-    guard: Option<OwnedSemaphorePermit>,
+impl ProxyConnectionRead {
+    pub(crate) fn new(proxy_message_framed_read: ProxyMessageFramedRead) -> Self {
+        Self { proxy_message_framed_read }
+    }
 }
 
-impl ProxyConnection {
-    pub(crate) fn split(self) -> ProxyConnectionPart {
-        ProxyConnectionPart {
-            id: self.id,
-            read: self.read,
-            write: self.write,
-            guard: self.guard,
+impl Stream for ProxyConnectionRead {
+    type Item = Result<PpaassMessage>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        this.proxy_message_framed_read.poll_next(cx)
+    }
+}
+
+#[pin_project(PinnedDrop)]
+pub(crate) struct ProxyConnectionWrite {
+    proxy_connection_id: String,
+    #[pin]
+    proxy_message_framed_write: Option<ProxyMessageFramedWrite>,
+}
+
+impl ProxyConnectionWrite {
+    pub(crate) fn new(proxy_message_framed_write: ProxyMessageFramedWrite, proxy_connection_id: impl AsRef<str>) -> Self {
+        Self {
+            proxy_message_framed_write: Some(proxy_message_framed_write),
+            proxy_connection_id: proxy_connection_id.as_ref().to_owned(),
+        }
+    }
+}
+#[pinned_drop]
+impl PinnedDrop for ProxyConnectionWrite {
+    fn drop(self: Pin<&mut Self>) {
+        let mut this = self.project();
+        let connection_id = this.proxy_connection_id.clone();
+
+        if let Some(mut proxy_message_framed_write) = this.proxy_message_framed_write.take() {
+            tokio::spawn(async move {
+                if let Err(e) = proxy_message_framed_write.close().await {
+                    error!("Fail to close proxy connection because of error: {e:?}");
+                };
+                debug!("Proxy connection [{connection_id}] dropped")
+            });
         }
     }
 }
 
-impl From<ProxyConnectionPart> for ProxyConnection {
-    fn from(part: ProxyConnectionPart) -> Self {
-        Self {
-            id: part.id,
-            read: part.read,
-            write: part.write,
-            guard: part.guard,
+impl Sink<PpaassMessage> for ProxyConnectionWrite {
+    type Error = anyhow::Error;
+
+    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        let mut this = self.project();
+        let proxy_message_framed_write = this.proxy_message_framed_write.as_pin_mut();
+        match proxy_message_framed_write {
+            Some(proxy_message_framed_write) => proxy_message_framed_write.poll_ready(cx),
+            None => Poll::Ready(Err(anyhow::anyhow!("Proxy message framed not exist"))),
+        }
+    }
+
+    fn start_send(self: Pin<&mut Self>, item: PpaassMessage) -> Result<(), Self::Error> {
+        let mut this = self.project();
+        let proxy_message_framed_write = this.proxy_message_framed_write.as_pin_mut();
+        match proxy_message_framed_write {
+            Some(proxy_message_framed_write) => proxy_message_framed_write.start_send(item),
+            None => Err(anyhow::anyhow!("Proxy message framed not exist")),
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        let mut this = self.project();
+        let proxy_message_framed_write = this.proxy_message_framed_write.as_pin_mut();
+        match proxy_message_framed_write {
+            Some(proxy_message_framed_write) => proxy_message_framed_write.poll_flush(cx),
+            None => Poll::Ready(Err(anyhow::anyhow!("Proxy message framed not exist"))),
+        }
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        let mut this = self.project();
+        let proxy_message_framed_write = this.proxy_message_framed_write.as_pin_mut();
+        match proxy_message_framed_write {
+            Some(proxy_message_framed_write) => proxy_message_framed_write.poll_close(cx),
+            None => Poll::Ready(Err(anyhow::anyhow!("Proxy message framed not exist"))),
+        }
+    }
+}
+
+pub(crate) struct ProxyConnection {
+    pub(crate) id: String,
+    proxy_message_framed: Option<ProxyMessageFramed>,
+    pub(crate) guard: Option<OwnedSemaphorePermit>,
+}
+
+impl ProxyConnection {
+    pub(crate) fn split_framed(&mut self) -> Result<(ProxyConnectionRead, ProxyConnectionWrite)> {
+        let proxy_message_framed = self.proxy_message_framed.take();
+        let connection_id = self.id.to_owned();
+        match proxy_message_framed {
+            Some(proxy_message_framed) => {
+                let (proxy_message_framed_write, proxy_message_framed_read) = proxy_message_framed.split();
+                Ok((
+                    ProxyConnectionRead::new(proxy_message_framed_read),
+                    ProxyConnectionWrite::new(proxy_message_framed_write, connection_id),
+                ))
+            },
+            None => Err(anyhow::anyhow!("Proxy connection [{connection_id}] agent message framed not exist.")),
         }
     }
 }
@@ -130,12 +215,20 @@ impl ProxyConnectionPool {
                 while let Some(connection) = connections.pop() {
                     let user_token = user_token.clone();
                     let connection_heartbeat_task = tokio::spawn(async move {
-                        let ProxyConnectionPart {
+                        let ProxyConnection {
                             id,
-                            mut read,
-                            mut write,
+                            proxy_message_framed,
                             guard,
-                        } = connection.split();
+                        } = connection;
+                        let (mut write, mut read) = match proxy_message_framed {
+                            None => {
+                                error!("Fail to do idle heartbeat for proxy connection {id} because of proxy message framed not exist");
+                                return Err(anyhow::anyhow!(
+                                    "Fail to do idle heartbeat for proxy connection {id} because of proxy message framed not exist"
+                                ));
+                            },
+                            Some(proxy_message_framed) => proxy_message_framed.split(),
+                        };
                         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(&user_token, Some(generate_uuid().as_bytes().to_vec()));
                         let idle_heartbeat_request = match PpaassMessageGenerator::generate_heartbeat_request(user_token.clone(), payload_encryption) {
                             Ok(v) => v,
@@ -186,7 +279,19 @@ impl ProxyConnectionPool {
                             },
                         };
                         debug!("Success to do idle heartbeat for proxy connection {id}: {idle_heartbeat_response:?}");
-                        Ok(ProxyConnection::from(ProxyConnectionPart { id, read, write, guard }))
+
+                        let proxy_message_framed = match read.reunite(write) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                error!("Fail to rebuild proxy message framed for idle proxy connection {id} because of error: {e:?}");
+                                return Err(anyhow::anyhow!(e));
+                            },
+                        };
+                        Ok(ProxyConnection {
+                            id,
+                            proxy_message_framed: Some(proxy_message_framed),
+                            guard,
+                        })
                     });
                     connection_heartbeat_tasks.push(connection_heartbeat_task);
                 }
@@ -226,11 +331,9 @@ impl ProxyConnectionPool {
                 debug!("Success connect to proxy when feed connection pool.");
                 let proxy_message_codec = PpaassMessageCodec::new(configuration.get_compress(), rsa_crypto_fetcher);
                 let proxy_message_framed = Framed::with_capacity(proxy_tcp_stream, proxy_message_codec, message_framed_buffer_size);
-                let (proxy_message_framed_write, proxy_message_framed_read) = proxy_message_framed.split();
                 let connection = ProxyConnection {
                     id: generate_uuid(),
-                    read: proxy_message_framed_read,
-                    write: proxy_message_framed_write,
+                    proxy_message_framed: Some(proxy_message_framed),
                     guard: None,
                 };
                 connections.push(connection);

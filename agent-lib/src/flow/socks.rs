@@ -28,7 +28,7 @@ use crate::{
         codec::{Socks5AuthCommandContentCodec, Socks5InitCommandContentCodec},
         message::{Socks5AuthCommandContentParts, Socks5AuthCommandResultContent, Socks5InitCommandContentParts, Socks5InitCommandResultContent},
     },
-    pool::{ProxyConnectionPart, ProxyConnectionPool, ProxyMessageFramedRead, ProxyMessageFramedWrite},
+    pool::{ProxyConnectionPool, ProxyConnectionRead, ProxyConnectionWrite},
     AgentServerPayloadEncryptionTypeSelector,
 };
 use anyhow::{Context, Result};
@@ -55,7 +55,7 @@ where
 
     async fn relay<U>(
         client_io: T, client_socket_address: SocketAddr, tcp_loop_key: impl AsRef<str>, user_token: U, payload_encryption: PpaassMessagePayloadEncryption,
-        mut proxy_message_framed_read: ProxyMessageFramedRead, mut proxy_message_framed_write: ProxyMessageFramedWrite, configuration: Arc<AgentServerConfig>,
+        mut proxy_connection_read: ProxyConnectionRead, mut proxy_connection_write: ProxyConnectionWrite, configuration: Arc<AgentServerConfig>,
     ) -> Result<()>
     where
         U: AsRef<str> + Send + Debug + Display + Clone + 'static,
@@ -98,7 +98,7 @@ where
                     pretty_hex::pretty_hex(&client_message)
                 );
                 let agent_message = PpaassMessageGenerator::generate_raw_data(user_token.as_ref(), payload_encryption.clone(), client_message.to_vec())?;
-                if let Err(e) = proxy_message_framed_write.send(agent_message).await {
+                if let Err(e) = proxy_connection_write.send(agent_message).await {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to relay client data to proxy because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
                 };
@@ -110,7 +110,7 @@ where
 
         let mut proxy_to_client_relay_guard = tokio::spawn(async move {
             debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] start to relay from proxy to agent.");
-            while let Some(proxy_message) = proxy_message_framed_read.next().await {
+            while let Some(proxy_message) = proxy_connection_read.next().await {
                 if let Err(e) = proxy_message {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to read from proxy because of error: {e:?}");
                     return Err(e);
@@ -201,19 +201,16 @@ where
         let src_address: PpaassNetAddress = self.client_socket_address.into();
         let dest_address: PpaassNetAddress = dest_address.into();
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-        let proxy_connection = proxy_connection_pool.take_connection().await.context(format!(
+        let mut proxy_connection = proxy_connection_pool.take_connection().await.context(format!(
             "Client tcp connection [{client_sockst_address}] fail to take proxy connection from connection poool because of error"
         ))?;
 
         let tcp_loop_init_request =
             PpaassMessageGenerator::generate_tcp_loop_init_request(&user_token, src_address.clone(), dest_address.clone(), payload_encryption.clone())?;
 
-        let ProxyConnectionPart {
-            id: _proxy_connection_id,
-            read: mut proxy_connection_read,
-            write: mut proxy_connection_write,
-            guard: _proxy_connection_guard,
-        } = proxy_connection.split();
+        let (mut proxy_connection_read, mut proxy_connection_write) = proxy_connection.split_framed()?;
+        let _proxy_connection_id = proxy_connection.id;
+        let _proxy_connection_guard = proxy_connection.guard;
 
         debug!("Client tcp connection [{client_sockst_address}] take proxy connectopn [_proxy_connection_id] to do proxy");
 
