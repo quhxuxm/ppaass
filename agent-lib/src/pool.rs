@@ -8,18 +8,19 @@ use std::{pin::Pin, sync::Arc};
 
 use anyhow::Result;
 use futures::{
-    future::join_all,
     stream::{SplitSink, SplitStream},
     Sink, SinkExt, Stream, StreamExt,
 };
 use pin_project::{pin_project, pinned_drop};
+use tokio::sync::mpsc::channel;
+
 use tokio::{
     net::TcpStream,
     sync::{Mutex, OwnedSemaphorePermit, Semaphore},
     time::{interval, timeout},
 };
 use tokio_util::codec::Framed;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use ppaass_common::{codec::PpaassMessageCodec, PpaassMessageParts};
 use ppaass_common::{
@@ -130,7 +131,7 @@ impl Sink<PpaassMessage> for ProxyConnectionWrite {
 pub(crate) struct ProxyConnection {
     pub(crate) id: String,
     proxy_message_framed: Option<ProxyMessageFramed>,
-    pub(crate) guard: Option<OwnedSemaphorePermit>,
+    pub(crate) connection_number_guard: Option<OwnedSemaphorePermit>,
 }
 
 impl ProxyConnection {
@@ -190,35 +191,44 @@ impl ProxyConnectionPool {
         let connections = Arc::new(Mutex::new(Vec::new()));
         let connection_number_semaphore = Arc::new(Semaphore::new(configuration.get_proxy_connection_number_semaphore()));
         let pool = Self {
-            proxy_addresses,
-            connections,
+            proxy_addresses: proxy_addresses.clone(),
+            connections: connections.clone(),
             configuration: configuration.clone(),
             rsa_crypto_fetcher: rsa_crypto_fetcher.clone(),
             connection_number_semaphore,
         };
-        pool.feed_connections().await?;
+        Self::feed_connections(configuration.clone(), connections.clone(), proxy_addresses, rsa_crypto_fetcher.clone()).await?;
         pool.start_idle_heartbeat().await?;
         Ok(pool)
     }
 
     async fn start_idle_heartbeat(&self) -> Result<()> {
+        let configuration = self.configuration.clone();
         let connections = self.connections.clone();
-        let user_token = self.configuration.get_user_token().to_owned().expect("User token not configured.");
-        let idle_proxy_heartbeat_interval = self.configuration.get_idle_proxy_heartbeat_interval();
+        let proxy_addresses = self.proxy_addresses.clone();
+        let rsa_crypto_fetcher = self.rsa_crypto_fetcher.clone();
         tokio::spawn(async move {
+            let proxy_addresses = proxy_addresses;
+            let proxy_connection_number = configuration.get_proxy_connection_number();
+            let user_token = configuration.get_user_token().to_owned().expect("User token not configured.");
+            let idle_proxy_heartbeat_interval = configuration.get_idle_proxy_heartbeat_interval();
             let mut heart_beat_interval = interval(Duration::from_secs(idle_proxy_heartbeat_interval));
             loop {
                 heart_beat_interval.tick().await;
+                if let Err(e) = Self::feed_connections(configuration.clone(), connections.clone(), proxy_addresses.clone(), rsa_crypto_fetcher.clone()).await {
+                    error!("Error happen when feed proxy connection: {e:?}");
+                    continue;
+                };
+                let (tx, mut rx) = channel::<ProxyConnection>(proxy_connection_number);
                 let mut connections = connections.lock().await;
-
-                let mut connection_heartbeat_tasks = Vec::new();
                 while let Some(connection) = connections.pop() {
                     let user_token = user_token.clone();
-                    let connection_heartbeat_task = tokio::spawn(async move {
+                    let tx = tx.clone();
+                    tokio::spawn(async move {
                         let ProxyConnection {
                             id,
                             proxy_message_framed,
-                            guard,
+                            connection_number_guard: guard,
                         } = connection;
                         let (mut write, mut read) = match proxy_message_framed {
                             None => {
@@ -311,45 +321,52 @@ impl ProxyConnectionPool {
                                 return Err(anyhow::anyhow!(e));
                             },
                         };
-                        Ok(ProxyConnection {
-                            id,
-                            proxy_message_framed: Some(proxy_message_framed),
-                            guard,
-                        })
+                        if let Err(e) = tx
+                            .send(ProxyConnection {
+                                id,
+                                proxy_message_framed: Some(proxy_message_framed),
+                                connection_number_guard: guard,
+                            })
+                            .await
+                        {
+                            error!("Fail to send proxy connection because of error: {e:?}")
+                        }
+                        Ok(())
                     });
-                    connection_heartbeat_tasks.push(connection_heartbeat_task);
                 }
-                let connection_heartbeat_tasks_result = join_all(connection_heartbeat_tasks).await;
-                connection_heartbeat_tasks_result.into_iter().for_each(|heartbeat_task_result| {
-                    if let Ok(Ok(connection)) = heartbeat_task_result {
-                        connections.push(connection);
-                    }
-                });
+                drop(tx);
+                while let Some(connection) = rx.recv().await {
+                    connections.push(connection);
+                }
             }
         });
         Ok(())
     }
 
-    async fn feed_connections(&self) -> Result<()> {
-        let proxy_connection_number = self.configuration.get_proxy_connection_number();
-        let message_framed_buffer_size = self.configuration.get_message_framed_buffer_size();
-        let connections_out = self.connections.clone();
-        let mut connections = connections_out.lock().await;
+    async fn feed_connections(
+        configuration: Arc<AgentServerConfig>, connections: Arc<Mutex<Vec<ProxyConnection>>>, proxy_addresses: Vec<SocketAddr>,
+        rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
+    ) -> Result<()> {
         debug!("Begin to feed proxy connections");
-        loop {
-            let current_connection_len = connections.len();
-            if current_connection_len >= proxy_connection_number {
-                break;
-            }
-            for _ in current_connection_len..proxy_connection_number {
-                let proxy_addresses = self.proxy_addresses.clone();
-                let configuration = self.configuration.clone();
-                let rsa_crypto_fetcher = self.rsa_crypto_fetcher.clone();
+        let proxy_connection_number = configuration.get_proxy_connection_number();
+        let message_framed_buffer_size = configuration.get_message_framed_buffer_size();
+        let mut connections = connections.lock().await;
+        let current_connection_len = connections.len();
+        if current_connection_len >= proxy_connection_number {
+            return Ok(());
+        }
+        let (tx, mut rx) = channel::<ProxyConnection>(proxy_connection_number);
+        for _ in current_connection_len..proxy_connection_number {
+            let configuration = configuration.clone();
+            let rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
+            let tx = tx.clone();
+            let proxy_addresses = proxy_addresses.clone();
+            tokio::spawn(async move {
                 let proxy_tcp_stream = match TcpStream::connect(proxy_addresses.as_slice()).await {
                     Ok(proxy_tcp_stream) => proxy_tcp_stream,
                     Err(e) => {
                         error!("Fail to feed proxy connection because of error: {e:?}");
-                        continue;
+                        return Err(e);
                     },
                 };
                 debug!("Success connect to proxy when feed connection pool.");
@@ -358,18 +375,32 @@ impl ProxyConnectionPool {
                 let connection = ProxyConnection {
                     id: generate_uuid(),
                     proxy_message_framed: Some(proxy_message_framed),
-                    guard: None,
+                    connection_number_guard: None,
                 };
-                connections.push(connection);
+                if let Err(e) = tx.send(connection).await {
+                    error!("Fail to send proxy connection to channel because of error: {e:?}");
+                };
+                Ok(())
+            });
+        }
+        drop(tx);
+        loop {
+            let connection = rx.recv().await;
+            match connection {
+                None => break,
+                Some(connection) => {
+                    connections.push(connection);
+                },
             }
         }
+
         Ok(())
     }
 
     pub(crate) async fn take_connection(&self) -> Result<ProxyConnection> {
+        let proxy_connection_number = self.configuration.get_proxy_connection_number();
         let connection_number_semaphore = self.connection_number_semaphore.clone();
-
-        let guard = match timeout(
+        let connection_number_guard = match timeout(
             Duration::from_secs(self.configuration.get_take_proxy_conection_timeout()),
             connection_number_semaphore.acquire_owned(),
         )
@@ -389,19 +420,33 @@ impl ProxyConnectionPool {
             },
         };
         loop {
-            let mut connections = self.connections.lock().await;
-            let connection = connections.pop();
+            let proxy_addresses = self.proxy_addresses.clone();
+            let mut connections_lock = self.connections.lock().await;
+            let connection = connections_lock.pop();
             match connection {
                 Some(mut connection) => {
                     debug!("Success to take connection from pool.");
-                    connection.guard = Some(guard);
+                    connection.connection_number_guard = Some(connection_number_guard);
+                    let current_connections_number = connections_lock.len();
+                    if current_connections_number < (proxy_connection_number / 2) {
+                        info!("Proxy connection do not have enough proxy connection, start to feed: {current_connections_number}");
+                        tokio::spawn(Self::feed_connections(
+                            self.configuration.clone(),
+                            self.connections.clone(),
+                            proxy_addresses,
+                            self.rsa_crypto_fetcher.clone(),
+                        ));
+                    }
                     return Ok(connection);
                 },
                 None => {
-                    drop(connections);
-                    if let Err(e) = self.feed_connections().await {
-                        error!("Error happen when feed proxy connection pool on take connection: {e:?}")
-                    };
+                    drop(connections_lock);
+                    tokio::spawn(Self::feed_connections(
+                        self.configuration.clone(),
+                        self.connections.clone(),
+                        proxy_addresses,
+                        self.rsa_crypto_fetcher.clone(),
+                    ));
                 },
             }
         }

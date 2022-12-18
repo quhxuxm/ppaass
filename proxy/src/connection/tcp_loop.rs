@@ -20,6 +20,7 @@ use tokio::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
         TcpStream,
     },
+    sync::OwnedSemaphorePermit,
 };
 use tokio::{task::JoinHandle, time::timeout};
 
@@ -107,7 +108,7 @@ where
             .context("Agent message framed read not assigned for tcp loop builder")?;
         let dest_socket_address = dest_address.to_socket_addrs().context("Convert destination address to socket address")?;
         let dest_socket_address = dest_socket_address.collect::<Vec<SocketAddr>>();
-        let dest_tcp_stream = match timeout(
+        let dest_io = match timeout(
             Duration::from_secs(configuration.get_dest_connect_timeout()),
             TcpStream::connect(dest_socket_address.as_slice()),
         )
@@ -158,7 +159,7 @@ where
             key,
             agent_connection_read,
             agent_connection_write,
-            dest_io: dest_tcp_stream,
+            dest_io,
             user_token,
             agent_connection_id,
             configuration,
@@ -197,7 +198,7 @@ where
         let key = tcp_loop_key.as_ref().to_owned();
         let agent_connection_id = agent_connection_id.as_ref().to_owned();
         tokio::spawn(async move {
-            debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] start to relay destination data to agent.");
+            debug!("Agent connection [{agent_connection_id}] with tcp loop [{key}] start to relay destination data to agent.");
             let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
             loop {
                 let mut dest_message = Vec::with_capacity(configuration.get_dest_io_buffer_size());
@@ -208,34 +209,34 @@ where
                 .await
                 {
                     Err(_) => {
-                        error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to read destination data because of timeout");
+                        error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to read destination data because of timeout");
                         return Err(anyhow::anyhow!(
-                            "Agent connection [{agent_connection_id}] tcp loop [{key}] fail to read destination data because of timeout"
+                            "Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to read destination data because of timeout"
                         ));
                     },
                     Ok(Ok(0)) => {
-                        debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] complete to relay destination data to agent.");
+                        debug!("Agent connection [{agent_connection_id}] with tcp loop [{key}] complete to relay destination data to agent.");
                         break;
                     },
                     Ok(Ok(dest_message)) => dest_message,
                     Ok(Err(e)) => {
-                        error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to read destination data because of error: {e:?}");
+                        error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to read destination data because of error: {e:?}");
                         return Err(anyhow::anyhow!(e));
                     },
                 };
                 trace!(
-                    "Agent connection [{agent_connection_id}] tcp loop [{key}] read destination data:\n{}\n",
+                    "Agent connection [{agent_connection_id}] with tcp loop [{key}] read destination data:\n{}\n",
                     pretty_hex::pretty_hex(&dest_message)
                 );
                 let tcp_relay = match PpaassMessageGenerator::generate_raw_data(&user_token, payload_encryption_token.clone(), dest_message.to_vec()) {
                     Ok(tcp_relay) => tcp_relay,
                     Err(e) => {
-                        error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to generate raw data because of error: {e:?}");
+                        error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to generate raw data because of error: {e:?}");
                         return Err(anyhow::anyhow!(e));
                     },
                 };
                 if let Err(e) = agent_connection_write.send(tcp_relay).await {
-                    error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay destination data to agent because of error: {e:?}");
+                    error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to relay destination data to agent because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
                 };
             }
@@ -250,45 +251,45 @@ where
     ) -> JoinHandle<Result<()>> {
         let key = tcp_loop_key.as_ref().to_owned();
         let agent_connection_id = agent_connection_id.as_ref().to_owned();
-        debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] start to relay agent data to destination.");
+        debug!("Agent connection [{agent_connection_id}] with tcp loop [{key}] start to relay agent data to destination.");
         tokio::spawn(async move {
             while let Some(agent_message) = agent_connection_read.next().await {
                 let agent_message = match agent_message {
                     Ok(v) => v,
                     Err(e) => {
-                        error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to read agent message because of error: {e:?}");
+                        error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to read agent message because of error: {e:?}");
                         if let Err(e) = dest_io_write.shutdown().await {
-                            error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to shutdown destination because of error: {e:?}");
+                            error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to shutdown destination because of error: {e:?}");
                         }
                         return Err(anyhow::anyhow!(e));
                     },
                 };
                 let PpaassMessageParts { payload_bytes, .. } = agent_message.split();
                 trace!(
-                    "Agent connection [{agent_connection_id}] tcp loop [{key}] read agent data:\n{}\n",
+                    "Agent connection [{agent_connection_id}] with tcp loop [{key}] read agent data:\n{}\n",
                     pretty_hex::pretty_hex(&payload_bytes)
                 );
                 let payload_bytes = BytesMut::from_iter(payload_bytes);
                 if let Err(e) = dest_io_write.write_all(&payload_bytes).await {
-                    error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay agent message to destination because of error: {e:?}");
+                    error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to relay agent message to destination because of error: {e:?}");
                     if let Err(e) = dest_io_write.shutdown().await {
-                        error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to shutdown destination because of error: {e:?}");
+                        error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to shutdown destination because of error: {e:?}");
                     }
                     return Err(anyhow::anyhow!(e));
                 };
                 if let Err(e) = dest_io_write.flush().await {
                     error!(
-                        "Agent connection [{agent_connection_id}] tcp loop [{key}] fail to relay agent message to destination because of error(flush): {e:?}"
+                        "Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to relay agent message to destination because of error(flush): {e:?}"
                     );
                     if let Err(e) = dest_io_write.shutdown().await {
-                        error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to shutdown destination because of error: {e:?}");
+                        error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to shutdown destination because of error: {e:?}");
                     }
                     return Err(anyhow::anyhow!(e));
                 };
             }
-            debug!("Agent connection [{agent_connection_id}] tcp loop [{key}] complete to relay agent data to destination.");
+            debug!("Agent connection [{agent_connection_id}] with tcp loop [{key}] complete to relay agent data to destination.");
             if let Err(e) = dest_io_write.shutdown().await {
-                error!("Agent connection [{agent_connection_id}] tcp loop [{key}] fail to shutdown destination because of error: {e:?}");
+                error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to shutdown destination because of error: {e:?}");
             }
             Ok(())
         })

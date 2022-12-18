@@ -34,41 +34,48 @@ impl ProxyServer {
             .await
             .context(format!("Fail to bind tcp listener for proxy server: {server_bind_addr}"))?;
 
-        let agent_connection_accept_timeout = self.configuration.get_agent_connection_accept_timeout();
         loop {
+            let (agent_tcp_stream, agent_socket_address) = match tcp_listener.accept().await {
+                Err(e) => {
+                    error!("Fail to accept agent tcp connection because of error: {e:?}");
+                    continue;
+                },
+                Ok(v) => v,
+            };
             debug!(
                 "Agent connection number semaphore remaining: {}",
                 self.max_agent_connection_number_semaphore.available_permits()
             );
             let max_agent_connection_number_semaphore = self.max_agent_connection_number_semaphore.clone();
-            let _agent_connection_number_guard = match timeout(
-                Duration::from_secs(agent_connection_accept_timeout),
+            let agent_connection_number_guard = match timeout(
+                Duration::from_secs(self.configuration.get_agent_connection_accept_timeout()),
                 max_agent_connection_number_semaphore.acquire_owned(),
             )
             .await
             {
                 Err(_) => {
-                    error!("Accept agent connection timeout, drop the agent connection.");
-                    return Err(anyhow::anyhow!("Accept agent connection timeout, drop the agent connection."));
+                    error!("Can not accept more agent connection because timeout.");
+                    return Err(anyhow::anyhow!("Can not accept more agent connection because timeout."));
                 },
-                Ok(Ok(v)) => v,
                 Ok(Err(e)) => {
-                    error!("Proxy server dropped, will not accept on new agent connection on this server instance: {e:?}");
+                    error!("Can not accept more agent connection because of max number exceed: {e:?}");
                     return Err(anyhow::anyhow!(e));
                 },
+                Ok(Ok(v)) => v,
             };
-            let Ok((agent_tcp_stream, agent_socket_address)) =tcp_listener.accept().await else{
-                error!("Fail to accept agent tcp connection.");
-                continue;
-            };
-
             agent_tcp_stream.set_nodelay(true).context("Fail to set no delay on agent tcp connection")?;
             debug!("Accept agent tcp connection on address: {}", agent_socket_address);
             let proxy_server_rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();
             tokio::spawn(async move {
-                let _agent_connection_number_guard = _agent_connection_number_guard;
-                let agent_connection = AgentConnection::new(agent_tcp_stream, agent_socket_address.into(), configuration, proxy_server_rsa_crypto_fetcher);
+                let agent_connection_number_guard = agent_connection_number_guard;
+                let agent_connection = AgentConnection::new(
+                    agent_tcp_stream,
+                    agent_socket_address.into(),
+                    configuration,
+                    proxy_server_rsa_crypto_fetcher,
+                    agent_connection_number_guard,
+                );
                 if let Err(e) = agent_connection.exec().await {
                     error!("Fail to execute agent connection [{agent_socket_address}] because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));

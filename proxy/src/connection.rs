@@ -9,7 +9,10 @@ use ppaass_common::{
     codec::PpaassMessageCodec, generate_uuid, PpaassMessage, PpaassMessageAgentPayload, PpaassMessageAgentPayloadParts, PpaassMessageAgentPayloadType,
     PpaassNetAddress, RsaCryptoFetcher,
 };
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    sync::OwnedSemaphorePermit,
+};
 use tokio_util::codec::Framed;
 
 use crate::common::ProxyServerPayloadEncryptionSelector;
@@ -37,6 +40,7 @@ where
     agent_message_framed: Option<Framed<T, PpaassMessageCodec<R>>>,
     agent_address: PpaassNetAddress,
     configuration: Arc<ProxyServerConfig>,
+    guard: Option<OwnedSemaphorePermit>,
 }
 
 impl<T, R> AgentConnection<T, R>
@@ -44,7 +48,9 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
-    pub(crate) fn new(agent_io: T, agent_address: PpaassNetAddress, configuration: Arc<ProxyServerConfig>, rsa_crypto_fetcher: Arc<R>) -> Self {
+    pub(crate) fn new(
+        agent_io: T, agent_address: PpaassNetAddress, configuration: Arc<ProxyServerConfig>, rsa_crypto_fetcher: Arc<R>, guard: OwnedSemaphorePermit,
+    ) -> Self {
         let agent_message_codec = PpaassMessageCodec::new(configuration.get_compress(), rsa_crypto_fetcher);
         let agent_message_framed = Framed::with_capacity(agent_io, agent_message_codec, configuration.get_message_framed_buffer_size());
         Self {
@@ -52,6 +58,7 @@ where
             agent_message_framed: Some(agent_message_framed),
             agent_address,
             configuration,
+            guard: Some(guard),
         }
     }
 
@@ -63,7 +70,7 @@ where
                 let (agent_message_framed_write, agent_message_framed_read) = agent_message_framed.split();
                 Ok((
                     AgentConnectionRead::new(agent_message_framed_read),
-                    AgentConnectionWrite::new(agent_message_framed_write, connection_id),
+                    AgentConnectionWrite::new(agent_message_framed_write, connection_id, self.guard.take()),
                 ))
             },
             None => Err(anyhow::anyhow!("Agent connection [{connection_id}] agent message framed not exist.")),
@@ -72,9 +79,9 @@ where
 
     pub(crate) async fn exec(mut self) -> Result<()> {
         let (mut agent_connection_read, mut agent_connection_write) = self.split_framed()?;
-        let agent_address = self.agent_address;
-        let connection_id = self.id;
-        let configuration = self.configuration;
+        let agent_address = self.agent_address.clone();
+        let connection_id = self.id.clone();
+        let configuration = self.configuration.clone();
         debug!("Agent connection [{connection_id}] associated with agent address: {agent_address:?}");
         loop {
             let agent_message = agent_connection_read.next().await;
@@ -136,13 +143,23 @@ where
                     let tcp_loop_key = tcp_loop.get_key().to_owned();
                     debug!("Agent connection [{connection_id}] start tcp loop [{tcp_loop_key}]");
                     tcp_loop.start().await?;
-                    break;
+                    return Ok(());
                 },
                 PpaassMessageAgentPayloadType::UdpLoopInit => todo!(),
             };
         }
+    }
+}
 
-        Ok(())
+impl<T, R> Drop for AgentConnection<T, R>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    R: RsaCryptoFetcher + Send + Sync + 'static,
+{
+    fn drop(&mut self) {
+        let connection_id = &self.id;
+        debug!("Agent connection [{connection_id}] dropped.");
+        let _ = self.guard.take();
     }
 }
 
@@ -154,6 +171,7 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
     agent_connection_id: String,
+    guard: Option<OwnedSemaphorePermit>,
     #[pin]
     agent_message_framed_write: Option<AgentMessageFramedWrite<T, R>>,
 }
@@ -166,13 +184,15 @@ where
 {
     fn drop(self: Pin<&mut Self>) {
         let mut this = self.project();
+        let guard = this.guard.take();
         let connection_id = this.agent_connection_id.clone();
         if let Some(mut agent_message_framed_write) = this.agent_message_framed_write.take() {
             tokio::spawn(async move {
                 if let Err(e) = agent_message_framed_write.close().await {
                     error!("Fail to close agent connection because of error: {e:?}");
                 };
-                debug!("Agent connection [{connection_id}] dropped")
+                drop(guard);
+                debug!("Agent connection writer [{connection_id}] dropped")
             });
         }
     }
@@ -183,10 +203,13 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
-    pub(crate) fn new(agent_message_framed_write: AgentMessageFramedWrite<T, R>, agent_connection_id: impl AsRef<str>) -> Self {
+    pub(crate) fn new(
+        agent_message_framed_write: AgentMessageFramedWrite<T, R>, agent_connection_id: impl AsRef<str>, guard: Option<OwnedSemaphorePermit>,
+    ) -> Self {
         Self {
             agent_message_framed_write: Some(agent_message_framed_write),
             agent_connection_id: agent_connection_id.as_ref().to_owned(),
+            guard,
         }
     }
 }
