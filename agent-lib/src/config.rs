@@ -26,6 +26,7 @@ pub struct AgentServerConfig {
     connect_to_proxy_timeout: Option<u64>,
     client_read_timeout: Option<u64>,
     client_io_buffer_size: Option<usize>,
+    max_client_connection_number: Option<usize>,
 }
 
 impl AgentServerConfig {
@@ -104,8 +105,14 @@ impl AgentServerConfig {
     pub fn get_client_io_buffer_size(&self) -> usize {
         self.client_io_buffer_size.unwrap_or(1024 * 64)
     }
+
     pub fn get_connect_to_proxy_timeout(&self) -> u64 {
         self.connect_to_proxy_timeout.unwrap_or(20)
+    }
+
+    pub fn get_max_client_connection_number(&self) -> usize {
+        let default_max_client_connection_number = self.get_proxy_connection_pool_size();
+        self.max_client_connection_number.unwrap_or(default_max_client_connection_number)
     }
 }
 

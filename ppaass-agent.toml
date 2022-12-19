@@ -7,6 +7,7 @@ compress = false
 connect_to_proxy_timeout = 5
 idle_proxy_heartbeat_interval = 1200
 ipv6 = false
+max_client_connection_number = 8
 message_framed_buffer_size = 524288
 port = 10081
 proxy_addresses = ["127.0.0.1:9090"]

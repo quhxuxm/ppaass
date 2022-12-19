@@ -1,10 +1,10 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use crate::{config::ProxyServerConfig, connection::AgentConnection, crypto::ProxyServerRsaCryptoFetcher};
 
 use anyhow::{Context, Result};
 
-use tokio::{io::AsyncWriteExt, net::TcpListener, sync::Semaphore, time::timeout};
+use tokio::{net::TcpListener, sync::Semaphore};
 use tracing::{debug, error, info};
 
 pub(crate) struct ProxyServer {
