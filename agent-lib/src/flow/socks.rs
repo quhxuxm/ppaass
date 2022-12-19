@@ -217,15 +217,14 @@ where
         let src_address: PpaassNetAddress = self.client_socket_address.into();
         let dest_address: PpaassNetAddress = dest_address.into();
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-        let mut proxy_connection = proxy_connection_pool.take_connection().await.context(format!(
+        let proxy_connection = proxy_connection_pool.take_connection().await.context(format!(
             "Client tcp connection [{client_sockst_address}] fail to take proxy connection from connection poool because of error"
         ))?;
 
         let tcp_loop_init_request =
             PpaassMessageGenerator::generate_tcp_loop_init_request(&user_token, src_address.clone(), dest_address.clone(), payload_encryption.clone())?;
-
-        let (mut proxy_connection_read, mut proxy_connection_write) = proxy_connection.split_framed()?;
-        let proxy_connection_id = proxy_connection.id;
+        let proxy_connection_id = proxy_connection.id.clone();
+        let (mut proxy_connection_read, mut proxy_connection_write) = proxy_connection.split()?;
 
         debug!("Client tcp connection [{client_sockst_address}] take proxy connectopn [{proxy_connection_id}] to do proxy");
 

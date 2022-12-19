@@ -134,7 +134,7 @@ pub(crate) struct ProxyConnection {
 }
 
 impl ProxyConnection {
-    pub(crate) fn split_framed(&mut self) -> Result<(ProxyConnectionRead, ProxyConnectionWrite)> {
+    pub(crate) fn split(mut self) -> Result<(ProxyConnectionRead, ProxyConnectionWrite)> {
         let proxy_message_framed = self.proxy_message_framed.take();
         let connection_id = self.id.to_owned();
         match proxy_message_framed {
