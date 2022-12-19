@@ -4,7 +4,7 @@ use crate::{config::ProxyServerConfig, connection::AgentConnection, crypto::Prox
 
 use anyhow::{Context, Result};
 
-use tokio::{net::TcpListener, sync::Semaphore, time::timeout};
+use tokio::{io::AsyncWriteExt, net::TcpListener, sync::Semaphore, time::timeout};
 use tracing::{debug, error, info};
 
 pub(crate) struct ProxyServer {
@@ -35,6 +35,13 @@ impl ProxyServer {
             .context(format!("Fail to bind tcp listener for proxy server: {server_bind_addr}"))?;
 
         loop {
+            let (mut agent_tcp_stream, agent_socket_address) = match tcp_listener.accept().await {
+                Err(e) => {
+                    error!("Fail to accept agent tcp connection because of error: {e:?}");
+                    continue;
+                },
+                Ok(v) => v,
+            };
             debug!(
                 "Agent connection number semaphore remaining: {}",
                 self.max_agent_connection_number_semaphore.available_permits()
@@ -48,20 +55,19 @@ impl ProxyServer {
             {
                 Err(_) => {
                     error!("Can not accept more agent connection because timeout.");
-                    return Err(anyhow::anyhow!("Can not accept more agent connection because timeout."));
+                    if let Err(e) = agent_tcp_stream.shutdown().await {
+                        error!("Fail to shutdown agent stream because of error: {e:?}");
+                    }
+                    continue;
                 },
                 Ok(Err(e)) => {
                     error!("Can not accept more agent connection because of max number exceed: {e:?}");
-                    return Err(anyhow::anyhow!(e));
-                },
-                Ok(Ok(v)) => v,
-            };
-            let (agent_tcp_stream, agent_socket_address) = match tcp_listener.accept().await {
-                Err(e) => {
-                    error!("Fail to accept agent tcp connection because of error: {e:?}");
+                    if let Err(e) = agent_tcp_stream.shutdown().await {
+                        error!("Fail to shutdown agent stream because of error: {e:?}");
+                    }
                     continue;
                 },
-                Ok(v) => v,
+                Ok(Ok(v)) => v,
             };
 
             agent_tcp_stream.set_nodelay(true).context("Fail to set no delay on agent tcp connection")?;

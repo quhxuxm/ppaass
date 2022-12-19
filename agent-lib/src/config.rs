@@ -17,13 +17,13 @@ pub struct AgentServerConfig {
     compress: Option<bool>,
     /// The client connection pool size.
     proxy_connection_pool_size: Option<usize>,
-    max_client_connection_number: Option<usize>,
 
     /// The proxy addresses
     proxy_addresses: Option<Vec<String>>,
     message_framed_buffer_size: Option<usize>,
     idle_proxy_heartbeat_interval: Option<u64>,
     client_connection_accept_timeout: Option<u64>,
+    connect_to_proxy_timeout: Option<u64>,
     client_read_timeout: Option<u64>,
     client_io_buffer_size: Option<usize>,
 }
@@ -100,12 +100,12 @@ impl AgentServerConfig {
     pub fn get_client_read_timeout(&self) -> u64 {
         self.client_read_timeout.unwrap_or(5)
     }
-    pub fn get_max_client_connection_number(&self) -> usize {
-        let max_client_connection_number = self.get_proxy_connection_pool_size() / 2;
-        self.max_client_connection_number.unwrap_or(max_client_connection_number)
-    }
+
     pub fn get_client_io_buffer_size(&self) -> usize {
         self.client_io_buffer_size.unwrap_or(1024 * 64)
+    }
+    pub fn get_connect_to_proxy_timeout(&self) -> u64 {
+        self.connect_to_proxy_timeout.unwrap_or(20)
     }
 }
 

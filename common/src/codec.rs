@@ -12,7 +12,7 @@ use lz4::block::{compress, decompress};
 use pretty_hex::*;
 
 use tokio_util::codec::{Decoder, Encoder};
-use tracing::{debug, trace};
+use tracing::trace;
 
 const PPAASS_FLAG: &[u8] = "__PPAASS__".as_bytes();
 

@@ -362,11 +362,20 @@ impl ProxyConnectionPool {
             let tx = tx.clone();
             let proxy_addresses = proxy_addresses.clone();
             tokio::spawn(async move {
-                let proxy_tcp_stream = match TcpStream::connect(proxy_addresses.as_slice()).await {
-                    Ok(proxy_tcp_stream) => proxy_tcp_stream,
-                    Err(e) => {
+                let proxy_tcp_stream = match timeout(
+                    Duration::from_secs(configuration.get_connect_to_proxy_timeout()),
+                    TcpStream::connect(proxy_addresses.as_slice()),
+                )
+                .await
+                {
+                    Err(_) => {
+                        error!("Fail to feed proxy connection because of timeout.");
+                        return Err(anyhow::anyhow!("Fail to feed proxy connection because of timeout."));
+                    },
+                    Ok(Ok(proxy_tcp_stream)) => proxy_tcp_stream,
+                    Ok(Err(e)) => {
                         error!("Fail to feed proxy connection because of error: {e:?}");
-                        return Err(e);
+                        return Err(anyhow::anyhow!(e));
                     },
                 };
                 debug!("Success connect to proxy when feed connection pool.");
