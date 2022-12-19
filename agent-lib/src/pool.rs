@@ -404,8 +404,8 @@ impl ProxyConnectionPool {
             let connection = connections_lock.pop();
             match connection {
                 Some(connection) => {
-                    debug!("Success to take connection from pool.");
                     let current_connections_number = connections_lock.len();
+                    debug!("Success to take connection from pool, remaining idle connection number: {current_connections_number}");
                     if current_connections_number < (proxy_connection_pool_size / 2) {
                         info!("Proxy connection do not have enough proxy connection, start to feed: {current_connections_number}");
                         tokio::spawn(Self::feed_connections(

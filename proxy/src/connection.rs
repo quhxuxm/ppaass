@@ -9,10 +9,7 @@ use ppaass_common::{
     codec::PpaassMessageCodec, generate_uuid, PpaassMessage, PpaassMessageAgentPayload, PpaassMessageAgentPayloadParts, PpaassMessageAgentPayloadType,
     PpaassNetAddress, RsaCryptoFetcher,
 };
-use tokio::{
-    io::{AsyncRead, AsyncWrite},
-    sync::OwnedSemaphorePermit,
-};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::Framed;
 
 use crate::common::ProxyServerPayloadEncryptionSelector;
@@ -40,7 +37,6 @@ where
     agent_message_framed: Option<Framed<T, PpaassMessageCodec<R>>>,
     agent_address: PpaassNetAddress,
     configuration: Arc<ProxyServerConfig>,
-    guard: OwnedSemaphorePermit,
 }
 
 impl<T, R> AgentConnection<T, R>
@@ -48,9 +44,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
-    pub(crate) fn new(
-        agent_io: T, agent_address: PpaassNetAddress, configuration: Arc<ProxyServerConfig>, rsa_crypto_fetcher: Arc<R>, guard: OwnedSemaphorePermit,
-    ) -> Self {
+    pub(crate) fn new(agent_io: T, agent_address: PpaassNetAddress, configuration: Arc<ProxyServerConfig>, rsa_crypto_fetcher: Arc<R>) -> Self {
         let agent_message_codec = PpaassMessageCodec::new(configuration.get_compress(), rsa_crypto_fetcher);
         let agent_message_framed = Framed::with_capacity(agent_io, agent_message_codec, configuration.get_message_framed_buffer_size());
         Self {
@@ -58,7 +52,6 @@ where
             agent_message_framed: Some(agent_message_framed),
             agent_address,
             configuration,
-            guard,
         }
     }
 
@@ -85,7 +78,6 @@ where
                         configuration_for_write,
                         agent_address_for_write,
                         agent_message_framed_write,
-                        self.guard,
                     ),
                 ))
             },
@@ -185,7 +177,6 @@ where
     agent_address: PpaassNetAddress,
     #[pin]
     agent_message_framed_write: Option<AgentMessageFramedWrite<T, R>>,
-    guard: OwnedSemaphorePermit,
 }
 
 #[pinned_drop]
@@ -215,14 +206,13 @@ where
 {
     pub(crate) fn new(
         connection_id: String, configuration: Arc<ProxyServerConfig>, agent_address: PpaassNetAddress,
-        agent_message_framed_write: AgentMessageFramedWrite<T, R>, guard: OwnedSemaphorePermit,
+        agent_message_framed_write: AgentMessageFramedWrite<T, R>,
     ) -> Self {
         Self {
             connection_id,
             configuration,
             agent_address,
             agent_message_framed_write: Some(agent_message_framed_write),
-            guard,
         }
     }
 }

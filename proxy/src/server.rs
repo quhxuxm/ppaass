@@ -69,18 +69,12 @@ impl ProxyServer {
             let proxy_server_rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();
             tokio::spawn(async move {
-                let agent_connection_number_guard = agent_connection_number_guard;
-                let agent_connection = AgentConnection::new(
-                    agent_tcp_stream,
-                    agent_socket_address.into(),
-                    configuration,
-                    proxy_server_rsa_crypto_fetcher,
-                    agent_connection_number_guard,
-                );
+                let agent_connection = AgentConnection::new(agent_tcp_stream, agent_socket_address.into(), configuration, proxy_server_rsa_crypto_fetcher);
                 if let Err(e) = agent_connection.exec().await {
                     error!("Fail to execute agent connection [{agent_socket_address}] because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
                 };
+                drop(agent_connection_number_guard);
                 info!("Complete execute agent connection [{agent_socket_address}].");
                 Ok(())
             });

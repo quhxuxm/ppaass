@@ -14,7 +14,7 @@ pub struct AgentServer {
 
 impl AgentServer {
     pub fn new(configuration: Arc<AgentServerConfig>) -> Self {
-        let client_connection_number_semaphore = Arc::new(Semaphore::new(configuration.get_client_connection_number_semaphore()));
+        let client_connection_number_semaphore = Arc::new(Semaphore::new(configuration.get_max_client_connection_number()));
         Self {
             configuration,
             client_connection_number_semaphore,
