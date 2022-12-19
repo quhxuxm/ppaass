@@ -35,13 +35,6 @@ impl ProxyServer {
             .context(format!("Fail to bind tcp listener for proxy server: {server_bind_addr}"))?;
 
         loop {
-            let (agent_tcp_stream, agent_socket_address) = match tcp_listener.accept().await {
-                Err(e) => {
-                    error!("Fail to accept agent tcp connection because of error: {e:?}");
-                    continue;
-                },
-                Ok(v) => v,
-            };
             debug!(
                 "Agent connection number semaphore remaining: {}",
                 self.max_agent_connection_number_semaphore.available_permits()
@@ -63,6 +56,14 @@ impl ProxyServer {
                 },
                 Ok(Ok(v)) => v,
             };
+            let (agent_tcp_stream, agent_socket_address) = match tcp_listener.accept().await {
+                Err(e) => {
+                    error!("Fail to accept agent tcp connection because of error: {e:?}");
+                    continue;
+                },
+                Ok(v) => v,
+            };
+
             agent_tcp_stream.set_nodelay(true).context("Fail to set no delay on agent tcp connection")?;
             debug!("Accept agent tcp connection on address: {}", agent_socket_address);
             let proxy_server_rsa_crypto_fetcher = rsa_crypto_fetcher.clone();

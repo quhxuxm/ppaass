@@ -226,13 +226,6 @@ where
 
         let (mut proxy_connection_read, mut proxy_connection_write) = proxy_connection.split_framed()?;
         let proxy_connection_id = proxy_connection.id;
-        let _proxy_connection_guard = match proxy_connection.connection_number_guard {
-            Some(v) => v,
-            None => {
-                error!("Client tcp connection [{client_sockst_address}] fail to take guard.");
-                return Err(anyhow::anyhow!("Client tcp connection [{client_sockst_address}] fail to take guard."));
-            },
-        };
 
         debug!("Client tcp connection [{client_sockst_address}] take proxy connectopn [{proxy_connection_id}] to do proxy");
 

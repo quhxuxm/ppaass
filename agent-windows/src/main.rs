@@ -65,7 +65,8 @@ async fn main() -> Result<()> {
             error!("Fail to start agent server because of error: {e:?}");
         };
     });
-    agent_server_join_handler.await?;
-
+    if let Err(e) = agent_server_join_handler.await {
+        error!("Fail to execute agent server because of error: {e:?}");
+    };
     Ok(())
 }

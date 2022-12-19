@@ -16,15 +16,14 @@ pub struct AgentServerConfig {
     /// Whether enable compressing
     compress: Option<bool>,
     /// The client connection pool size.
-    proxy_connection_number: Option<usize>,
-    proxy_connection_number_semaphore: Option<usize>,
-    /// The timeout to accept client connection pool size.
-    client_tcp_connection_accept_timout_seconds: Option<u64>,
+    proxy_connection_pool_size: Option<usize>,
+    client_connection_number_semaphore: Option<usize>,
+
     /// The proxy addresses
     proxy_addresses: Option<Vec<String>>,
     message_framed_buffer_size: Option<usize>,
     idle_proxy_heartbeat_interval: Option<u64>,
-    take_proxy_conection_timeout: Option<u64>,
+    client_connection_accept_timeout: Option<u64>,
     client_read_timeout: Option<u64>,
     client_io_buffer_size: Option<usize>,
 }
@@ -84,12 +83,8 @@ impl AgentServerConfig {
         self.compress.unwrap_or(false)
     }
 
-    pub fn get_proxy_connection_number(&self) -> usize {
-        self.proxy_connection_number.unwrap_or(1024)
-    }
-
-    pub fn get_client_tcp_connection_accept_timout_seconds(&self) -> u64 {
-        self.client_tcp_connection_accept_timout_seconds.unwrap_or(20)
+    pub fn get_proxy_connection_pool_size(&self) -> usize {
+        self.proxy_connection_pool_size.unwrap_or(1024)
     }
 
     pub fn get_message_framed_buffer_size(&self) -> usize {
@@ -99,15 +94,15 @@ impl AgentServerConfig {
     pub fn get_idle_proxy_heartbeat_interval(&self) -> u64 {
         self.idle_proxy_heartbeat_interval.unwrap_or(20)
     }
-    pub fn get_take_proxy_conection_timeout(&self) -> u64 {
-        self.take_proxy_conection_timeout.unwrap_or(5)
+    pub fn get_client_connection_accept_timeout(&self) -> u64 {
+        self.client_connection_accept_timeout.unwrap_or(5)
     }
     pub fn get_client_read_timeout(&self) -> u64 {
         self.client_read_timeout.unwrap_or(5)
     }
-    pub fn get_proxy_connection_number_semaphore(&self) -> usize {
-        let proxy_connection_number = self.get_proxy_connection_number();
-        self.proxy_connection_number_semaphore.unwrap_or(proxy_connection_number)
+    pub fn get_client_connection_number_semaphore(&self) -> usize {
+        let client_connection_number = self.get_proxy_connection_pool_size();
+        self.client_connection_number_semaphore.unwrap_or(client_connection_number)
     }
     pub fn get_client_io_buffer_size(&self) -> usize {
         self.client_io_buffer_size.unwrap_or(1024 * 64)

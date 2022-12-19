@@ -20,7 +20,6 @@ use tokio::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
         TcpStream,
     },
-    sync::OwnedSemaphorePermit,
 };
 use tokio::{task::JoinHandle, time::timeout};
 
@@ -299,7 +298,7 @@ where
         self.key.as_str()
     }
 
-    pub(crate) async fn start(self) -> Result<()> {
+    pub(crate) async fn exec(self) -> Result<()> {
         let dest_io = self.dest_io;
         let (dest_io_read, dest_io_write) = dest_io.into_split();
         let agent_connection_write = self.agent_connection_write;

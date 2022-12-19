@@ -93,7 +93,7 @@ where
         }
     }
 
-    pub(crate) async fn exec(mut self) -> Result<()> {
+    pub(crate) async fn exec(self) -> Result<()> {
         let connection_id = self.id.clone();
         let agent_address = self.agent_address.clone();
         let configuration = self.configuration.clone();
@@ -138,6 +138,7 @@ where
                     let tcp_loop_init_request: TcpLoopInitRequestPayload = match agent_message_payload_data.try_into() {
                         Ok(tcp_loop_init_request) => tcp_loop_init_request,
                         Err(e) => {
+                            error!("Agent connection [{connection_id}] fail to read tcp loop init request because of error: {e:?}");
                             return Err(e);
                         },
                     };
@@ -154,12 +155,16 @@ where
                     let tcp_loop = match tcp_loop_builder.build(configuration).await {
                         Ok(tcp_loop) => tcp_loop,
                         Err(e) => {
+                            error!("Agent connection [{connection_id}] fail to build tcp loop because of error: {e:?}");
                             return Err(e);
                         },
                     };
                     let tcp_loop_key = tcp_loop.get_key().to_owned();
                     debug!("Agent connection [{connection_id}] start tcp loop [{tcp_loop_key}]");
-                    tcp_loop.start().await?;
+                    if let Err(e) = tcp_loop.exec().await {
+                        error!("Agent connection [{connection_id}] fail to execute tcp loop because of error: {e:?}");
+                        return Err(e);
+                    };
                     return Ok(());
                 },
                 PpaassMessageAgentPayloadType::UdpLoopInit => todo!(),
