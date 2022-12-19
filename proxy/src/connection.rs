@@ -40,7 +40,7 @@ where
     agent_message_framed: Option<Framed<T, PpaassMessageCodec<R>>>,
     agent_address: PpaassNetAddress,
     configuration: Arc<ProxyServerConfig>,
-    guard: Option<OwnedSemaphorePermit>,
+    guard: OwnedSemaphorePermit,
 }
 
 impl<T, R> AgentConnection<T, R>
@@ -58,31 +58,48 @@ where
             agent_message_framed: Some(agent_message_framed),
             agent_address,
             configuration,
-            guard: Some(guard),
+            guard,
         }
     }
 
-    pub(crate) fn split_framed(&mut self) -> Result<(AgentConnectionRead<T, R>, AgentConnectionWrite<T, R>)> {
+    pub(crate) fn split(mut self) -> Result<(AgentConnectionRead<T, R>, AgentConnectionWrite<T, R>)> {
         let agent_message_framed = self.agent_message_framed.take();
-        let connection_id = self.id.to_owned();
+        let connection_id_for_read = self.id.to_owned();
+        let connection_id_for_write = self.id.to_owned();
+        let agent_address_for_read = self.agent_address;
+        let agent_address_for_write = agent_address_for_read.clone();
+        let configuration_for_read = self.configuration.clone();
+        let configuration_for_write = self.configuration.clone();
         match agent_message_framed {
             Some(agent_message_framed) => {
                 let (agent_message_framed_write, agent_message_framed_read) = agent_message_framed.split();
                 Ok((
-                    AgentConnectionRead::new(agent_message_framed_read),
-                    AgentConnectionWrite::new(agent_message_framed_write, connection_id, self.guard.take()),
+                    AgentConnectionRead::new(
+                        connection_id_for_read,
+                        configuration_for_read,
+                        agent_address_for_read,
+                        agent_message_framed_read,
+                    ),
+                    AgentConnectionWrite::new(
+                        connection_id_for_write,
+                        configuration_for_write,
+                        agent_address_for_write,
+                        agent_message_framed_write,
+                        self.guard,
+                    ),
                 ))
             },
-            None => Err(anyhow::anyhow!("Agent connection [{connection_id}] agent message framed not exist.")),
+            None => Err(anyhow::anyhow!("Agent connection [{}] agent message framed not exist.", self.id)),
         }
     }
 
     pub(crate) async fn exec(mut self) -> Result<()> {
-        let (mut agent_connection_read, mut agent_connection_write) = self.split_framed()?;
-        let agent_address = self.agent_address.clone();
         let connection_id = self.id.clone();
+        let agent_address = self.agent_address.clone();
         let configuration = self.configuration.clone();
         debug!("Agent connection [{connection_id}] associated with agent address: {agent_address:?}");
+
+        let (mut agent_connection_read, mut agent_connection_write) = self.split()?;
         loop {
             let agent_message = agent_connection_read.next().await;
             let Some(agent_message) = agent_message else {
@@ -151,18 +168,6 @@ where
     }
 }
 
-impl<T, R> Drop for AgentConnection<T, R>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
-{
-    fn drop(&mut self) {
-        let connection_id = &self.id;
-        debug!("Agent connection [{connection_id}] dropped.");
-        let _ = self.guard.take();
-    }
-}
-
 #[pin_project(PinnedDrop)]
 #[derive(Debug)]
 pub(crate) struct AgentConnectionWrite<T, R>
@@ -170,10 +175,12 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
-    agent_connection_id: String,
-    guard: Option<OwnedSemaphorePermit>,
+    connection_id: String,
+    configuration: Arc<ProxyServerConfig>,
+    agent_address: PpaassNetAddress,
     #[pin]
     agent_message_framed_write: Option<AgentMessageFramedWrite<T, R>>,
+    guard: OwnedSemaphorePermit,
 }
 
 #[pinned_drop]
@@ -184,14 +191,12 @@ where
 {
     fn drop(self: Pin<&mut Self>) {
         let mut this = self.project();
-        let guard = this.guard.take();
-        let connection_id = this.agent_connection_id.clone();
+        let connection_id = this.connection_id.clone();
         if let Some(mut agent_message_framed_write) = this.agent_message_framed_write.take() {
             tokio::spawn(async move {
                 if let Err(e) = agent_message_framed_write.close().await {
                     error!("Fail to close agent connection because of error: {e:?}");
                 };
-                drop(guard);
                 debug!("Agent connection writer [{connection_id}] dropped")
             });
         }
@@ -204,11 +209,14 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
     pub(crate) fn new(
-        agent_message_framed_write: AgentMessageFramedWrite<T, R>, agent_connection_id: impl AsRef<str>, guard: Option<OwnedSemaphorePermit>,
+        connection_id: String, configuration: Arc<ProxyServerConfig>, agent_address: PpaassNetAddress,
+        agent_message_framed_write: AgentMessageFramedWrite<T, R>, guard: OwnedSemaphorePermit,
     ) -> Self {
         Self {
+            connection_id,
+            configuration,
+            agent_address,
             agent_message_framed_write: Some(agent_message_framed_write),
-            agent_connection_id: agent_connection_id.as_ref().to_owned(),
             guard,
         }
     }
@@ -269,6 +277,9 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
+    connection_id: String,
+    configuration: Arc<ProxyServerConfig>,
+    agent_address: PpaassNetAddress,
     #[pin]
     agent_message_framed_read: AgentMessageFramedRead<T, R>,
 }
@@ -278,8 +289,15 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
-    pub(crate) fn new(agent_message_framed_read: AgentMessageFramedRead<T, R>) -> Self {
-        Self { agent_message_framed_read }
+    pub(crate) fn new(
+        connection_id: String, configuration: Arc<ProxyServerConfig>, agent_address: PpaassNetAddress, agent_message_framed_read: AgentMessageFramedRead<T, R>,
+    ) -> Self {
+        Self {
+            connection_id,
+            configuration,
+            agent_message_framed_read,
+            agent_address,
+        }
     }
 }
 
