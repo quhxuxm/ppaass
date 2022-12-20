@@ -1,4 +1,4 @@
-use bytes::{BufMut, BytesMut};
+use bytes::BytesMut;
 
 use futures::{SinkExt, StreamExt};
 use ppaass_common::{
@@ -24,7 +24,7 @@ use crate::{
         ClientDataRelayInfo, ClientFlow,
     },
     pool::ProxyConnectionPool,
-    AgentServerPayloadEncryptionTypeSelector, SOCKS_V5,
+    AgentServerPayloadEncryptionTypeSelector,
 };
 use anyhow::{Context, Result};
 use ppaass_common::generate_uuid;
