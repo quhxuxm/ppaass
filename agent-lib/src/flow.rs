@@ -11,6 +11,7 @@ use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     time::timeout,
 };
+
 use tracing::{debug, error, trace};
 
 use crate::{
@@ -45,11 +46,12 @@ where
     Http {
         client_io: T,
         client_socket_address: SocketAddr,
-        protocol_data: u8,
+        initial_buf: BytesMut,
     },
     Socks5 {
         client_io: T,
         client_socket_address: SocketAddr,
+        initial_buf: BytesMut,
     },
 }
 
@@ -62,10 +64,10 @@ where
             ClientFlow::Http {
                 client_io,
                 client_socket_address,
-                protocol_data,
+                initial_buf,
             } => {
                 let http_flow = HttpFlow::new(client_io, client_socket_address);
-                if let Err(e) = http_flow.exec(proxy_connection_pool, configuration, protocol_data).await {
+                if let Err(e) = http_flow.exec(proxy_connection_pool, configuration, initial_buf).await {
                     error!("Client tcp connection [{client_socket_address}] error happen on http flow for proxy connection: {e:?}");
                     return Err(e);
                 }
@@ -73,9 +75,10 @@ where
             ClientFlow::Socks5 {
                 client_io,
                 client_socket_address,
+                initial_buf,
             } => {
                 let socks5_flow = Socks5Flow::new(client_io, client_socket_address);
-                if let Err(e) = socks5_flow.exec(proxy_connection_pool, configuration).await {
+                if let Err(e) = socks5_flow.exec(proxy_connection_pool, configuration, initial_buf).await {
                     error!("Client tcp connection [{client_socket_address}] error happen on socks5 flow for proxy connection: {e:?}");
                     return Err(e);
                 };

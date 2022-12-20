@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use bytecodec::{bytes::BytesEncoder, EncodeExt};
 
-use bytes::{BufMut, BytesMut};
+use bytes::BytesMut;
 use futures::{SinkExt, StreamExt};
 use httpcodec::{BodyEncoder, HttpVersion, ReasonPhrase, RequestEncoder, Response, StatusCode};
 use ppaass_common::{
@@ -56,13 +56,13 @@ where
         }
     }
 
-    pub(crate) async fn exec(self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>, protocol_data: u8) -> Result<()> {
+    pub(crate) async fn exec(
+        self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>, initial_buf: BytesMut,
+    ) -> Result<()> {
         let client_io = self.client_io;
         let client_socket_address = self.client_socket_address;
         let mut framed_parts = FramedParts::new(client_io, HttpCodec::default());
-        let mut initial_data_read_buf = BytesMut::with_capacity(1024 * 64);
-        initial_data_read_buf.put_u8(protocol_data);
-        framed_parts.read_buf = initial_data_read_buf;
+        framed_parts.read_buf = initial_buf;
         let mut http_framed = Framed::from_parts(framed_parts);
         let http_message = http_framed
             .next()
@@ -183,7 +183,7 @@ where
                 )));
             },
         }
-        if init_data.is_some() {
+        if init_data.is_none() {
             //For https proxy
             let http_connect_success_response = Response::new(
                 HttpVersion::V1_1,

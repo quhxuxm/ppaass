@@ -51,13 +51,13 @@ where
         }
     }
 
-    pub(crate) async fn exec(self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>) -> Result<()> {
+    pub(crate) async fn exec(
+        self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>, initial_buf: BytesMut,
+    ) -> Result<()> {
         let client_io = self.client_io;
         let client_socket_address = self.client_socket_address;
         let mut auth_framed_parts = FramedParts::new(client_io, Socks5AuthCommandContentCodec::default());
-        let mut auth_initial_buf = BytesMut::with_capacity(1024 * 64);
-        auth_initial_buf.put_u8(SOCKS_V5);
-        auth_framed_parts.read_buf = auth_initial_buf;
+        auth_framed_parts.read_buf = initial_buf;
         let mut auth_framed = Framed::from_parts(auth_framed_parts);
         let auth_message = auth_framed
             .next()
