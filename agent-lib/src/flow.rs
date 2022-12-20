@@ -8,10 +8,11 @@ use bytes::BytesMut;
 use futures::{try_join, SinkExt, StreamExt};
 use ppaass_common::{PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryption};
 use tokio::{
-    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
+    io::{AsyncRead, AsyncWrite},
     time::timeout,
 };
 
+use tokio_util::codec::{BytesCodec, Framed};
 use tracing::{debug, error, trace};
 
 use crate::{
@@ -96,7 +97,8 @@ where
         let mut proxy_connection_write = info.proxy_connection_write;
         let user_token = info.user_token;
         let mut proxy_connection_read = info.proxy_connection_read;
-        let (mut client_io_read, mut client_io_write) = tokio::io::split(client_io);
+        let client_io_framed = Framed::with_capacity(client_io, BytesCodec::new(), configuration.get_client_io_buffer_size());
+        let (mut client_io_write, mut client_io_read) = client_io_framed.split::<BytesMut>();
         let tcp_loop_key_a2p = tcp_loop_key.clone();
         let init_data = info.init_data;
 
@@ -110,13 +112,7 @@ where
                 };
             }
             loop {
-                let mut client_message = Vec::with_capacity(configuration.get_client_io_buffer_size());
-                match timeout(
-                    Duration::from_secs(configuration.get_client_read_timeout()),
-                    client_io_read.read_buf(&mut client_message),
-                )
-                .await
-                {
+                let client_message = match timeout(Duration::from_secs(configuration.get_client_read_timeout()), client_io_read.next()).await {
                     Err(_) => {
                         error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to read from client because of timeout");
                         return Err(anyhow::anyhow!(format!(
@@ -124,12 +120,12 @@ where
                             client_socket_address, tcp_loop_key_a2p
                         )));
                     },
-                    Ok(Ok(0)) => {
+                    Ok(None) => {
                         debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] complete to relay from client to proxy.");
                         break;
                     },
-                    Ok(Ok(client_message)) => client_message,
-                    Ok(Err(e)) => {
+                    Ok(Some(Ok(client_message))) => client_message,
+                    Ok(Some(Err(e))) => {
                         error!(
                             "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to read from client because of error: {e:?}"
                         );
@@ -157,7 +153,7 @@ where
             while let Some(proxy_message) = proxy_connection_read.next().await {
                 if let Err(e) = proxy_message {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to read from proxy because of error: {e:?}");
-                    if let Err(e) = client_io_write.shutdown().await {
+                    if let Err(e) = client_io_write.close().await {
                         error!(
                             "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to shutdown client io because of error: {e:?}"
                         );
@@ -173,18 +169,9 @@ where
                     "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] read proxy data:\n{}\n",
                     pretty_hex::pretty_hex(&proxy_message_payload_bytes)
                 );
-                if let Err(e) = client_io_write.write_all(&proxy_message_payload_bytes).await {
+                if let Err(e) = client_io_write.send(BytesMut::from_iter(proxy_message_payload_bytes)).await {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to relay to proxy because of error: {e:?}");
-                    if let Err(e) = client_io_write.shutdown().await {
-                        error!(
-                            "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to shutdown client io because of error: {e:?}"
-                        );
-                    }
-                    return Err(anyhow::anyhow!(e));
-                };
-                if let Err(e) = client_io_write.flush().await {
-                    error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to relay to proxy because of error(flush): {e:?}");
-                    if let Err(e) = client_io_write.shutdown().await {
+                    if let Err(e) = client_io_write.close().await {
                         error!(
                             "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to shutdown client io because of error: {e:?}"
                         );
@@ -193,7 +180,7 @@ where
                 };
             }
             debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] complete to relay from proxy to agent.");
-            if let Err(e) = client_io_write.shutdown().await {
+            if let Err(e) = client_io_write.close().await {
                 error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to shutdown client io because of error: {e:?}");
                 return Err(anyhow::anyhow!(e));
             };

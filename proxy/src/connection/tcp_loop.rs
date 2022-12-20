@@ -2,11 +2,15 @@ use crate::{common::ProxyServerPayloadEncryptionSelector, config::ProxyServerCon
 use anyhow::{Context, Result};
 
 use bytes::BytesMut;
-use futures::StreamExt;
+use futures::{
+    stream::{SplitSink, SplitStream},
+    StreamExt,
+};
 
 use futures_util::SinkExt;
 use ppaass_common::{generate_uuid, PpaassMessageParts, RsaCryptoFetcher};
 use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
+use tokio_util::codec::{BytesCodec, Framed};
 
 use std::{
     net::{SocketAddr, ToSocketAddrs},
@@ -15,11 +19,8 @@ use std::{
 };
 
 use tokio::{
-    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
-    net::{
-        tcp::{OwnedReadHalf, OwnedWriteHalf},
-        TcpStream,
-    },
+    io::{AsyncRead, AsyncWrite},
+    net::TcpStream,
 };
 use tokio::{task::JoinHandle, time::timeout};
 
@@ -191,7 +192,7 @@ where
     }
     fn start_dest_to_agent_relay(
         agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_connection_write: AgentConnectionWrite<T, R>,
-        mut dest_io_read: OwnedReadHalf, user_token: impl AsRef<str>, configuration: Arc<ProxyServerConfig>,
+        mut dest_io_read: SplitStream<Framed<TcpStream, BytesCodec>>, user_token: impl AsRef<str>, configuration: Arc<ProxyServerConfig>,
     ) -> JoinHandle<Result<()>> {
         let user_token = user_token.as_ref().to_owned();
         let key = tcp_loop_key.as_ref().to_owned();
@@ -200,25 +201,19 @@ where
             debug!("Agent connection [{agent_connection_id}] with tcp loop [{key}] start to relay destination data to agent.");
             let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
             loop {
-                let mut dest_message = Vec::with_capacity(configuration.get_dest_io_buffer_size());
-                match timeout(
-                    Duration::from_secs(configuration.get_dest_read_timeout()),
-                    dest_io_read.read_buf(&mut dest_message),
-                )
-                .await
-                {
+                let dest_message = match timeout(Duration::from_secs(configuration.get_dest_read_timeout()), dest_io_read.next()).await {
                     Err(_) => {
                         error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to read destination data because of timeout");
                         return Err(anyhow::anyhow!(
                             "Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to read destination data because of timeout"
                         ));
                     },
-                    Ok(Ok(0)) => {
+                    Ok(None) => {
                         debug!("Agent connection [{agent_connection_id}] with tcp loop [{key}] complete to relay destination data to agent.");
                         break;
                     },
-                    Ok(Ok(dest_message)) => dest_message,
-                    Ok(Err(e)) => {
+                    Ok(Some(Ok(dest_message))) => dest_message,
+                    Ok(Some(Err(e))) => {
                         error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to read destination data because of error: {e:?}");
                         return Err(anyhow::anyhow!(e));
                     },
@@ -246,7 +241,7 @@ where
 
     fn start_agent_to_dest_relay(
         agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_connection_read: AgentConnectionRead<T, R>,
-        mut dest_io_write: OwnedWriteHalf,
+        mut dest_io_write: SplitSink<Framed<TcpStream, BytesCodec>, BytesMut>,
     ) -> JoinHandle<Result<()>> {
         let key = tcp_loop_key.as_ref().to_owned();
         let agent_connection_id = agent_connection_id.as_ref().to_owned();
@@ -257,7 +252,7 @@ where
                     Ok(v) => v,
                     Err(e) => {
                         error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to read agent message because of error: {e:?}");
-                        if let Err(e) = dest_io_write.shutdown().await {
+                        if let Err(e) = dest_io_write.close().await {
                             error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to shutdown destination because of error: {e:?}");
                         }
                         return Err(anyhow::anyhow!(e));
@@ -269,25 +264,16 @@ where
                     pretty_hex::pretty_hex(&payload_bytes)
                 );
                 let payload_bytes = BytesMut::from_iter(payload_bytes);
-                if let Err(e) = dest_io_write.write_all(&payload_bytes).await {
+                if let Err(e) = dest_io_write.send(payload_bytes).await {
                     error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to relay agent message to destination because of error: {e:?}");
-                    if let Err(e) = dest_io_write.shutdown().await {
-                        error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to shutdown destination because of error: {e:?}");
-                    }
-                    return Err(anyhow::anyhow!(e));
-                };
-                if let Err(e) = dest_io_write.flush().await {
-                    error!(
-                        "Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to relay agent message to destination because of error(flush): {e:?}"
-                    );
-                    if let Err(e) = dest_io_write.shutdown().await {
+                    if let Err(e) = dest_io_write.close().await {
                         error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to shutdown destination because of error: {e:?}");
                     }
                     return Err(anyhow::anyhow!(e));
                 };
             }
             debug!("Agent connection [{agent_connection_id}] with tcp loop [{key}] complete to relay agent data to destination.");
-            if let Err(e) = dest_io_write.shutdown().await {
+            if let Err(e) = dest_io_write.close().await {
                 error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to shutdown destination because of error: {e:?}");
             }
             Ok(())
@@ -300,7 +286,8 @@ where
 
     pub(crate) async fn exec(self) -> Result<()> {
         let dest_io = self.dest_io;
-        let (dest_io_read, dest_io_write) = dest_io.into_split();
+        let dest_bytes_framed = Framed::with_capacity(dest_io, BytesCodec::new(), self.configuration.get_dest_io_buffer_size());
+        let (dest_io_write, dest_io_read) = dest_bytes_framed.split::<BytesMut>();
         let agent_connection_write = self.agent_connection_write;
         let agent_connection_read = self.agent_connection_read;
         let user_token = self.user_token;
