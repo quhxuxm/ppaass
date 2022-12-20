@@ -33,8 +33,6 @@ const CONNECT_METHOD: &str = "connect";
 const HTTPS_DEFAULT_PORT: u16 = 443;
 const HTTP_DEFAULT_PORT: u16 = 80;
 const OK_CODE: u16 = 200;
-const ERROR_CODE: u16 = 400;
-const ERROR_REASON: &str = " ";
 const CONNECTION_ESTABLISHED: &str = "Connection Established";
 
 pub(crate) struct HttpFlow<T>
