@@ -16,8 +16,15 @@ impl FlowDispatcher {
     where
         T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
     {
-        let protocol = client_io.read_u8().await?;
-        match protocol {
+        let mut protocol_buf = [0u8; 1];
+        match client_io.read_exact(&mut protocol_buf).await {
+            Ok(v) => v,
+            Err(e) => {
+                error!("Fail to read protocol from client io because of error: {e:?}");
+                return Err(anyhow::anyhow!(e));
+            },
+        };
+        match protocol_buf[0] {
             SOCKS_V5 => {
                 // For socks5 protocol
                 debug!("Client tcp connection [{client_socket_address}] begin to serve socks 5 protocol");
@@ -29,7 +36,9 @@ impl FlowDispatcher {
             SOCKS_V4 => {
                 // For socks4 protocol
                 error!("Client tcp connection [{client_socket_address}] do not support socks v4 protocol");
-                Err(anyhow::anyhow!("do not support socks v4"))
+                Err(anyhow::anyhow!(
+                    "Client tcp connection [{client_socket_address}] do not support socks v4 protocol"
+                ))
             },
             _ => {
                 // For http protocol
@@ -37,6 +46,7 @@ impl FlowDispatcher {
                 Ok(ClientFlow::Http {
                     client_io,
                     client_socket_address,
+                    protocol_data: protocol_buf[0],
                 })
             },
         }

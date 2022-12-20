@@ -10,7 +10,6 @@ anyhow = {workspace = true}
 async-trait = {workspace = true}
 bytecodec = {workspace = true}
 bytes = {workspace = true}
-deadpool = {workspace = true, features = ["rt_tokio_1"]}
 futures = {workspace = true}
 futures-util = {workspace = true, features = ["std"]}
 httpcodec = {workspace = true}

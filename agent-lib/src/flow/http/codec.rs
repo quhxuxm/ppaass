@@ -1,4 +1,3 @@
-use anyhow::Context;
 use bytecodec::bytes::{BytesEncoder, RemainingBytesDecoder};
 use bytecodec::io::IoDecodeExt;
 use bytecodec::EncodeExt;
@@ -6,6 +5,7 @@ use bytes::{Buf, BufMut, BytesMut};
 use httpcodec::{BodyDecoder, BodyEncoder, Request, RequestDecoder, Response, ResponseEncoder};
 
 use tokio_util::codec::{Decoder, Encoder};
+use tracing::error;
 
 #[derive(Debug)]
 pub(crate) struct HttpCodec {
@@ -29,7 +29,14 @@ impl Decoder for HttpCodec {
     type Error = anyhow::Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        let decode_result = self.request_decoder.decode_exact(src.chunk()).context("fail to decode http message")?;
+        let decode_result = self.request_decoder.decode_exact(src.chunk());
+        let decode_result = match decode_result {
+            Err(e) => {
+                error!("Fail to decode http protocol because of error: {e:?}");
+                return Err(anyhow::anyhow!(e));
+            },
+            Ok(v) => v,
+        };
         Ok(Some(decode_result))
     }
 }
@@ -38,7 +45,16 @@ impl Encoder<Response<Vec<u8>>> for HttpCodec {
     type Error = anyhow::Error;
 
     fn encode(&mut self, item: Response<Vec<u8>>, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        let encode_result = self.response_encoder.encode_into_bytes(item).context("fail to encode http message")?;
+        let encode_result = self.response_encoder.encode_into_bytes(item);
+        let encode_result = match encode_result {
+            Err(e) => {
+                return {
+                    error!("Fail to encode http protocol because of error: {e:?}");
+                    Err(anyhow::anyhow!(e))
+                }
+            },
+            Ok(v) => v,
+        };
         dst.put_slice(encode_result.as_slice());
         Ok(())
     }

@@ -8,7 +8,7 @@ use super::message::{
     Socks5InitCommandResultContent, Socks5InitCommandResultContentParts, Socks5InitCommandType,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct Socks5AuthCommandContentCodec;
 
 impl Decoder for Socks5AuthCommandContentCodec {
@@ -44,7 +44,7 @@ impl Encoder<Socks5AuthCommandResultContent> for Socks5AuthCommandContentCodec {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct Socks5InitCommandContentCodec;
 
 impl Decoder for Socks5InitCommandContentCodec {
