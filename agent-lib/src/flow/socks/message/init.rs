@@ -71,7 +71,7 @@ impl From<Socks5InitCommandResultStatus> for u8 {
 }
 
 pub(crate) struct Socks5InitCommandContentParts {
-    pub request_type: Socks5InitCommandType,
+    pub command_type: Socks5InitCommandType,
     pub dest_address: Socks5Address,
 }
 
@@ -88,7 +88,7 @@ impl Socks5InitCommandContent {
 
     pub(crate) fn split(self) -> Socks5InitCommandContentParts {
         Socks5InitCommandContentParts {
-            request_type: self.request_type,
+            command_type: self.request_type,
             dest_address: self.dest_address,
         }
     }

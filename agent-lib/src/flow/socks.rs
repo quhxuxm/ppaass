@@ -87,12 +87,14 @@ where
             .context(format!(
                 "Client tcp connection [{client_socket_address}] error happen when read socks5 client data in init phase"
             ))?;
-        let Socks5InitCommandContentParts { request_type, dest_address } = init_message.split();
+        let Socks5InitCommandContentParts { command_type, dest_address } = init_message.split();
         debug!(
-            "Client tcp connection [{client_socket_address}] start socks5 init process, request type: {request_type:?}, destination address: {dest_address:?}"
+            "Client tcp connection [{client_socket_address}] start socks5 init process, command type: {command_type:?}, destination address: {dest_address:?}"
         );
 
-        match request_type {
+        match command_type {
+            message::Socks5InitCommandType::Bind => todo!(),
+            message::Socks5InitCommandType::UdpAssociate => todo!(),
             message::Socks5InitCommandType::Connect => {
                 Self::handle_connect_command(
                     client_socket_address.into(),
@@ -104,8 +106,6 @@ where
                 )
                 .await?;
             },
-            message::Socks5InitCommandType::Bind => todo!(),
-            message::Socks5InitCommandType::UdpAssociate => todo!(),
         }
 
         Ok(())
