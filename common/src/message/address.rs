@@ -13,6 +13,7 @@ use std::{
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "type", content = "value")]
 pub enum PpaassNetAddress {
     IpV4 {
         #[serde(with = "array_u8_l4_to_base64")]

@@ -3,6 +3,7 @@ use serde_derive::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+#[serde(tag = "type", content = "token")]
 pub enum PpaassMessagePayloadEncryption {
     Plain,
     Aes(#[serde(with = "vec_u8_to_base64")] Vec<u8>),
