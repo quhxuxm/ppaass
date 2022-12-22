@@ -15,4 +15,4 @@ Cargo.lock
 
 /target
 .idea
-/log
+.cargo
