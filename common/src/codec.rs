@@ -12,7 +12,7 @@ use lz4::block::{compress, decompress};
 use pretty_hex::*;
 
 use tokio_util::codec::{Decoder, Encoder};
-use tracing::trace;
+use tracing::{error, trace};
 
 const PPAASS_FLAG: &[u8] = "__PPAASS__".as_bytes();
 
@@ -67,7 +67,6 @@ where
                     return Ok(None);
                 }
                 let ppaass_flag = src.split_to(PPAASS_FLAG.len());
-
                 if !PPAASS_FLAG.eq(&ppaass_flag) {
                     return Err(anyhow::anyhow!(
                         "Fail to decode input ppaass message because of it dose not begin with ppaass flag"
@@ -99,10 +98,28 @@ where
         trace!("Input message body bytes:\n\n{}\n\n", pretty_hex(&body_bytes));
         let encrypted_message: PpaassMessage = if body_is_compressed {
             trace!("Input message body is compressed.");
-            let decompress_result = decompress(body_bytes.chunk(), None)?;
-            decompress_result.try_into().context("Fail to decompress bytes of the PpaassMessage")?
+            let decompress_result = match decompress(body_bytes.chunk(), None) {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("Fail to decompress incoming message bytes because of error: {e:?}");
+                    return Err(anyhow::anyhow!(e));
+                },
+            };
+            match decompress_result.try_into() {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("Fail to convert decompressed bytes to PpaassMessage because of error: {e:?}");
+                    return Err(anyhow::anyhow!(e));
+                },
+            }
         } else {
-            body_bytes.to_vec().try_into().context("Fail to decompress bytes of the PpaassMessage")?
+            match body_bytes.to_vec().try_into() {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("Fail to convert bytes to PpaassMessage because of error: {e:?}");
+                    return Err(anyhow::anyhow!(e));
+                },
+            }
         };
 
         let PpaassMessageParts {
