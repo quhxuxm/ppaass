@@ -24,9 +24,9 @@ mod types;
 async fn main() -> Result<()> {
     let log_configuration_file_content = tokio::fs::read_to_string(config::DEFAULT_PROXY_LOG_CONFIG_FILE)
         .await
-        .context(format!("fail to read proxy log configuration file: {}", config::DEFAULT_PROXY_LOG_CONFIG_FILE))?;
+        .context(format!("Fail to read proxy log configuration file: {}", config::DEFAULT_PROXY_LOG_CONFIG_FILE))?;
     let proxy_server_log_config: ProxyServerLogConfig = toml::from_str(&log_configuration_file_content).context(format!(
-        "fail to parse proxy server log configuration file: {}",
+        "Fail to parse proxy server log configuration file: {}",
         config::DEFAULT_PROXY_LOG_CONFIG_FILE
     ))?;
     let log_dir = proxy_server_log_config

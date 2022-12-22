@@ -15,11 +15,11 @@ mod constant;
 #[tokio::main]
 async fn main() -> Result<()> {
     let log_configuration_file_content = read_to_string(constant::DEFAULT_AGENT_LOG_CONFIG_FILE).await.context(format!(
-        "fail to read agent log configuration file: {}",
+        "Fail to read agent log configuration file: {}",
         constant::DEFAULT_AGENT_LOG_CONFIG_FILE
     ))?;
     let agent_server_log_config: AgentServerLogConfig = toml::from_str(&log_configuration_file_content).context(format!(
-        "fail to parse agent server log configuration file: {}",
+        "Fail to parse agent server log configuration file: {}",
         constant::DEFAULT_AGENT_LOG_CONFIG_FILE
     ))?;
     let log_dir = agent_server_log_config
@@ -52,9 +52,9 @@ async fn main() -> Result<()> {
 
     let agent_configuration_file = read_to_string(constant::DEFAULT_AGENT_CONFIG_FILE_PATH)
         .await
-        .context(format!("fail to read agent configuration file: {}", constant::DEFAULT_AGENT_CONFIG_FILE_PATH))?;
+        .context(format!("Fail to read agent configuration file: {}", constant::DEFAULT_AGENT_CONFIG_FILE_PATH))?;
     let agent_server_config: AgentServerConfig = toml::from_str(&agent_configuration_file).context(format!(
-        "fail to parse agent server configuration file: {}",
+        "Fail to parse agent server configuration file: {}",
         constant::DEFAULT_AGENT_CONFIG_FILE_PATH
     ))?;
     let agent_server_runtime = Builder::new_multi_thread().enable_all().worker_threads(64).build()?;
