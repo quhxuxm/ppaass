@@ -1,3 +1,4 @@
+use crate::PpaassNetAddress;
 use anyhow::Context;
 use serde_derive::{Deserialize, Serialize};
 
@@ -8,6 +9,8 @@ use crate::serializer::option_vec_array_u8_l4_to_base64;
 pub struct DomainResolveRequestPayload {
     pub domain_name: String,
     pub request_id: String,
+    pub src_address: PpaassNetAddress,
+    pub dest_address: PpaassNetAddress,
 }
 
 impl TryFrom<Vec<u8>> for DomainResolveRequestPayload {
@@ -41,6 +44,8 @@ pub struct DomainResolveResponsePayload {
     #[serde(with = "option_vec_array_u8_l4_to_base64")]
     pub resolved_ip_addresses: Option<Vec<[u8; 4]>>,
     pub response_type: DomainResolveResponseType,
+    pub src_address: PpaassNetAddress,
+    pub dest_address: PpaassNetAddress,
 }
 
 impl TryFrom<Vec<u8>> for DomainResolveResponsePayload {

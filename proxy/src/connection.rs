@@ -3,26 +3,26 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use anyhow::Result;
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use pin_project::{pin_project, pinned_drop};
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio_util::codec::Framed;
+use tracing::{debug, error, trace};
+
+use ppaass_common::tcp_loop::TcpLoopInitRequestPayload;
 use ppaass_common::{
     codec::PpaassMessageCodec, generate_uuid, PpaassMessage, PpaassMessageAgentPayload, PpaassMessageAgentPayloadParts, PpaassMessageAgentPayloadType,
     PpaassNetAddress, RsaCryptoFetcher,
 };
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_util::codec::Framed;
-
-use crate::common::ProxyServerPayloadEncryptionSelector;
-use crate::{config::ProxyServerConfig, connection::tcp_loop::TcpLoopBuilder};
-use anyhow::Result;
-use ppaass_common::tcp_loop::TcpLoopInitRequestPayload;
 use ppaass_common::{
     domain_resolve::DomainResolveRequestPayload, heartbeat::HeartbeatRequestPayload, PpaassMessageGenerator, PpaassMessageParts,
     PpaassMessagePayloadEncryptionSelector,
 };
 
+use crate::common::ProxyServerPayloadEncryptionSelector;
 use crate::types::{AgentMessageFramedRead, AgentMessageFramedWrite};
-use tracing::{debug, error, trace};
+use crate::{config::ProxyServerConfig, connection::tcp_loop::TcpLoopBuilder};
 
 mod tcp_loop;
 mod udp_loop;
@@ -333,17 +333,27 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
-    let domain_resolve_request: DomainResolveRequestPayload = agent_message_payload_data.try_into()?;
-    let request_id = domain_resolve_request.request_id;
-    let domain_name = domain_resolve_request.domain_name;
+    let DomainResolveRequestPayload {
+        domain_name,
+        request_id,
+        src_address,
+        dest_address,
+    } = agent_message_payload_data.try_into()?;
+
     trace!("Receive agent domain resolve message, request id: {request_id}, domain name: {domain_name}");
     let resolved_ip_addresses = match dns_lookup::lookup_host(&domain_name) {
         Ok(v) => v,
         Err(e) => {
             error!("Fail to resolve domain name because of error: {e:?}");
             let domain_resolve_fail_response_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-            let domain_resolve_fail_response =
-                PpaassMessageGenerator::generate_domain_resolve_fail_response(user_token, request_id, domain_name, domain_resolve_fail_response_encryption)?;
+            let domain_resolve_fail_response = PpaassMessageGenerator::generate_domain_resolve_fail_response(
+                user_token,
+                request_id,
+                domain_name,
+                src_address,
+                dest_address,
+                domain_resolve_fail_response_encryption,
+            )?;
             agent_connection_write.send(domain_resolve_fail_response).await?;
             return Err(anyhow::anyhow!(e));
         },
@@ -362,6 +372,8 @@ where
         request_id,
         domain_name,
         resolved_ip_addresses,
+        src_address,
+        dest_address,
         domain_resolve_success_response_encryption,
     )?;
     agent_connection_write.send(domain_resolve_success_response).await?;
