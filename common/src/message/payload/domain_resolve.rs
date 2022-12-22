@@ -30,7 +30,6 @@ impl TryFrom<DomainResolveRequestPayload> for Vec<u8> {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum DomainResolveResponseType {
     Success,
     Fail,

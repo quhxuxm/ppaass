@@ -11,7 +11,6 @@ pub struct TcpLoopInitRequestPayload {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum TcpLoopInitResponseType {
     Success,
     Fail,
