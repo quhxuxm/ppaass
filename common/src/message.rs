@@ -82,7 +82,7 @@ impl TryFrom<Vec<u8>> for PpaassMessage {
     type Error = anyhow::Error;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        let result = serde_json::from_slice(&value).context("fail to deserialize bytes to PpaassMessage object")?;
+        let result = serde_json::from_slice(&value).context("Fail to deserialize bytes to PpaassMessage object")?;
         Ok(result)
     }
 }
@@ -91,7 +91,7 @@ impl TryFrom<PpaassMessage> for Vec<u8> {
     type Error = anyhow::Error;
 
     fn try_from(value: PpaassMessage) -> Result<Self, Self::Error> {
-        let result = serde_json::to_vec(&value).context("fail to serialize PpaassMessage object to bytes")?;
+        let result = serde_json::to_vec(&value).context("Fail to serialize PpaassMessage object to bytes")?;
         Ok(result)
     }
 }

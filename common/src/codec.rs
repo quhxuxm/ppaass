@@ -93,9 +93,9 @@ where
             "Input message has enough bytes to decode body, buffer remaining: {}, body length: {body_length}.",
             src.remaining(),
         );
-        //self.status = DecodeStatus::Data(body_is_compressed, body_length);
+        self.status = DecodeStatus::Data(body_is_compressed, body_length);
         let body_bytes = src.split_to(body_length as usize);
-        trace!("Input message body bytes:\n\n{}\n\n", pretty_hex(&body_bytes));
+        trace!("Input message body bytes(compressed={body_is_compressed}):\n\n{}\n\n", pretty_hex(&body_bytes));
         let encrypted_message: PpaassMessage = if body_is_compressed {
             trace!("Input message body is compressed.");
             let decompress_result = match decompress(body_bytes.chunk(), None) {
