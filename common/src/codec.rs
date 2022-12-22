@@ -105,6 +105,10 @@ where
                     return Err(anyhow::anyhow!(e));
                 },
             };
+            trace!(
+                "Decompressed bytes will convert to PpaassMessage:\n{}\n",
+                pretty_hex::pretty_hex(&decompress_result)
+            );
             match decompress_result.try_into() {
                 Ok(v) => v,
                 Err(e) => {
@@ -113,6 +117,7 @@ where
                 },
             }
         } else {
+            trace!("Raw bytes will convert to PpaassMessage:\n{}\n", pretty_hex::pretty_hex(&body_bytes));
             match body_bytes.to_vec().try_into() {
                 Ok(v) => v,
                 Err(e) => {
