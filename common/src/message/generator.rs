@@ -28,11 +28,14 @@ impl PpaassMessageGenerator {
     }
 
     pub fn generate_domain_resolve_request(
-        user_token: impl AsRef<str>, request_id: impl AsRef<str>, domain_name: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption,
+        user_token: impl AsRef<str>, request_id: impl AsRef<str>, domain_name: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress,
+        payload_encryption: PpaassMessagePayloadEncryption,
     ) -> Result<PpaassMessage> {
         let domain_resolve_request = DomainResolveRequestPayload {
             request_id: request_id.as_ref().to_string(),
             domain_name: domain_name.as_ref().to_string(),
+            src_address,
+            dest_address,
         };
         let message_payload = PpaassMessageAgentPayload::new(PpaassMessageAgentPayloadType::DomainNameResolve, domain_resolve_request.try_into()?);
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
