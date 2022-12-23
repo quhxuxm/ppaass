@@ -12,15 +12,14 @@ use futures::{
     Sink, SinkExt, Stream, StreamExt,
 };
 use pin_project::{pin_project, pinned_drop};
-use tokio::{sync::mpsc::channel, task::JoinHandle};
-
 use tokio::{
     net::TcpStream,
     sync::Mutex,
     time::{interval, timeout},
 };
+use tokio::{sync::mpsc::channel, task::JoinHandle};
 use tokio_util::codec::Framed;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 use ppaass_common::{codec::PpaassMessageCodec, PpaassMessageParts};
 use ppaass_common::{
@@ -195,7 +194,13 @@ impl ProxyConnectionPool {
             rsa_crypto_fetcher: rsa_crypto_fetcher.clone(),
             heartbeat_guard: None,
         };
-        Self::feed_connections(configuration.clone(), connections.clone(), proxy_addresses, rsa_crypto_fetcher.clone()).await?;
+
+        let mut connections = connections.lock().await;
+        let prepared_connections = Self::prepare_connections(configuration.clone(), proxy_addresses, rsa_crypto_fetcher.clone()).await?;
+        prepared_connections.into_iter().for_each(|element| {
+            connections.push(element);
+        });
+        drop(connections);
         let heartbeat_guard = pool.start_idle_heartbeat().await;
         pool.heartbeat_guard = Some(heartbeat_guard);
         Ok(pool)
@@ -204,27 +209,13 @@ impl ProxyConnectionPool {
     async fn start_idle_heartbeat(&self) -> JoinHandle<Result<()>> {
         let configuration = self.configuration.clone();
         let idle_connections = self.idle_connections.clone();
-        let proxy_addresses = self.proxy_addresses.clone();
-        let rsa_crypto_fetcher = self.rsa_crypto_fetcher.clone();
         tokio::spawn(async move {
-            let proxy_addresses = proxy_addresses;
             let proxy_connection_pool_size = configuration.get_proxy_connection_pool_size();
             let user_token = configuration.get_user_token().to_owned().expect("User token not configured.");
             let idle_proxy_heartbeat_interval = configuration.get_idle_proxy_heartbeat_interval();
             let mut heartbeat_interval = interval(Duration::from_secs(idle_proxy_heartbeat_interval));
             loop {
                 heartbeat_interval.tick().await;
-                if let Err(e) = Self::feed_connections(
-                    configuration.clone(),
-                    idle_connections.clone(),
-                    proxy_addresses.clone(),
-                    rsa_crypto_fetcher.clone(),
-                )
-                .await
-                {
-                    error!("Error happen when feed proxy connection: {e:?}");
-                    continue;
-                };
                 let (tx, mut rx) = channel::<ProxyConnection>(proxy_connection_pool_size);
                 let mut idle_connections = idle_connections.lock().await;
                 while let Some(idle_connection) = idle_connections.pop() {
@@ -343,20 +334,15 @@ impl ProxyConnectionPool {
         })
     }
 
-    async fn feed_connections(
-        configuration: Arc<AgentServerConfig>, connections: Arc<Mutex<Vec<ProxyConnection>>>, proxy_addresses: Vec<SocketAddr>,
-        rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
-    ) -> Result<()> {
+    async fn prepare_connections(
+        configuration: Arc<AgentServerConfig>, proxy_addresses: Vec<SocketAddr>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
+    ) -> Result<Vec<ProxyConnection>> {
         debug!("Begin to feed proxy connections");
         let proxy_connection_pool_size = configuration.get_proxy_connection_pool_size();
         let message_framed_buffer_size = configuration.get_message_framed_buffer_size();
-        let mut connections = connections.lock().await;
-        let current_connection_len = connections.len();
-        if current_connection_len >= proxy_connection_pool_size {
-            return Ok(());
-        }
+
         let (tx, mut rx) = channel::<ProxyConnection>(proxy_connection_pool_size);
-        for _ in current_connection_len..proxy_connection_pool_size {
+        for _ in 0..proxy_connection_pool_size {
             let configuration = configuration.clone();
             let rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
             let tx = tx.clone();
@@ -392,6 +378,7 @@ impl ProxyConnectionPool {
             });
         }
         drop(tx);
+        let mut connections = Vec::new();
         loop {
             let connection = rx.recv().await;
             match connection {
@@ -402,38 +389,23 @@ impl ProxyConnectionPool {
             }
         }
 
-        Ok(())
+        Ok(connections)
     }
 
     pub(crate) async fn take_connection(&self) -> Result<ProxyConnection> {
-        let proxy_connection_pool_size = self.configuration.get_proxy_connection_pool_size();
         loop {
             let proxy_addresses = self.proxy_addresses.clone();
-            let mut connections_lock = self.idle_connections.lock().await;
-            let connection = connections_lock.pop();
+            let mut connections = self.idle_connections.lock().await;
+            let connection = connections.pop();
             match connection {
                 Some(connection) => {
-                    let current_connections_number = connections_lock.len();
-                    debug!("Success to take connection from pool, remaining idle connection number: {current_connections_number}");
-                    if current_connections_number < (proxy_connection_pool_size / 2) {
-                        info!("Proxy connection do not have enough proxy connection, start to feed: {current_connections_number}");
-                        tokio::spawn(Self::feed_connections(
-                            self.configuration.clone(),
-                            self.idle_connections.clone(),
-                            proxy_addresses,
-                            self.rsa_crypto_fetcher.clone(),
-                        ));
-                    }
                     return Ok(connection);
                 },
                 None => {
-                    drop(connections_lock);
-                    tokio::spawn(Self::feed_connections(
-                        self.configuration.clone(),
-                        self.idle_connections.clone(),
-                        proxy_addresses,
-                        self.rsa_crypto_fetcher.clone(),
-                    ));
+                    let prepared_connections = Self::prepare_connections(self.configuration.clone(), proxy_addresses, self.rsa_crypto_fetcher.clone()).await?;
+                    prepared_connections.into_iter().for_each(|element| {
+                        connections.push(element);
+                    });
                 },
             }
         }
