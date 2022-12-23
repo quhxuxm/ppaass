@@ -24,7 +24,6 @@ pub struct AgentServerConfig {
     idle_proxy_heartbeat_interval: Option<u64>,
     client_connection_accept_timeout: Option<u64>,
     connect_to_proxy_timeout: Option<u64>,
-    client_read_timeout: Option<u64>,
     client_io_buffer_size: Option<usize>,
     max_client_connection_number: Option<usize>,
 }
@@ -97,9 +96,6 @@ impl AgentServerConfig {
     }
     pub fn get_client_connection_accept_timeout(&self) -> u64 {
         self.client_connection_accept_timeout.unwrap_or(5)
-    }
-    pub fn get_client_read_timeout(&self) -> u64 {
-        self.client_read_timeout.unwrap_or(5)
     }
 
     pub fn get_client_io_buffer_size(&self) -> usize {

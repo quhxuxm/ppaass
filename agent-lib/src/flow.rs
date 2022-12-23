@@ -112,20 +112,13 @@ where
                 };
             }
             loop {
-                let client_message = match timeout(Duration::from_secs(configuration.get_client_read_timeout()), client_io_read.next()).await {
-                    Err(_) => {
-                        error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to read from client because of timeout");
-                        return Err(anyhow::anyhow!(format!(
-                            "Client tcp connection [{}] for tcp loop [{}] fail to read from client because of timeout",
-                            client_socket_address, tcp_loop_key_a2p
-                        )));
-                    },
-                    Ok(None) => {
+                let client_message = match client_io_read.next().await {
+                    None => {
                         debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] complete to relay from client to proxy.");
                         break;
                     },
-                    Ok(Some(Ok(client_message))) => client_message,
-                    Ok(Some(Err(e))) => {
+                    Some(Ok(client_message)) => client_message,
+                    Some(Err(e)) => {
                         error!(
                             "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to read from client because of error: {e:?}"
                         );

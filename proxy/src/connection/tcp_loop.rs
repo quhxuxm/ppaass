@@ -1,30 +1,28 @@
-use crate::{common::ProxyServerPayloadEncryptionSelector, config::ProxyServerConfig};
-use anyhow::{Context, Result};
-
-use bytes::BytesMut;
-use futures::{
-    stream::{SplitSink, SplitStream},
-    StreamExt,
-};
-
-use futures_util::SinkExt;
-use ppaass_common::{generate_uuid, PpaassMessageParts, RsaCryptoFetcher};
-use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
-use tokio_util::codec::{BytesCodec, Framed};
-
 use std::{
     net::{SocketAddr, ToSocketAddrs},
     sync::Arc,
     time::Duration,
 };
 
+use anyhow::{Context, Result};
+use bytes::BytesMut;
+use futures::{
+    stream::{SplitSink, SplitStream},
+    StreamExt,
+};
+use futures_util::{try_join, SinkExt};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpStream,
 };
 use tokio::{task::JoinHandle, time::timeout};
-
+use tokio_util::codec::{BytesCodec, Framed};
 use tracing::{debug, error, trace};
+
+use ppaass_common::{generate_uuid, PpaassMessageParts, RsaCryptoFetcher};
+use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
+
+use crate::{common::ProxyServerPayloadEncryptionSelector, config::ProxyServerConfig};
 
 use super::{AgentConnectionRead, AgentConnectionWrite};
 
@@ -192,7 +190,7 @@ where
     }
     fn start_dest_to_agent_relay(
         agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_connection_write: AgentConnectionWrite<T, R>,
-        mut dest_io_read: SplitStream<Framed<TcpStream, BytesCodec>>, user_token: impl AsRef<str>, configuration: Arc<ProxyServerConfig>,
+        mut dest_io_read: SplitStream<Framed<TcpStream, BytesCodec>>, user_token: impl AsRef<str>,
     ) -> JoinHandle<Result<()>> {
         let user_token = user_token.as_ref().to_owned();
         let key = tcp_loop_key.as_ref().to_owned();
@@ -287,40 +285,15 @@ where
         let user_token = self.user_token;
         let key = self.key;
         let agent_connection_id = self.agent_connection_id;
-        let mut dest_to_agent_relay_guard = Self::start_dest_to_agent_relay(
-            agent_connection_id.clone(),
-            key.clone(),
-            agent_connection_write,
-            dest_io_read,
-            &user_token,
-            self.configuration.clone(),
-        );
+        let mut dest_to_agent_relay_guard =
+            Self::start_dest_to_agent_relay(agent_connection_id.clone(), key.clone(), agent_connection_write, dest_io_read, &user_token);
         let mut agent_to_dest_relay_guard = Self::start_agent_to_dest_relay(agent_connection_id.clone(), key.clone(), agent_connection_read, dest_io_write);
-
-        match tokio::try_join!(&mut dest_to_agent_relay_guard, &mut agent_to_dest_relay_guard) {
-            Ok((Err(e), _)) => {
-                dest_to_agent_relay_guard.abort();
-                agent_to_dest_relay_guard.abort();
-
-                error!("Agent connection [{agent_connection_id}] for tcp loop [{key}] fail to do relay process because of error: {e:?}");
-                Err(e)
-            },
-            Ok((_, Err(e))) => {
-                dest_to_agent_relay_guard.abort();
-                agent_to_dest_relay_guard.abort();
-                error!("Agent connection [{agent_connection_id}] for tcp loop [{key}] fail to do relay process because of error: {e:?}");
-                Err(e)
-            },
-            Ok((Ok(()), Ok(()))) => {
-                debug!("Agent connection [{agent_connection_id}] for tcp loop [{key}] complete relay process.");
-                Ok(())
-            },
-            Err(e) => {
-                dest_to_agent_relay_guard.abort();
-                agent_to_dest_relay_guard.abort();
-                error!("Agent connection [{agent_connection_id}] for tcp loop [{key}] fail to do relay process because of error: {e:?}");
-                Err(anyhow::anyhow!(e))
-            },
-        }
+        if let Err(e) = try_join!(&mut dest_to_agent_relay_guard, &mut agent_to_dest_relay_guard) {
+            dest_to_agent_relay_guard.abort();
+            agent_to_dest_relay_guard.abort();
+            error!("Agent connection [{agent_connection_id}] for tcp loop [{key}] fail to do relay process because of error: {e:?}");
+            return Err(anyhow::anyhow!(e));
+        };
+        Ok(())
     }
 }
