@@ -201,19 +201,13 @@ where
             debug!("Agent connection [{agent_connection_id}] with tcp loop [{key}] start to relay destination data to agent.");
             let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
             loop {
-                let dest_message = match timeout(Duration::from_secs(configuration.get_dest_read_timeout()), dest_io_read.next()).await {
-                    Err(_) => {
-                        error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to read destination data because of timeout");
-                        return Err(anyhow::anyhow!(
-                            "Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to read destination data because of timeout"
-                        ));
-                    },
-                    Ok(None) => {
+                let dest_message = match dest_io_read.next().await {
+                    None => {
                         debug!("Agent connection [{agent_connection_id}] with tcp loop [{key}] complete to relay destination data to agent.");
                         break;
                     },
-                    Ok(Some(Ok(dest_message))) => dest_message,
-                    Ok(Some(Err(e))) => {
+                    Some(Ok(dest_message)) => dest_message,
+                    Some(Err(e)) => {
                         error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to read destination data because of error: {e:?}");
                         return Err(anyhow::anyhow!(e));
                     },

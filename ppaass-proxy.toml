@@ -2,7 +2,6 @@ agent_connection_accept_timeout = 20
 compress = false
 dest_connect_timeout = 20
 dest_io_buffer_size = 524288
-dest_read_timeout = 120
 ipv6 = false
 max_agent_connection_number = 2048
 message_framed_buffer_size = 524288
