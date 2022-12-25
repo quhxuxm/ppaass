@@ -110,7 +110,13 @@ where
         let agent_connection_read = self
             .agent_connection_read
             .context("Agent message framed read not assigned for tcp loop builder")?;
-        let dest_socket_address = dest_address.to_socket_addrs().context("Convert destination address to socket address")?;
+        let dest_socket_address = match dest_address.to_socket_addrs() {
+            Ok(v) => v,
+            Err(e) => {
+                error!("Fail to convert dest address [{dest_address}] to valid socket address because of error:{e:?}");
+                return Err(anyhow::anyhow!(e));
+            },
+        };
         let dest_socket_address = dest_socket_address.collect::<Vec<SocketAddr>>();
         let dest_io = match timeout(
             Duration::from_secs(configuration.get_dest_connect_timeout()),
