@@ -1,5 +1,5 @@
 agent_connection_accept_timeout = 20
-compress = false
+compress = true
 dest_connect_timeout = 20
 dest_io_buffer_size = 524288
 ipv6 = false

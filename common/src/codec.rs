@@ -1,5 +1,6 @@
 use std::{
     fmt::{Debug, Formatter},
+    io::{Read, Write},
     mem::size_of,
     sync::Arc,
 };
@@ -8,7 +9,7 @@ use crate::{decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_w
 use crate::{PpaassMessage, PpaassMessageParts, PpaassMessagePayloadEncryption};
 use anyhow::Context;
 use bytes::{Buf, BufMut, BytesMut};
-use lz4::block::{compress, decompress};
+use lz4::{Decoder as Lz4Decoder, EncoderBuilder as Lz4EncoderBuilder};
 use pretty_hex::*;
 
 use tokio_util::codec::{Decoder, Encoder};
@@ -98,18 +99,18 @@ where
         trace!("Input message body bytes(compressed={body_is_compressed}):\n\n{}\n\n", pretty_hex(&body_bytes));
         let encrypted_message: PpaassMessage = if body_is_compressed {
             trace!("Input message body is compressed.");
-            let decompress_result = match decompress(body_bytes.chunk(), None) {
-                Ok(v) => v,
-                Err(e) => {
-                    error!("Fail to decompress incoming message bytes because of error: {e:?}");
-                    return Err(anyhow::anyhow!(e));
-                },
+            let mut lz4_decoder = Lz4Decoder::new(body_bytes.chunk())?;
+            let mut decompressed_bytes = Vec::new();
+            if let Err(e) = lz4_decoder.read_to_end(&mut decompressed_bytes) {
+                error!("Fail to decompress incoming message bytes because of error: {e:?}");
+                return Err(anyhow::anyhow!(e));
             };
             trace!(
                 "Decompressed bytes will convert to PpaassMessage:\n{}\n",
-                pretty_hex::pretty_hex(&decompress_result)
+                pretty_hex::pretty_hex(&decompressed_bytes)
             );
-            match decompress_result.try_into() {
+            let decompressed_bytes = decompressed_bytes.to_vec();
+            match decompressed_bytes.try_into() {
                 Ok(v) => v,
                 Err(e) => {
                     error!("Fail to convert decompressed bytes to PpaassMessage because of error: {e:?}");
@@ -219,7 +220,17 @@ where
         let message_to_encode: PpaassMessage = message_parts_to_encode.into();
         let result_bytes: Vec<u8> = message_to_encode.try_into().context("Fail to encode message object to bytes")?;
         let result_bytes = if self.compress {
-            compress(&result_bytes, None, true)?
+            let mut encoder = Lz4EncoderBuilder::new().level(4).build(Vec::new())?;
+            if let Err(e) = encoder.write_all(&result_bytes) {
+                error!("Fail to do lz4 compress because of error: {e:?}");
+                return Err(anyhow::anyhow!(e));
+            }
+            let (encoded_result_bytes, result) = encoder.finish();
+            if let Err(e) = result {
+                error!("Fail to do lz4 compress because of error: {e:?}");
+                return Err(anyhow::anyhow!(e));
+            }
+            encoded_result_bytes
         } else {
             result_bytes
         };
