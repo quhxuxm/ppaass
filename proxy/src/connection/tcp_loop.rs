@@ -125,7 +125,7 @@ where
         .await
         {
             Err(_) => {
-                error!("Agent connection [{agent_connection_id}] fail connect to dest address because of timeout.");
+                error!("Agent connection [{agent_connection_id}] fail connect to dest address [{dest_address}] because of timeout.");
                 let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
                 let tcp_initialize_fail_message =
                     PpaassMessageGenerator::generate_tcp_loop_init_fail_response(&key, &user_token, src_address, dest_address, payload_encryption_token)?;
@@ -138,7 +138,7 @@ where
             },
             Ok(Ok(stream)) => stream,
             Ok(Err(e)) => {
-                error!("Agent connection [{agent_connection_id}] fail connect to dest address because of error: {e:?}");
+                error!("Agent connection [{agent_connection_id}] fail connect to dest address [{dest_address}] because of error: {e:?}");
                 let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
                 let tcp_initialize_fail_message =
                     PpaassMessageGenerator::generate_tcp_loop_init_fail_response(&key, &user_token, src_address, dest_address, payload_encryption_token)?;
