@@ -1,11 +1,15 @@
 pub(crate) mod dispatcher;
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, pin::Pin, sync::Arc, task::Poll};
 
 use anyhow::Result;
 
 use bytes::BytesMut;
-use futures::{try_join, SinkExt, StreamExt};
+use futures::{
+    stream::{SplitSink, SplitStream},
+    try_join, Sink, SinkExt, Stream, StreamExt,
+};
+use pin_project::{pin_project, pinned_drop};
 use ppaass_common::{PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryption};
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -95,7 +99,11 @@ where
         let user_token = info.user_token;
         let mut proxy_connection_read = info.proxy_connection_read;
         let client_io_framed = Framed::with_capacity(client_io, BytesCodec::new(), configuration.get_client_io_buffer_size());
-        let (mut client_io_write, mut client_io_read) = client_io_framed.split::<BytesMut>();
+        let (client_io_write, client_io_read) = client_io_framed.split::<BytesMut>();
+        let (mut client_io_write, mut client_io_read) = (
+            ClientConnectionWrite::new(client_socket_address, tcp_loop_key.clone(), client_io_write),
+            ClientConnectionRead::new(client_socket_address, tcp_loop_key.clone(), client_io_read),
+        );
         let tcp_loop_key_a2p = tcp_loop_key.clone();
         let init_data = info.init_data;
 
@@ -108,27 +116,22 @@ where
                     return Err(anyhow::anyhow!(e));
                 };
             }
-            loop {
-                let client_message = match client_io_read.next().await {
-                    None => {
-                        debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] complete to relay from client to proxy.");
-                        break;
-                    },
-                    Some(Ok(client_message)) => client_message,
-                    Some(Err(e)) => {
+            while let Some(client_message) = client_io_read.next().await {
+                let client_message = match client_message {
+                    Ok(client_message) => client_message,
+                    Err(e) => {
                         error!(
                             "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to read from client because of error: {e:?}"
                         );
                         return Err(anyhow::anyhow!(e));
                     },
                 };
-
                 trace!(
                     "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] read client data:\n{}\n",
                     pretty_hex::pretty_hex(&client_message)
                 );
-                let agent_message = PpaassMessageGenerator::generate_raw_data(&user_token, payload_encryption.clone(), client_message.to_vec())?;
-                if let Err(e) = proxy_connection_write.send(agent_message).await {
+                let agent_raw_date_message = PpaassMessageGenerator::generate_raw_data(&user_token, payload_encryption.clone(), client_message.to_vec())?;
+                if let Err(e) = proxy_connection_write.send(agent_raw_date_message).await {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to relay client data to proxy because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
                 };
@@ -143,11 +146,6 @@ where
             while let Some(proxy_message) = proxy_connection_read.next().await {
                 if let Err(e) = proxy_message {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to read from proxy because of error: {e:?}");
-                    if let Err(e) = client_io_write.close().await {
-                        error!(
-                            "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to shutdown client io because of error: {e:?}"
-                        );
-                    }
                     return Err(e);
                 }
                 let proxy_message = proxy_message.expect("Should not panic when read proxy message");
@@ -161,20 +159,10 @@ where
                 );
                 if let Err(e) = client_io_write.send(BytesMut::from_iter(proxy_message_payload_bytes)).await {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to relay to proxy because of error: {e:?}");
-                    if let Err(e) = client_io_write.close().await {
-                        error!(
-                            "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to shutdown client io because of error: {e:?}"
-                        );
-                    }
                     return Err(anyhow::anyhow!(e));
                 };
             }
             debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] complete to relay from proxy to agent.");
-            if let Err(e) = client_io_write.close().await {
-                error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to shutdown client io because of error: {e:?}");
-                return Err(anyhow::anyhow!(e));
-            };
-
             Ok::<_, anyhow::Error>(())
         });
         if let Err(e) = try_join!(&mut client_to_proxy_relay_guard, &mut proxy_to_client_relay_guard) {
@@ -183,5 +171,160 @@ where
             error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key}] fail to do relay process because of error: {e:?}",);
         };
         Ok(())
+    }
+}
+
+#[pin_project(PinnedDrop)]
+struct ClientConnectionWrite<T>
+where
+    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
+{
+    client_socket_address: SocketAddr,
+    tcp_loop_key: String,
+    #[pin]
+    client_bytes_framed_write: Option<SplitSink<Framed<T, BytesCodec>, BytesMut>>,
+}
+
+impl<T> ClientConnectionWrite<T>
+where
+    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
+{
+    fn new(client_socket_address: SocketAddr, tcp_loop_key: String, client_bytes_framed_write: SplitSink<Framed<T, BytesCodec>, BytesMut>) -> Self {
+        Self {
+            client_socket_address,
+            tcp_loop_key,
+            client_bytes_framed_write: Some(client_bytes_framed_write),
+        }
+    }
+}
+
+#[pinned_drop]
+impl<T> PinnedDrop for ClientConnectionWrite<T>
+where
+    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
+{
+    fn drop(self: Pin<&mut Self>) {
+        let mut this = self.project();
+        let client_socket_address = *this.client_socket_address;
+        let tcp_loop_key = this.tcp_loop_key.clone();
+        if let Some(mut client_bytes_framed_write) = this.client_bytes_framed_write.take() {
+            tokio::spawn(async move {
+                debug!("Client connection {client_socket_address} with tcp loop key {tcp_loop_key} drop dest connection write.");
+                if let Err(e) = client_bytes_framed_write.close().await {
+                    error!("Client connection {client_socket_address} with tcp loop key {tcp_loop_key}, error happen on drop dest connection write: {e:?}")
+                }
+            });
+        };
+    }
+}
+
+impl<T> Sink<BytesMut> for ClientConnectionWrite<T>
+where
+    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
+{
+    type Error = anyhow::Error;
+
+    fn poll_ready(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        let this = self.project();
+        if let Some(client_bytes_framed_write) = this.client_bytes_framed_write.as_pin_mut() {
+            match client_bytes_framed_write.poll_ready(cx) {
+                Poll::Ready(value) => return Poll::Ready(value.map_err(|e| anyhow::anyhow!(e))),
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+        return Poll::Ready(Err(anyhow::anyhow!("Client bytes framed write not exist")));
+    }
+
+    fn start_send(self: Pin<&mut Self>, item: BytesMut) -> Result<(), Self::Error> {
+        let this = self.project();
+        if let Some(client_bytes_framed_write) = this.client_bytes_framed_write.as_pin_mut() {
+            return client_bytes_framed_write.start_send(item).map_err(|e| anyhow::anyhow!(e));
+        }
+        return Err(anyhow::anyhow!("Client bytes framed write not exist"));
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        let this = self.project();
+        if let Some(client_bytes_framed_write) = this.client_bytes_framed_write.as_pin_mut() {
+            match client_bytes_framed_write.poll_flush(cx) {
+                Poll::Ready(value) => return Poll::Ready(value.map_err(|e| anyhow::anyhow!(e))),
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+        return Poll::Ready(Err(anyhow::anyhow!("Client bytes framed write not exist")));
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        let this = self.project();
+        if let Some(client_bytes_framed_write) = this.client_bytes_framed_write.as_pin_mut() {
+            match client_bytes_framed_write.poll_close(cx) {
+                Poll::Ready(value) => return Poll::Ready(value.map_err(|e| anyhow::anyhow!(e))),
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+        return Poll::Ready(Err(anyhow::anyhow!("Client bytes framed write not exist")));
+    }
+}
+
+#[pin_project(PinnedDrop)]
+struct ClientConnectionRead<T>
+where
+    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
+{
+    client_socket_address: SocketAddr,
+    tcp_loop_key: String,
+    #[pin]
+    client_bytes_framed_read: Option<SplitStream<Framed<T, BytesCodec>>>,
+}
+
+impl<T> ClientConnectionRead<T>
+where
+    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
+{
+    fn new(client_socket_address: SocketAddr, tcp_loop_key: String, client_bytes_framed_read: SplitStream<Framed<T, BytesCodec>>) -> Self {
+        Self {
+            client_socket_address,
+            tcp_loop_key,
+            client_bytes_framed_read: Some(client_bytes_framed_read),
+        }
+    }
+}
+
+#[pinned_drop]
+impl<T> PinnedDrop for ClientConnectionRead<T>
+where
+    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
+{
+    fn drop(self: Pin<&mut Self>) {
+        let mut this = self.project();
+        let client_socket_address = *this.client_socket_address;
+        let tcp_loop_key = this.tcp_loop_key.clone();
+        if let Some(client_bytes_framed_read) = this.client_bytes_framed_read.take() {
+            tokio::spawn(async move {
+                debug!("Client connection {client_socket_address} with tcp loop key {tcp_loop_key} drop dest connection read.");
+                drop(client_bytes_framed_read)
+            });
+        };
+    }
+}
+
+impl<T> Stream for ClientConnectionRead<T>
+where
+    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
+{
+    type Item = Result<BytesMut, anyhow::Error>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.project();
+        if let Some(client_bytes_framed_read) = this.client_bytes_framed_read.as_pin_mut() {
+            return match client_bytes_framed_read.poll_next(cx) {
+                Poll::Ready(value) => match value {
+                    None => Poll::Ready(None),
+                    Some(value) => Poll::Ready(Some(value.map_err(|e| anyhow::anyhow!(e)))),
+                },
+                Poll::Pending => Poll::Pending,
+            };
+        }
+        Poll::Ready(None)
     }
 }
