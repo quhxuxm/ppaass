@@ -220,7 +220,7 @@ where
         let message_to_encode: PpaassMessage = message_parts_to_encode.into();
         let result_bytes: Vec<u8> = message_to_encode.try_into().context("Fail to encode message object to bytes")?;
         let result_bytes = if self.compress {
-            let mut encoder = Lz4EncoderBuilder::new().level(4).build(Vec::new())?;
+            let mut encoder = Lz4EncoderBuilder::new().level(17).build(Vec::new())?;
             if let Err(e) = encoder.write_all(&result_bytes) {
                 error!("Fail to do lz4 compress because of error: {e:?}");
                 return Err(anyhow::anyhow!(e));
