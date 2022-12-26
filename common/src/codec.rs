@@ -222,14 +222,14 @@ where
         let result_bytes = if self.compress {
             let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::fast());
             if let Err(e) = gzip_encoder.write_all(&result_bytes) {
-                error!("Fail to do lz4 compress because of error: {e:?}");
+                error!("Fail to do gzip compress because of error: {e:?}");
                 return Err(anyhow::anyhow!(e));
             }
 
             let compressed_result_bytes = match gzip_encoder.finish() {
                 Ok(v) => v,
                 Err(e) => {
-                    error!("Fail to do lz4 compress because of error: {e:?}");
+                    error!("Fail to do gzip compress because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
                 },
             };
