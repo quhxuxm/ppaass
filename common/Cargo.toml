@@ -14,9 +14,9 @@ bytes = {workspace = true}
 chrono = {workspace = true}
 cipher = {workspace = true}
 ecb = {workspace = true}
+flate2 = {workspace = true}
 futures = {workspace = true}
 futures-util = {workspace = true, features = ["alloc"]}
-lz4 = {workspace = true}
 pretty-hex = {workspace = true}
 rand = {workspace = true}
 rsa = {workspace = true}

@@ -9,7 +9,8 @@ use crate::{decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_w
 use crate::{PpaassMessage, PpaassMessageParts, PpaassMessagePayloadEncryption};
 use anyhow::Context;
 use bytes::{Buf, BufMut, BytesMut};
-use lz4::{Decoder as Lz4Decoder, EncoderBuilder as Lz4EncoderBuilder};
+
+use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use pretty_hex::*;
 
 use tokio_util::codec::{Decoder, Encoder};
@@ -98,10 +99,9 @@ where
         let body_bytes = src.split_to(body_length as usize);
         trace!("Input message body bytes(compressed={body_is_compressed}):\n\n{}\n\n", pretty_hex(&body_bytes));
         let encrypted_message: PpaassMessage = if body_is_compressed {
-            trace!("Input message body is compressed.");
-            let mut lz4_decoder = Lz4Decoder::new(body_bytes.chunk())?;
+            let mut gzip_decoder = GzDecoder::new(body_bytes.chunk());
             let mut decompressed_bytes = Vec::new();
-            if let Err(e) = lz4_decoder.read_to_end(&mut decompressed_bytes) {
+            if let Err(e) = gzip_decoder.read_to_end(&mut decompressed_bytes) {
                 error!("Fail to decompress incoming message bytes because of error: {e:?}");
                 return Err(anyhow::anyhow!(e));
             };
@@ -220,17 +220,21 @@ where
         let message_to_encode: PpaassMessage = message_parts_to_encode.into();
         let result_bytes: Vec<u8> = message_to_encode.try_into().context("Fail to encode message object to bytes")?;
         let result_bytes = if self.compress {
-            let mut encoder = Lz4EncoderBuilder::new().level(17).build(Vec::new())?;
-            if let Err(e) = encoder.write_all(&result_bytes) {
+            let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::fast());
+            if let Err(e) = gzip_encoder.write_all(&result_bytes) {
                 error!("Fail to do lz4 compress because of error: {e:?}");
                 return Err(anyhow::anyhow!(e));
             }
-            let (encoded_result_bytes, result) = encoder.finish();
-            if let Err(e) = result {
-                error!("Fail to do lz4 compress because of error: {e:?}");
-                return Err(anyhow::anyhow!(e));
-            }
-            encoded_result_bytes
+
+            let compressed_result_bytes = match gzip_encoder.finish() {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("Fail to do lz4 compress because of error: {e:?}");
+                    return Err(anyhow::anyhow!(e));
+                },
+            };
+
+            compressed_result_bytes
         } else {
             result_bytes
         };
