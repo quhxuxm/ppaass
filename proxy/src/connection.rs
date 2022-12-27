@@ -34,7 +34,8 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
     id: String,
-    agent_message_framed: Option<Framed<T, PpaassMessageCodec<R>>>,
+    read: AgentConnectionRead<T, R>,
+    write: AgentConnectionWrite<T, R>,
     agent_address: PpaassNetAddress,
     configuration: Arc<ProxyServerConfig>,
 }
@@ -47,53 +48,27 @@ where
     pub(crate) fn new(agent_io: T, agent_address: PpaassNetAddress, configuration: Arc<ProxyServerConfig>, rsa_crypto_fetcher: Arc<R>) -> Self {
         let agent_message_codec = PpaassMessageCodec::new(configuration.get_compress(), rsa_crypto_fetcher);
         let agent_message_framed = Framed::with_capacity(agent_io, agent_message_codec, configuration.get_message_framed_buffer_size());
+        let (agent_message_framed_write, agent_message_framed_read) = agent_message_framed.split();
+        let id = generate_uuid();
+        let read = AgentConnectionRead::new(id.clone(), configuration.clone(), agent_address.clone(), agent_message_framed_read);
+        let write = AgentConnectionWrite::new(id.clone(), configuration.clone(), agent_address.clone(), agent_message_framed_write);
         Self {
-            id: generate_uuid(),
-            agent_message_framed: Some(agent_message_framed),
+            id,
+            read,
+            write,
             agent_address,
             configuration,
         }
     }
 
-    pub(crate) fn split(mut self) -> Result<(AgentConnectionRead<T, R>, AgentConnectionWrite<T, R>)> {
-        let agent_message_framed = self.agent_message_framed.take();
-        let connection_id_for_read = self.id.to_owned();
-        let connection_id_for_write = self.id.to_owned();
-        let agent_address_for_read = self.agent_address;
-        let agent_address_for_write = agent_address_for_read.clone();
-        let configuration_for_read = self.configuration.clone();
-        let configuration_for_write = self.configuration.clone();
-        match agent_message_framed {
-            Some(agent_message_framed) => {
-                let (agent_message_framed_write, agent_message_framed_read) = agent_message_framed.split();
-                Ok((
-                    AgentConnectionRead::new(
-                        connection_id_for_read,
-                        configuration_for_read,
-                        agent_address_for_read,
-                        agent_message_framed_read,
-                    ),
-                    AgentConnectionWrite::new(
-                        connection_id_for_write,
-                        configuration_for_write,
-                        agent_address_for_write,
-                        agent_message_framed_write,
-                    ),
-                ))
-            },
-            None => Err(anyhow::anyhow!("Agent connection [{}] agent message framed not exist.", self.id)),
-        }
-    }
-
-    pub(crate) async fn exec(self) -> Result<()> {
+    pub(crate) async fn exec(mut self) -> Result<()> {
         let connection_id = self.id.clone();
         let agent_address = self.agent_address.clone();
         let configuration = self.configuration.clone();
         debug!("Agent connection [{connection_id}] associated with agent address: {agent_address:?}");
 
-        let (mut agent_connection_read, mut agent_connection_write) = self.split()?;
         loop {
-            let agent_message = agent_connection_read.next().await;
+            let agent_message = self.read.next().await;
             let Some(agent_message) = agent_message else {
                 error!("Agent connection [{connection_id}] closed in agent side, close the proxy side also.");
                 return Ok(());
@@ -113,14 +88,14 @@ where
 
             match payload_type {
                 PpaassMessageAgentPayloadType::IdleHeartbeat => {
-                    if let Err(e) = handle_idle_heartbeat(agent_address.clone(), user_token, agent_message_payload_data, &mut agent_connection_write).await {
+                    if let Err(e) = handle_idle_heartbeat(agent_address.clone(), user_token, agent_message_payload_data, &mut self.write).await {
                         error!("Agent connection [{connection_id}] fail to handle idle heartbeat because of error: {e:?}");
                         continue;
                     };
                     continue;
                 },
                 PpaassMessageAgentPayloadType::DomainNameResolve => {
-                    if let Err(e) = handle_domain_name_resolve(user_token, agent_message_payload_data, &mut agent_connection_write).await {
+                    if let Err(e) = handle_domain_name_resolve(user_token, agent_message_payload_data, &mut self.write).await {
                         error!("Agent connection [{connection_id}] fail to handle domain resolve because of error: {e:?}");
                         continue;
                     };
@@ -136,11 +111,13 @@ where
                     };
                     let src_address = tcp_loop_init_request.src_address;
                     let dest_address = tcp_loop_init_request.dest_address;
+                    let read = self.read;
+                    let write = self.write;
                     let tcp_loop_builder = TcpLoopBuilder::new()
                         .agent_address(agent_address)
                         .agent_connection_id(&connection_id)
-                        .agent_connection_write(agent_connection_write)
-                        .agent_connection_read(agent_connection_read)
+                        .agent_connection_write(write)
+                        .agent_connection_read(read)
                         .user_token(user_token)
                         .src_address(src_address)
                         .dest_address(dest_address);
