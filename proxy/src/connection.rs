@@ -319,13 +319,20 @@ where
         src_address,
         dest_address,
     } = agent_message_payload_data.try_into()?;
-    let domain_name_for_error = domain_name.clone();
-    let src_address_for_error = src_address.clone();
-    let dest_address_for_error = dest_address.clone();
-    if let Err(_e) = timeout(Duration::from_secs(configurtion.get_domain_name_resolve_tomeout()), async move {
-        trace!("Receive agent domain resolve message, request id: {request_id}, domain name: {domain_name}");
+    let domain_name_clone = domain_name.clone();
+    let request_id_clone = request_id.clone();
+    let user_token_clone = user_token.clone();
+    let src_address_clone = src_address.clone();
+    let dest_address_clone = dest_address.clone();
+
+    let resolve_domain_name_result = timeout(Duration::from_secs(configurtion.get_domain_name_resolve_tomeout()), async move {
+        let domain_name = domain_name_clone;
+        let request_id = request_id_clone;
+        let src_address = src_address_clone;
+        let dest_address = dest_address_clone;
+        let user_token = user_token_clone;
         let resolved_ip_addresses = match dns_lookup::lookup_host(&domain_name) {
-            Ok(v) => v,
+            Ok(resolved_ip_addresses) => resolved_ip_addresses,
             Err(e) => {
                 error!("Fail to resolve domain name because of error: {e:?}");
                 let domain_resolve_fail_response_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
@@ -337,35 +344,47 @@ where
                     dest_address,
                     domain_resolve_fail_response_encryption,
                 )?;
-                agent_connection_write.send(domain_resolve_fail_response).await?;
+                if let Err(e) = agent_connection_write.send(domain_resolve_fail_response).await {
+                    error!("Fail to write resolve domain name faile response to agent because of error: {e:?}");
+                };
                 return Err(anyhow::anyhow!(e));
             },
         };
-        debug!("Success resolve domain to ip addresses, request id: {request_id}, domain name:{domain_name}, resolved ip addresses: {resolved_ip_addresses:?}");
-        let resolved_ip_addresses = resolved_ip_addresses
-            .into_iter()
-            .filter_map(|v| match v {
-                IpAddr::V4(ipv4_addr) => Some(ipv4_addr.octets()),
-                IpAddr::V6(_) => None,
-            })
-            .collect::<Vec<[u8; 4]>>();
-        let domain_resolve_success_response_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-        let domain_resolve_success_response = PpaassMessageGenerator::generate_domain_resolve_success_response(
-            user_token,
-            request_id,
-            domain_name,
-            resolved_ip_addresses,
-            src_address,
-            dest_address,
-            domain_resolve_success_response_encryption,
-        )?;
-        agent_connection_write.send(domain_resolve_success_response).await?;
-        Ok(())
+        Ok((resolved_ip_addresses, agent_connection_write))
     })
-    .await
-    {
-        error!("Fail to resolve domain name because of timeout, domain name: {domain_name_for_error}, source address: {src_address_for_error}, destination address: {dest_address_for_error}.");
-        return Err(anyhow::anyhow!(format!("Fail to resolve domain name because of timeout, domain name: {domain_name_for_error}, source address: {src_address_for_error}, destination address: {dest_address_for_error}.")));
-    };
-    Ok(())
+    .await;
+    match resolve_domain_name_result {
+        Err(_e) => {
+            error!("Fail to resolve domain name because of timeout, domain name: {domain_name}, source address: {src_address}, destination address: {dest_address}.");
+            Err(anyhow::anyhow!(format!("Fail to resolve domain name because of timeout, domain name: {domain_name}, source address: {src_address}, destination address: {dest_address}.")))
+        },
+        Ok(Err(e)) => Err(e),
+        Ok(Ok((resolved_ip_addresses, agent_connection_write))) => {
+            debug!(
+                "Success resolve domain to ip addresses, request id: {request_id}, domain name:{domain_name}, resolved ip addresses: {resolved_ip_addresses:?}"
+            );
+            let resolved_ip_addresses = resolved_ip_addresses
+                .into_iter()
+                .filter_map(|v| match v {
+                    IpAddr::V4(ipv4_addr) => Some(ipv4_addr.octets()),
+                    IpAddr::V6(_) => None,
+                })
+                .collect::<Vec<[u8; 4]>>();
+            let domain_resolve_success_response_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
+            let domain_resolve_success_response = PpaassMessageGenerator::generate_domain_resolve_success_response(
+                user_token,
+                request_id,
+                domain_name,
+                resolved_ip_addresses,
+                src_address,
+                dest_address,
+                domain_resolve_success_response_encryption,
+            )?;
+            if let Err(e) = agent_connection_write.send(domain_resolve_success_response).await {
+                error!("Fail to write resolve domain name success response to agent because of error: {e:?}");
+                return Err(e);
+            };
+            Ok(())
+        },
+    }
 }
