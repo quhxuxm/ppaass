@@ -1,5 +1,7 @@
 #Prepare base env
 export RUSTUP_INIT_SKIP_PATH_CHECK=yes
+ulimit -n 409600
+
 sudo apt update
 sudo apt upgrade -y
 sudo apt install gcc -y
