@@ -98,7 +98,7 @@ where
                     continue;
                 },
                 PpaassMessageAgentPayloadType::DomainNameResolve => {
-                    if let Err(e) = handle_domain_name_resolve(user_token, agent_message_payload_data, &mut self.write).await {
+                    if let Err(e) = handle_domain_name_resolve(user_token, agent_message_payload_data, &mut self.write, configuration.clone()).await {
                         error!("Agent connection [{connection_id}] fail to handle domain resolve because of error: {e:?}");
                         continue;
                     };
@@ -307,7 +307,7 @@ where
 }
 
 async fn handle_domain_name_resolve<T, R>(
-    user_token: String, agent_message_payload_data: Vec<u8>, agent_connection_write: &mut AgentConnectionWrite<T, R>,
+    user_token: String, agent_message_payload_data: Vec<u8>, agent_connection_write: &mut AgentConnectionWrite<T, R>, configurtion: Arc<ProxyServerConfig>,
 ) -> Result<()>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
@@ -322,7 +322,7 @@ where
     let domain_name_for_error = domain_name.clone();
     let src_address_for_error = src_address.clone();
     let dest_address_for_error = dest_address.clone();
-    if let Err(e) = timeout(Duration::from_secs(20), async move {
+    if let Err(e) = timeout(Duration::from_secs(configurtion.get_domain_name_resolve_tomeout()), async move {
         trace!("Receive agent domain resolve message, request id: {request_id}, domain name: {domain_name}");
         let resolved_ip_addresses = match dns_lookup::lookup_host(&domain_name) {
             Ok(v) => v,

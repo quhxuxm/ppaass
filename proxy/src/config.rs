@@ -22,6 +22,7 @@ pub(crate) struct ProxyServerConfig {
     dest_io_buffer_size: Option<usize>,
     max_agent_connection_number: Option<usize>,
     dest_connect_timeout: Option<u64>,
+    domain_name_resolve_tomeout: Option<u64>,
 }
 
 impl ProxyServerConfig {
@@ -79,6 +80,9 @@ impl ProxyServerConfig {
 
     pub(crate) fn get_dest_connect_timeout(&self) -> u64 {
         self.dest_connect_timeout.unwrap_or(20)
+    }
+    pub(crate) fn get_domain_name_resolve_tomeout(&self) -> u64 {
+        self.domain_name_resolve_tomeout.unwrap_or(20)
     }
 }
 
