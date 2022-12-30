@@ -322,7 +322,7 @@ where
     let domain_name_for_error = domain_name.clone();
     let src_address_for_error = src_address.clone();
     let dest_address_for_error = dest_address.clone();
-    if let Err(e) = timeout(Duration::from_secs(configurtion.get_domain_name_resolve_tomeout()), async move {
+    if let Err(_e) = timeout(Duration::from_secs(configurtion.get_domain_name_resolve_tomeout()), async move {
         trace!("Receive agent domain resolve message, request id: {request_id}, domain name: {domain_name}");
         let resolved_ip_addresses = match dns_lookup::lookup_host(&domain_name) {
             Ok(v) => v,
