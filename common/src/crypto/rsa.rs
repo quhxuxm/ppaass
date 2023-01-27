@@ -1,7 +1,10 @@
 use anyhow::{Context, Result};
 use rand::rngs::OsRng;
-use rsa::pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding};
-use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
+use rsa::{
+    pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding},
+    Pkcs1v15Encrypt,
+};
+use rsa::{PublicKey, RsaPrivateKey, RsaPublicKey};
 use std::{fmt::Debug, path::Path};
 use std::{fs, io::Read};
 use tracing::error;
@@ -49,7 +52,7 @@ impl RsaCrypto {
     }
 
     pub fn encrypt(&self, target: &[u8]) -> Result<Vec<u8>> {
-        match self.public_key.encrypt(&mut OsRng, PaddingScheme::PKCS1v15Encrypt, target.as_ref()) {
+        match self.public_key.encrypt(&mut OsRng, Pkcs1v15Encrypt, target.as_ref()) {
             Ok(v) => Ok(v),
             Err(e) => {
                 error!("Fail to do rsa encrypt because of error: {e:?}");
@@ -59,7 +62,7 @@ impl RsaCrypto {
     }
 
     pub fn decrypt(&self, target: &[u8]) -> Result<Vec<u8>> {
-        match self.private_key.decrypt(PaddingScheme::PKCS1v15Encrypt, target.as_ref()) {
+        match self.private_key.decrypt(Pkcs1v15Encrypt, target.as_ref()) {
             Ok(v) => Ok(v),
             Err(e) => {
                 error!("Fail to do rsa decrypt because of error: {e:?}");
