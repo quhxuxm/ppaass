@@ -89,7 +89,7 @@ impl ToString for Socks5Address {
                 )
             },
             Self::Domain(host, port) => {
-                format!("{}:{}", host, port)
+                format!("{host}:{port}")
             },
         }
     }

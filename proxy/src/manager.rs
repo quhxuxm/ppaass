@@ -35,9 +35,9 @@ impl ProxyServerManager {
         }
         let config_file_content = tokio::fs::read_to_string(config_file_path)
             .await
-            .context(format!("fail to read configuration file content: {}", config_file_path))?;
-        let mut result = toml::from_str::<ProxyServerConfig>(&config_file_content)
-            .context(format!("fail to parse proxy server configuration file: {}", config_file_path))?;
+            .context(format!("fail to read configuration file content: {config_file_path}"))?;
+        let mut result =
+            toml::from_str::<ProxyServerConfig>(&config_file_content).context(format!("fail to parse proxy server configuration file: {config_file_path}"))?;
         if let Some(port) = arguments.port {
             result.set_port(port);
         }

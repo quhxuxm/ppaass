@@ -26,7 +26,7 @@ impl AgentServerRsaCryptoFetcher {
                 error!("fail to read user_token from file name: {:?}", entry.file_name());
                 return;
             };
-            let public_key_path = format!("{}{}/ProxyPublicKey.pem", rsa_dir_path, user_token);
+            let public_key_path = format!("{rsa_dir_path}{user_token}/ProxyPublicKey.pem");
             let public_key_path = std::path::Path::new(&public_key_path);
             let public_key_file = match std::fs::File::open(public_key_path) {
                 Err(e) => {
@@ -35,7 +35,7 @@ impl AgentServerRsaCryptoFetcher {
                 },
                 Ok(v) => v,
             };
-            let private_key_path = format!("{}{}/AgentPrivateKey.pem", rsa_dir_path, user_token);
+            let private_key_path = format!("{rsa_dir_path}{user_token}/AgentPrivateKey.pem");
             let private_key_path = std::path::Path::new(std::path::Path::new(&private_key_path));
             let private_key_file = match std::fs::File::open(private_key_path) {
                 Err(e) => {

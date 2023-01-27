@@ -27,13 +27,13 @@ impl ProxyServerRsaCryptoFetcher {
                 error!("fail to read {}{:?} directory because of user token not exist", rsa_dir_path, entry.file_name());
                 return;
             };
-            let public_key_path = format!("{}{}/AgentPublicKey.pem", rsa_dir_path, user_token);
+            let public_key_path = format!("{rsa_dir_path}{user_token}/AgentPublicKey.pem");
             let public_key_path = std::path::Path::new(&public_key_path);
             let Ok(public_key_file) =  std::fs::File::open(public_key_path) else {
                   error!("Fail to read public key file: {public_key_path:?}.");
                     return;
             };
-            let private_key_path = format!("{}{}/ProxyPrivateKey.pem", rsa_dir_path, user_token);
+            let private_key_path = format!("{rsa_dir_path}{user_token}/ProxyPrivateKey.pem");
             let private_key_path = std::path::Path::new(std::path::Path::new(&private_key_path));
             let Ok(private_key_file) =  std::fs::File::open(private_key_path) else{
                error!("Fail to read private key file :{private_key_path:?}.");
