@@ -19,7 +19,6 @@ ppaass-common = {path = "../common"}
 pretty-hex = {workspace = true}
 serde = {workspace = true}
 serde_derive = {workspace = true}
-thiserror = {workspace = true}
 tokio = {workspace = true, features = ["macros", "time", "net", "io-util", "rt-multi-thread", "fs"]}
 tokio-util = {workspace = true, features = ["codec"]}
 toml = {workspace = true}
