@@ -3,13 +3,13 @@ client_connection_accept_timeout = 20
 client_io_buffer_size = 524288
 compress = true
 connect_to_proxy_timeout = 5
-idle_proxy_heartbeat_interval = 1200
+
 ipv6 = false
-max_client_connection_number = 32
+
 message_framed_buffer_size = 524288
 port = 10081
 proxy_addresses = ["149.28.219.182:80"]
 #proxy_addresses = ["127.0.0.1:80"]
-proxy_connection_pool_size = 64
+
 rsa_dir = "./resources/rsa/"
 user_token = "user1"

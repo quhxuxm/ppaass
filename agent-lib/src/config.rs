@@ -15,15 +15,12 @@ pub struct AgentServerConfig {
     agent_server_worker_thread_number: Option<usize>,
     /// Whether enable compressing
     compress: Option<bool>,
-
     /// The proxy addresses
     proxy_addresses: Option<Vec<String>>,
     message_framed_buffer_size: Option<usize>,
-    idle_proxy_heartbeat_interval: Option<u64>,
     client_connection_accept_timeout: Option<u64>,
     connect_to_proxy_timeout: Option<u64>,
     client_io_buffer_size: Option<usize>,
-    max_client_connection_number: Option<usize>,
 }
 
 impl AgentServerConfig {
@@ -85,9 +82,6 @@ impl AgentServerConfig {
         self.message_framed_buffer_size.unwrap_or(65536)
     }
 
-    pub fn get_idle_proxy_heartbeat_interval(&self) -> u64 {
-        self.idle_proxy_heartbeat_interval.unwrap_or(20)
-    }
     pub fn get_client_connection_accept_timeout(&self) -> u64 {
         self.client_connection_accept_timeout.unwrap_or(5)
     }
