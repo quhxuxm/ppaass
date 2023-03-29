@@ -225,16 +225,13 @@ where
                 error!("Fail to do gzip compress because of error: {e:?}");
                 return Err(anyhow::anyhow!(e));
             }
-
-            let compressed_result_bytes = match gzip_encoder.finish() {
+            match gzip_encoder.finish() {
                 Ok(v) => v,
                 Err(e) => {
                     error!("Fail to do gzip compress because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
                 },
-            };
-
-            compressed_result_bytes
+            }
         } else {
             result_bytes
         };

@@ -232,7 +232,7 @@ where
                 Poll::Pending => return Poll::Pending,
             }
         }
-        return Poll::Ready(Err(anyhow::anyhow!("Client bytes framed write not exist")));
+        Poll::Ready(Err(anyhow::anyhow!("Client bytes framed write not exist")))
     }
 
     fn start_send(self: Pin<&mut Self>, item: BytesMut) -> Result<(), Self::Error> {
@@ -240,7 +240,7 @@ where
         if let Some(client_bytes_framed_write) = this.client_bytes_framed_write.as_pin_mut() {
             return client_bytes_framed_write.start_send(item).map_err(|e| anyhow::anyhow!(e));
         }
-        return Err(anyhow::anyhow!("Client bytes framed write not exist"));
+        Err(anyhow::anyhow!("Client bytes framed write not exist"))
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -251,7 +251,7 @@ where
                 Poll::Pending => return Poll::Pending,
             }
         }
-        return Poll::Ready(Err(anyhow::anyhow!("Client bytes framed write not exist")));
+        Poll::Ready(Err(anyhow::anyhow!("Client bytes framed write not exist")))
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -262,7 +262,7 @@ where
                 Poll::Pending => return Poll::Pending,
             }
         }
-        return Poll::Ready(Err(anyhow::anyhow!("Client bytes framed write not exist")));
+        Poll::Ready(Err(anyhow::anyhow!("Client bytes framed write not exist")))
     }
 }
 

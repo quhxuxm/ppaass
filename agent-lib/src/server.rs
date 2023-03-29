@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tokio::{net::TcpListener, sync::Semaphore};
+use tokio::net::TcpListener;
 use tracing::{debug, error, info};
 
 use crate::flow::dispatcher::FlowDispatcher;
@@ -9,16 +9,11 @@ use anyhow::{Context, Result};
 
 pub struct AgentServer {
     configuration: Arc<AgentServerConfig>,
-    max_client_connection_number_semaphore: Arc<Semaphore>,
 }
 
 impl AgentServer {
     pub fn new(configuration: Arc<AgentServerConfig>) -> Self {
-        let max_client_connection_number_semaphore = Arc::new(Semaphore::new(configuration.get_max_client_connection_number()));
-        Self {
-            configuration,
-            max_client_connection_number_semaphore,
-        }
+        Self { configuration }
     }
 
     pub async fn start(&mut self) -> Result<()> {
@@ -46,19 +41,6 @@ impl AgentServer {
             .context("Fail to bind tcp listener for agent server")?;
         let proxy_connection_pool = Arc::new(ProxyConnectionPool::new(self.configuration.clone(), rsa_crypto_fetcher.clone()).await?);
         loop {
-            debug!(
-                "Client connection number semaphore remaining: {}",
-                self.max_client_connection_number_semaphore.available_permits()
-            );
-            let max_client_connection_number_semaphore = self.max_client_connection_number_semaphore.clone();
-            let client_connection_number_guard = match max_client_connection_number_semaphore.acquire_owned().await {
-                Err(e) => {
-                    error!("Can not accept more client connection because of max number exceed: {e:?}");
-                    continue;
-                },
-                Ok(v) => v,
-            };
-
             let (client_io, client_socket_address) = match tcp_listener.accept().await.context("Fail to accept client tcp connection because if error.") {
                 Ok(v) => v,
                 Err(e) => {
@@ -84,13 +66,10 @@ impl AgentServer {
                     },
                     Ok(v) => v,
                 };
-
                 if let Err(e) = flow.exec(proxy_connection_pool, configuration).await {
                     error!("Client tcp connection [{client_socket_address}] fail to execute client flow because of error: {e:?}");
-                    drop(client_connection_number_guard);
                     return;
                 };
-                drop(client_connection_number_guard);
                 debug!("Client tcp connection [{client_socket_address}] complete to serve.")
             });
         }

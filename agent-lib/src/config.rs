@@ -15,8 +15,6 @@ pub struct AgentServerConfig {
     agent_server_worker_thread_number: Option<usize>,
     /// Whether enable compressing
     compress: Option<bool>,
-    /// The client connection pool size.
-    proxy_connection_pool_size: Option<usize>,
 
     /// The proxy addresses
     proxy_addresses: Option<Vec<String>>,
@@ -83,10 +81,6 @@ impl AgentServerConfig {
         self.compress.unwrap_or(false)
     }
 
-    pub fn get_proxy_connection_pool_size(&self) -> usize {
-        self.proxy_connection_pool_size.unwrap_or(1024)
-    }
-
     pub fn get_message_framed_buffer_size(&self) -> usize {
         self.message_framed_buffer_size.unwrap_or(65536)
     }
@@ -104,11 +98,6 @@ impl AgentServerConfig {
 
     pub fn get_connect_to_proxy_timeout(&self) -> u64 {
         self.connect_to_proxy_timeout.unwrap_or(20)
-    }
-
-    pub fn get_max_client_connection_number(&self) -> usize {
-        let default_max_client_connection_number = self.get_proxy_connection_pool_size();
-        self.max_client_connection_number.unwrap_or(default_max_client_connection_number)
     }
 }
 
