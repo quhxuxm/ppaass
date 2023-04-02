@@ -1,7 +1,7 @@
 agent_connection_accept_timeout = 20
 compress = true
 dest_connect_timeout = 20
-dest_io_buffer_size = 524288
+dest_tcp_buffer_size = 524288
 domain_name_resolve_tomeout = 20
 ipv6 = false
 max_agent_connection_number = 2048

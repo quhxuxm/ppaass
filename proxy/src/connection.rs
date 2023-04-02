@@ -13,7 +13,6 @@ use tokio::{
 use tokio_util::codec::Framed;
 use tracing::{debug, error, trace};
 
-use ppaass_common::tcp_loop::TcpLoopInitRequestPayload;
 use ppaass_common::{
     codec::PpaassMessageCodec, generate_uuid, PpaassMessage, PpaassMessageAgentPayload, PpaassMessageAgentPayloadParts, PpaassMessageAgentPayloadType,
     PpaassNetAddress, RsaCryptoFetcher,
@@ -22,9 +21,10 @@ use ppaass_common::{
     domain_resolve::DomainResolveRequestPayload, heartbeat::HeartbeatRequestPayload, PpaassMessageGenerator, PpaassMessageParts,
     PpaassMessagePayloadEncryptionSelector,
 };
+use ppaass_common::{tcp_loop::TcpLoopInitRequestPayload, udp_loop::UdpLoopInitRequestPayload};
 
-use crate::common::ProxyServerPayloadEncryptionSelector;
 use crate::types::{AgentMessageFramedRead, AgentMessageFramedWrite};
+use crate::{common::ProxyServerPayloadEncryptionSelector, connection::udp_loop::UdpLoopBuilder};
 use crate::{config::ProxyServerConfig, connection::tcp_loop::TcpLoopBuilder};
 
 mod tcp_loop;
@@ -139,7 +139,37 @@ where
                     };
                     return Ok(());
                 },
-                PpaassMessageAgentPayloadType::UdpLoopInit => todo!(),
+                PpaassMessageAgentPayloadType::UdpLoopInit => {
+                    let udp_loop_init_request: UdpLoopInitRequestPayload = match agent_message_payload_data.try_into() {
+                        Ok(udp_loop_init_request) => udp_loop_init_request,
+                        Err(e) => {
+                            error!("Agent connection [{connection_id}] fail to read udp loop init request because of error: {e:?}");
+                            return Err(e);
+                        },
+                    };
+                    let read = self.read;
+                    let write = self.write;
+                    let udp_loop_builder = UdpLoopBuilder::new()
+                        .agent_address(agent_address)
+                        .agent_connection_id(&connection_id)
+                        .agent_connection_write(write)
+                        .agent_connection_read(read)
+                        .user_token(user_token);
+                    let udp_loop = match udp_loop_builder.build(configuration).await {
+                        Ok(udp_loop) => udp_loop,
+                        Err(e) => {
+                            error!("Agent connection [{connection_id}] fail to build udp loop because of error: {e:?}");
+                            return Err(e);
+                        },
+                    };
+                    let udp_loop_key = udp_loop.get_key().to_owned();
+                    debug!("Agent connection [{connection_id}] start udp loop [{udp_loop_key}]");
+                    if let Err(e) = udp_loop.exec().await {
+                        error!("Agent connection [{connection_id}] fail to execute udp loop because of error: {e:?}");
+                        return Err(e);
+                    };
+                    return Ok(());
+                },
             };
         }
     }

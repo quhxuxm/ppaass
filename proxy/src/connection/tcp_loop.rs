@@ -118,7 +118,7 @@ where
             },
         };
         let dest_socket_address = dest_socket_address.collect::<Vec<SocketAddr>>();
-        let dest_io = match timeout(
+        let dest_tcp = match timeout(
             Duration::from_secs(configuration.get_dest_connect_timeout()),
             TcpStream::connect(dest_socket_address.as_slice()),
         )
@@ -165,7 +165,7 @@ where
             key,
             agent_connection_read,
             agent_connection_write,
-            dest_io,
+            dest_tcp,
             user_token,
             agent_connection_id,
             configuration,
@@ -310,7 +310,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
-    dest_io: TcpStream,
+    dest_tcp: TcpStream,
     agent_connection_read: AgentConnectionRead<T, R>,
     agent_connection_write: AgentConnectionWrite<T, R>,
     key: String,
@@ -330,7 +330,7 @@ where
 
     fn start_dest_to_agent_relay(
         agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_connection_write: AgentConnectionWrite<T, R>,
-        mut dest_io_read: DestConnectionRead, user_token: impl AsRef<str>,
+        mut dest_tcp_read: DestConnectionRead, user_token: impl AsRef<str>,
     ) -> JoinHandle<Result<()>> {
         let user_token = user_token.as_ref().to_owned();
         let key = tcp_loop_key.as_ref().to_owned();
@@ -339,7 +339,7 @@ where
             debug!("Agent connection [{agent_connection_id}] with tcp loop [{key}] start to relay destination data to agent.");
             let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
             loop {
-                let dest_message = match dest_io_read.next().await {
+                let dest_message = match dest_tcp_read.next().await {
                     None => {
                         debug!("Agent connection [{agent_connection_id}] with tcp loop [{key}] complete to relay destination data to agent.");
                         break;
@@ -373,7 +373,7 @@ where
 
     fn start_agent_to_dest_relay(
         agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_connection_read: AgentConnectionRead<T, R>,
-        mut dest_io_write: DestConnectionWrite,
+        mut dest_tcp_write: DestConnectionWrite,
     ) -> JoinHandle<Result<()>> {
         let key = tcp_loop_key.as_ref().to_owned();
         let agent_connection_id = agent_connection_id.as_ref().to_owned();
@@ -393,7 +393,7 @@ where
                     pretty_hex::pretty_hex(&payload_bytes)
                 );
                 let payload_bytes = BytesMut::from_iter(payload_bytes);
-                if let Err(e) = dest_io_write.send(payload_bytes).await {
+                if let Err(e) = dest_tcp_write.send(payload_bytes).await {
                     error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to relay agent message to destination because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
                 };
@@ -410,12 +410,12 @@ where
     pub(crate) async fn exec(self) -> Result<()> {
         let agent_connection_id = self.agent_connection_id.clone();
         let tcp_loop_key = self.key.clone();
-        let dest_io = self.dest_io;
-        let dest_bytes_framed = Framed::with_capacity(dest_io, BytesCodec::new(), self.configuration.get_dest_io_buffer_size());
-        let (dest_io_write, dest_io_read) = dest_bytes_framed.split::<BytesMut>();
-        let (dest_io_write, dest_io_read) = (
-            DestConnectionWrite::new(agent_connection_id.clone(), tcp_loop_key.clone(), dest_io_write),
-            DestConnectionRead::new(agent_connection_id, tcp_loop_key, dest_io_read),
+        let dest_tcp = self.dest_tcp;
+        let dest_bytes_framed = Framed::with_capacity(dest_tcp, BytesCodec::new(), self.configuration.get_dest_tcp_buffer_size());
+        let (dest_tcp_write, dest_tcp_read) = dest_bytes_framed.split::<BytesMut>();
+        let (dest_tcp_write, dest_tcp_read) = (
+            DestConnectionWrite::new(agent_connection_id.clone(), tcp_loop_key.clone(), dest_tcp_write),
+            DestConnectionRead::new(agent_connection_id, tcp_loop_key, dest_tcp_read),
         );
         let agent_connection_write = self.agent_connection_write;
         let agent_connection_read = self.agent_connection_read;
@@ -423,8 +423,8 @@ where
         let key = self.key;
         let agent_connection_id = self.agent_connection_id;
         let mut dest_to_agent_relay_guard =
-            Self::start_dest_to_agent_relay(agent_connection_id.clone(), key.clone(), agent_connection_write, dest_io_read, &user_token);
-        let mut agent_to_dest_relay_guard = Self::start_agent_to_dest_relay(agent_connection_id.clone(), key.clone(), agent_connection_read, dest_io_write);
+            Self::start_dest_to_agent_relay(agent_connection_id.clone(), key.clone(), agent_connection_write, dest_tcp_read, &user_token);
+        let mut agent_to_dest_relay_guard = Self::start_agent_to_dest_relay(agent_connection_id.clone(), key.clone(), agent_connection_read, dest_tcp_write);
         if let Err(e) = try_join!(&mut dest_to_agent_relay_guard, &mut agent_to_dest_relay_guard) {
             dest_to_agent_relay_guard.abort();
             agent_to_dest_relay_guard.abort();

@@ -4,6 +4,7 @@ use crate::{
     domain_resolve::{DomainResolveRequestPayload, DomainResolveResponsePayload, DomainResolveResponseType},
     heartbeat::{HeartbeatRequestPayload, HeartbeatResponsePayload},
     tcp_loop::{TcpLoopInitRequestPayload, TcpLoopInitResponsePayload, TcpLoopInitResponseType},
+    udp_loop::{UdpLoopInitResponsePayload, UdpLoopInitResponseType},
     PpaassMessage, PpaassMessageAgentPayload, PpaassMessageAgentPayloadType, PpaassMessagePayloadEncryption, PpaassMessageProxyPayload,
     PpaassMessageProxyPayloadType, PpaassNetAddress,
 };
@@ -100,6 +101,18 @@ impl PpaassMessageGenerator {
         Ok(message)
     }
 
+    pub fn generate_udp_loop_init_success_response(
+        loop_key: impl AsRef<str>, user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption,
+    ) -> Result<PpaassMessage> {
+        let udp_loop_init_response = UdpLoopInitResponsePayload {
+            loop_key: loop_key.as_ref().to_owned(),
+            response_type: UdpLoopInitResponseType::Success,
+        };
+        let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::UdpLoopInit, udp_loop_init_response.try_into()?);
+        let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
+        Ok(message)
+    }
+
     pub fn generate_tcp_loop_init_fail_response(
         loop_key: impl AsRef<str>, user_token: impl AsRef<str>, src_address: PpaassNetAddress, dest_address: PpaassNetAddress,
         payload_encryption: PpaassMessagePayloadEncryption,
@@ -111,6 +124,18 @@ impl PpaassMessageGenerator {
             response_type: TcpLoopInitResponseType::Fail,
         };
         let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::TcpLoopInit, tcp_loop_init_response.try_into()?);
+        let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
+        Ok(message)
+    }
+
+    pub fn generate_udp_loop_init_fail_response(
+        loop_key: impl AsRef<str>, user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption,
+    ) -> Result<PpaassMessage> {
+        let udp_loop_init_response = UdpLoopInitResponsePayload {
+            loop_key: loop_key.as_ref().to_owned(),
+            response_type: UdpLoopInitResponseType::Fail,
+        };
+        let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::UdpLoopInit, udp_loop_init_response.try_into()?);
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
         Ok(message)
     }

@@ -6,6 +6,7 @@ use crate::{serializer::vec_u8_to_base64, PpaassMessageAgentPayloadType, PpaassM
 pub mod domain_resolve;
 pub mod heartbeat;
 pub mod tcp_loop;
+pub mod udp_loop;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

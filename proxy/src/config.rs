@@ -19,7 +19,7 @@ pub(crate) struct ProxyServerConfig {
     compress: Option<bool>,
     /// The buffer size for one agent connection
     message_framed_buffer_size: Option<usize>,
-    dest_io_buffer_size: Option<usize>,
+    dest_tcp_buffer_size: Option<usize>,
     max_agent_connection_number: Option<usize>,
     dest_connect_timeout: Option<u64>,
     domain_name_resolve_tomeout: Option<u64>,
@@ -70,8 +70,8 @@ impl ProxyServerConfig {
         self.message_framed_buffer_size.unwrap_or(1024 * 64)
     }
 
-    pub(crate) fn get_dest_io_buffer_size(&self) -> usize {
-        self.dest_io_buffer_size.unwrap_or(1024 * 64)
+    pub(crate) fn get_dest_tcp_buffer_size(&self) -> usize {
+        self.dest_tcp_buffer_size.unwrap_or(1024 * 64)
     }
 
     pub(crate) fn get_max_agent_connection_number(&self) -> usize {
