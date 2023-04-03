@@ -4,7 +4,7 @@ use crate::{
     domain_resolve::{DomainResolveRequestPayload, DomainResolveResponsePayload, DomainResolveResponseType},
     heartbeat::{HeartbeatRequestPayload, HeartbeatResponsePayload},
     tcp_loop::{TcpLoopInitRequestPayload, TcpLoopInitResponsePayload, TcpLoopInitResponseType},
-    udp_loop::{UdpLoopInitResponsePayload, UdpLoopInitResponseType},
+    udp_loop::{UdpLoopData, UdpLoopDataParts, UdpLoopInitResponsePayload, UdpLoopInitResponseType},
     PpaassMessage, PpaassMessageAgentPayload, PpaassMessageAgentPayloadType, PpaassMessagePayloadEncryption, PpaassMessageProxyPayload,
     PpaassMessageProxyPayloadType, PpaassNetAddress,
 };
@@ -140,8 +140,22 @@ impl PpaassMessageGenerator {
         Ok(message)
     }
 
-    pub fn generate_raw_data(user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption, data: Vec<u8>) -> Result<PpaassMessage> {
+    pub fn generate_tcp_raw_data(user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption, data: Vec<u8>) -> Result<PpaassMessage> {
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, data);
+        Ok(message)
+    }
+
+    pub fn generate_udp_loop_data(
+        user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption, src_address: PpaassNetAddress, dst_address: PpaassNetAddress,
+        raw_data_bytes: Vec<u8>,
+    ) -> Result<PpaassMessage> {
+        let udp_loop_data_parts = UdpLoopDataParts {
+            src_address,
+            dst_address,
+            raw_data_bytes,
+        };
+        let udp_loop_data: UdpLoopData = udp_loop_data_parts.into();
+        let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, udp_loop_data.try_into()?);
         Ok(message)
     }
 }

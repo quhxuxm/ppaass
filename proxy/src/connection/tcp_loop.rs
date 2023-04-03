@@ -219,7 +219,7 @@ impl Sink<BytesMut> for DestConnectionWrite {
                 Poll::Pending => return Poll::Pending,
             }
         }
-        return Poll::Ready(Err(anyhow::anyhow!("Dest bytes framed write not exist")));
+        Poll::Ready(Err(anyhow::anyhow!("Dest bytes framed write not exist")))
     }
 
     fn start_send(self: Pin<&mut Self>, item: BytesMut) -> Result<(), Self::Error> {
@@ -227,7 +227,7 @@ impl Sink<BytesMut> for DestConnectionWrite {
         if let Some(dest_bytes_framed_write) = this.dest_bytes_framed_write.as_pin_mut() {
             return dest_bytes_framed_write.start_send(item).map_err(|e| anyhow::anyhow!(e));
         }
-        return Err(anyhow::anyhow!("Dest bytes framed write not exist"));
+        Err(anyhow::anyhow!("Dest bytes framed write not exist"))
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -238,7 +238,7 @@ impl Sink<BytesMut> for DestConnectionWrite {
                 Poll::Pending => return Poll::Pending,
             }
         }
-        return Poll::Ready(Err(anyhow::anyhow!("Dest bytes framed write not exist")));
+        Poll::Ready(Err(anyhow::anyhow!("Dest bytes framed write not exist")))
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -249,7 +249,7 @@ impl Sink<BytesMut> for DestConnectionWrite {
                 Poll::Pending => return Poll::Pending,
             }
         }
-        return Poll::Ready(Err(anyhow::anyhow!("Dest bytes framed write not exist")));
+        Poll::Ready(Err(anyhow::anyhow!("Dest bytes framed write not exist")))
     }
 }
 
@@ -354,7 +354,7 @@ where
                     "Agent connection [{agent_connection_id}] with tcp loop [{key}] read destination data:\n{}\n",
                     pretty_hex::pretty_hex(&dest_message)
                 );
-                let tcp_relay = match PpaassMessageGenerator::generate_raw_data(&user_token, payload_encryption_token.clone(), dest_message.to_vec()) {
+                let tcp_relay = match PpaassMessageGenerator::generate_tcp_raw_data(&user_token, payload_encryption_token.clone(), dest_message.to_vec()) {
                     Ok(tcp_relay) => tcp_relay,
                     Err(e) => {
                         error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to generate raw data because of error: {e:?}");

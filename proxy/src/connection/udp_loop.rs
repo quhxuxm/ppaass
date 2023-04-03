@@ -1,8 +1,19 @@
-use std::sync::Arc;
+use std::{
+    net::{SocketAddr, ToSocketAddrs},
+    sync::Arc,
+};
 
-use futures::SinkExt;
-use ppaass_common::{generate_uuid, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher};
-use tokio::io::{AsyncRead, AsyncWrite};
+use futures::{SinkExt, StreamExt};
+use ppaass_common::{
+    generate_uuid,
+    udp_loop::{UdpLoopData, UdpLoopDataParts},
+    PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher,
+};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    net::UdpSocket,
+    sync::Mutex,
+};
 use tracing::error;
 
 use crate::{common::ProxyServerPayloadEncryptionSelector, config::ProxyServerConfig};
@@ -24,7 +35,7 @@ where
     configuration: Arc<ProxyServerConfig>,
 }
 
-impl UdpLoop<T, R>
+impl<T, R> UdpLoop<T, R>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -37,7 +48,82 @@ where
         self.key.as_str()
     }
 
-    pub(crate) async fn exec(self) -> Result<()> {}
+    pub(crate) async fn exec(mut self) -> Result<()> {
+        let key = self.key;
+        let agent_connection_id = self.agent_connection_id;
+        let agent_connection_write = Arc::new(Mutex::new(self.agent_connection_write));
+        let user_token = self.user_token;
+
+        loop {
+            let agent_message = match self.agent_connection_read.next().await {
+                Some(Ok(agent_message)) => agent_message,
+                Some(Err(e)) => {
+                    error!("Agent connection [{agent_connection_id}] with udp loop [{key}] fail to read agent message because of error: {e:?}");
+                    return Err(anyhow::anyhow!(e));
+                },
+                None => return Ok(()),
+            };
+            let PpaassMessageParts { payload_bytes, .. } = agent_message.split();
+            let UdpLoopDataParts {
+                src_address,
+                dst_address,
+                raw_data_bytes,
+            } = TryInto::<UdpLoopData>::try_into(payload_bytes)?.split();
+            let agent_connection_write = agent_connection_write.clone();
+            let user_token = user_token.clone();
+            let agent_connection_id = agent_connection_id.clone();
+            let key = key.clone();
+            tokio::spawn(async move {
+                let udp_socket = match UdpSocket::bind("0.0.0.0:0").await {
+                    Ok(udp_socket) => udp_socket,
+                    Err(e) => {
+                        error!("Agent connection [{agent_connection_id}] with udp loop [{key}] fail to bind udp socket because of error: {e:?}");
+                        return;
+                    },
+                };
+                let dest_socket_address = match dst_address.to_socket_addrs() {
+                    Ok(v) => v,
+                    Err(e) => {
+                        error!("Agent connection [{agent_connection_id}] with udp loop [{key}] fail to convert destination address [{dst_address}] because of error: {e:?}");
+                        return;
+                    },
+                };
+                let dest_socket_address = dest_socket_address.collect::<Vec<SocketAddr>>();
+                if let Err(e) = udp_socket.connect(dest_socket_address.as_slice()).await {
+                    error!("Agent connection [{agent_connection_id}] with udp loop [{key}] fail to connect udp socket to [{dest_socket_address:?}] because of error: {e:?}");
+                    return;
+                };
+                if let Err(e) = udp_socket.send(&raw_data_bytes).await {
+                    error!("Agent connection [{agent_connection_id}] with udp loop [{key}] fail to send data to udp socket because of error: {e:?}");
+                    return;
+                };
+                let mut recv_buf = [0u8; 65535];
+                let receive_data_size = match udp_socket.recv(&mut recv_buf).await {
+                    Ok(receive_data_size) => receive_data_size,
+                    Err(e) => {
+                        error!("Agent connection [{agent_connection_id}] with udp loop [{key}] fail to receive data from udp socket because of error: {e:?}");
+                        return;
+                    },
+                };
+                let recv_buf = &recv_buf[..receive_data_size];
+                let mut agent_connection_write = agent_connection_write.lock().await;
+                let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
+                let udp_loop_data_message =
+                    match PpaassMessageGenerator::generate_udp_loop_data(user_token, payload_encryption, src_address, dst_address, recv_buf.to_vec()) {
+                        Ok(udp_loop_data_message) => udp_loop_data_message,
+                        Err(e) => {
+                            error!(
+                                "Agent connection [{agent_connection_id}] with udp loop [{key}] fail to generate udp loop data message because of error: {e:?}"
+                            );
+                            return;
+                        },
+                    };
+                if let Err(e) = agent_connection_write.send(udp_loop_data_message).await {
+                    error!("Agent connection [{agent_connection_id}] with udp loop [{key}] fail to send udp loop data to agent because of error: {e:?}");
+                }
+            });
+        }
+    }
 }
 
 pub(crate) struct UdpLoopBuilder<T, R>

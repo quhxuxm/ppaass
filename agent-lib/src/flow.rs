@@ -110,7 +110,7 @@ where
         let mut client_to_proxy_relay_guard = tokio::spawn(async move {
             debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] start to relay from agent to proxy.");
             if let Some(init_data) = init_data {
-                let agent_message = PpaassMessageGenerator::generate_raw_data(&user_token, payload_encryption.clone(), init_data)?;
+                let agent_message = PpaassMessageGenerator::generate_tcp_raw_data(&user_token, payload_encryption.clone(), init_data)?;
                 if let Err(e) = proxy_connection_write.send(agent_message).await {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to relay client data to proxy because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
@@ -130,7 +130,7 @@ where
                     "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] read client data:\n{}\n",
                     pretty_hex::pretty_hex(&client_message)
                 );
-                let agent_raw_date_message = PpaassMessageGenerator::generate_raw_data(&user_token, payload_encryption.clone(), client_message.to_vec())?;
+                let agent_raw_date_message = PpaassMessageGenerator::generate_tcp_raw_data(&user_token, payload_encryption.clone(), client_message.to_vec())?;
                 if let Err(e) = proxy_connection_write.send(agent_raw_date_message).await {
                     error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to relay client data to proxy because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
