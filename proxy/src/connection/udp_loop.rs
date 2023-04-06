@@ -9,12 +9,13 @@ use ppaass_common::{
     udp_loop::{UdpLoopData, UdpLoopDataParts},
     PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher,
 };
+use pretty_hex::pretty_hex;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::UdpSocket,
     sync::Mutex,
 };
-use tracing::error;
+use tracing::{debug, error, info};
 
 use crate::{common::ProxyServerPayloadEncryptionSelector, config::ProxyServerConfig};
 
@@ -88,6 +89,10 @@ where
                         return;
                     },
                 };
+                info!(
+                    "Agent connection [{agent_connection_id}] receive agent udp data:\n{}\n",
+                    pretty_hex(&raw_data_bytes)
+                );
                 let dest_socket_address = dest_socket_address.collect::<Vec<SocketAddr>>();
                 if let Err(e) = udp_socket.connect(dest_socket_address.as_slice()).await {
                     error!("Agent connection [{agent_connection_id}] with udp loop [{key}] fail to connect udp socket to [{dest_socket_address:?}] because of error: {e:?}");
@@ -97,19 +102,23 @@ where
                     error!("Agent connection [{agent_connection_id}] with udp loop [{key}] fail to send data to udp socket because of error: {e:?}");
                     return;
                 };
-                let mut recv_buf = [0u8; 65535];
-                let receive_data_size = match udp_socket.recv(&mut recv_buf).await {
+                let mut dst_udp_recv_buf = [0u8; 65535];
+                let receive_data_size = match udp_socket.recv(&mut dst_udp_recv_buf).await {
                     Ok(receive_data_size) => receive_data_size,
                     Err(e) => {
                         error!("Agent connection [{agent_connection_id}] with udp loop [{key}] fail to receive data from udp socket because of error: {e:?}");
                         return;
                     },
                 };
-                let recv_buf = &recv_buf[..receive_data_size];
+                let dst_udp_recv_buf = &dst_udp_recv_buf[..receive_data_size];
+                info!(
+                    "Agent connection [{agent_connection_id}] receive destination udp data:\n{}\n",
+                    pretty_hex(&dst_udp_recv_buf)
+                );
                 let mut agent_connection_write = agent_connection_write.lock().await;
                 let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
                 let udp_loop_data_message =
-                    match PpaassMessageGenerator::generate_udp_loop_data(user_token, payload_encryption, src_address, dst_address, recv_buf.to_vec()) {
+                    match PpaassMessageGenerator::generate_udp_loop_data(user_token, payload_encryption, src_address, dst_address, dst_udp_recv_buf.to_vec()) {
                         Ok(udp_loop_data_message) => udp_loop_data_message,
                         Err(e) => {
                             error!(
