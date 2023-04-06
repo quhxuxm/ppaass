@@ -75,14 +75,14 @@ where
             let agent_connection_id = agent_connection_id.clone();
             let key = key.clone();
             tokio::spawn(async move {
-                let udp_socket = match UdpSocket::bind("0.0.0.0:0").await {
+                let dst_udp_socket = match UdpSocket::bind("0.0.0.0:0").await {
                     Ok(udp_socket) => udp_socket,
                     Err(e) => {
                         error!("Agent connection [{agent_connection_id}] with udp loop [{key}] fail to bind udp socket because of error: {e:?}");
                         return;
                     },
                 };
-                let dest_socket_address = match dst_address.to_socket_addrs() {
+                let dst_udp_socket_address = match dst_address.to_socket_addrs() {
                     Ok(v) => v,
                     Err(e) => {
                         error!("Agent connection [{agent_connection_id}] with udp loop [{key}] fail to convert destination address [{dst_address}] because of error: {e:?}");
@@ -93,18 +93,20 @@ where
                     "Agent connection [{agent_connection_id}] receive agent udp data:\n{}\n",
                     pretty_hex(&raw_data_bytes)
                 );
-                let dest_socket_address = dest_socket_address.collect::<Vec<SocketAddr>>();
-                if let Err(e) = udp_socket.connect(dest_socket_address.as_slice()).await {
-                    error!("Agent connection [{agent_connection_id}] with udp loop [{key}] fail to connect udp socket to [{dest_socket_address:?}] because of error: {e:?}");
+                let dst_socket_address = dst_udp_socket_address.collect::<Vec<SocketAddr>>();
+                if let Err(e) = dst_udp_socket.connect(dst_socket_address.as_slice()).await {
+                    error!(
+                        "Agent connection [{agent_connection_id}] with udp loop [{key}] fail to connect udp socket to [{dst_address}] because of error: {e:?}"
+                    );
                     return;
                 };
-                if let Err(e) = udp_socket.send(&raw_data_bytes).await {
+                if let Err(e) = dst_udp_socket.send(&raw_data_bytes).await {
                     error!("Agent connection [{agent_connection_id}] with udp loop [{key}] fail to send data to udp socket because of error: {e:?}");
                     return;
                 };
-                info!("Agent connection [{agent_connection_id}] waiting for receive destination udp data");
+                info!("Agent connection [{agent_connection_id}] waiting for receive destination udp data, destination address: {dst_address}");
                 let mut dst_udp_recv_buf = [0u8; 65535];
-                let dst_udp_data_size = match udp_socket.recv(&mut dst_udp_recv_buf).await {
+                let dst_udp_data_size = match dst_udp_socket.recv(&mut dst_udp_recv_buf).await {
                     Ok(size) => size,
                     Err(e) => {
                         error!("Agent connection [{agent_connection_id}] with udp loop [{key}] fail to receive data from udp socket because of error: {e:?}");
