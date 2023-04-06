@@ -15,7 +15,7 @@ use tokio::{
     net::UdpSocket,
     sync::Mutex,
 };
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 use crate::{common::ProxyServerPayloadEncryptionSelector, config::ProxyServerConfig};
 
@@ -102,15 +102,16 @@ where
                     error!("Agent connection [{agent_connection_id}] with udp loop [{key}] fail to send data to udp socket because of error: {e:?}");
                     return;
                 };
+                info!("Agent connection [{agent_connection_id}] waiting for receive destination udp data");
                 let mut dst_udp_recv_buf = [0u8; 65535];
-                let receive_data_size = match udp_socket.recv(&mut dst_udp_recv_buf).await {
-                    Ok(receive_data_size) => receive_data_size,
+                let dst_udp_data_size = match udp_socket.recv(&mut dst_udp_recv_buf).await {
+                    Ok(size) => size,
                     Err(e) => {
                         error!("Agent connection [{agent_connection_id}] with udp loop [{key}] fail to receive data from udp socket because of error: {e:?}");
                         return;
                     },
                 };
-                let dst_udp_recv_buf = &dst_udp_recv_buf[..receive_data_size];
+                let dst_udp_recv_buf = &dst_udp_recv_buf[..dst_udp_data_size];
                 info!(
                     "Agent connection [{agent_connection_id}] receive destination udp data:\n{}\n",
                     pretty_hex(&dst_udp_recv_buf)
