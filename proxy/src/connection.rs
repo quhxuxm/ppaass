@@ -140,13 +140,6 @@ where
                     return Ok(());
                 },
                 PpaassMessageAgentPayloadType::UdpLoopInit => {
-                    let udp_loop_init_request: UdpLoopInitRequestPayload = match agent_message_payload_data.try_into() {
-                        Ok(udp_loop_init_request) => udp_loop_init_request,
-                        Err(e) => {
-                            error!("Agent connection [{connection_id}] fail to read udp loop init request because of error: {e:?}");
-                            return Err(e);
-                        },
-                    };
                     let read = self.read;
                     let write = self.write;
                     let udp_loop_builder = UdpLoopBuilder::new()
