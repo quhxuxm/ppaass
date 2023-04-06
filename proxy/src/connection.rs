@@ -11,7 +11,7 @@ use tokio::{
     time::timeout,
 };
 use tokio_util::codec::Framed;
-use tracing::{debug, error, trace};
+use tracing::{debug, error, info, trace};
 
 use ppaass_common::tcp_loop::TcpLoopInitRequestPayload;
 use ppaass_common::{
@@ -140,6 +140,7 @@ where
                     return Ok(());
                 },
                 PpaassMessageAgentPayloadType::UdpLoopInit => {
+                    info!("Agent connection [{connection_id}] receive udp loop init from agent.");
                     let read = self.read;
                     let write = self.write;
                     let udp_loop_builder = UdpLoopBuilder::new()
