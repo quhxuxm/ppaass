@@ -3,11 +3,12 @@ use std::{fmt::Debug, sync::Arc};
 use std::fmt::Display;
 use std::{net::IpAddr, time::Duration};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use futures::{SinkExt, StreamExt};
 
 use tokio::{
     io::{AsyncRead, AsyncWrite},
+    net::UdpSocket,
     time::timeout,
 };
 
@@ -36,8 +37,8 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
     connection_id: String,
-    read: PpaassConnectionRead<T, R, String>,
-    write: PpaassConnectionWrite<T, R, String>,
+    read_part: PpaassConnectionRead<T, R, String>,
+    write_part: PpaassConnectionWrite<T, R, String>,
     agent_address: PpaassNetAddress,
     configuration: Arc<ProxyServerConfig>,
 }
@@ -47,21 +48,21 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
-    pub(crate) fn new(agent_io: T, agent_address: PpaassNetAddress, configuration: Arc<ProxyServerConfig>, rsa_crypto_fetcher: Arc<R>) -> Self {
+    pub(crate) fn new(agent_io_stream: T, agent_address: PpaassNetAddress, configuration: Arc<ProxyServerConfig>, rsa_crypto_fetcher: Arc<R>) -> Self {
         let connection_id = generate_uuid();
         let ppaass_connection = PpaassConnection::new(
             connection_id.clone(),
-            agent_io,
+            agent_io_stream,
             rsa_crypto_fetcher,
             configuration.get_compress(),
             configuration.get_message_framed_buffer_size(),
         );
-        let (read, write) = ppaass_connection.split();
+        let (read_part, write_part) = ppaass_connection.split();
 
         Self {
             connection_id,
-            read,
-            write,
+            read_part,
+            write_part,
             agent_address,
             configuration,
         }
@@ -74,7 +75,7 @@ where
         debug!("Agent connection [{connection_id}] associated with agent address: {agent_address:?}");
 
         loop {
-            let agent_message = self.read.next().await;
+            let agent_message = self.read_part.next().await;
             let Some(agent_message) = agent_message else {
                 error!("Agent connection [{connection_id}] closed in agent side, close the proxy side also.");
                 return Ok(());
@@ -94,14 +95,14 @@ where
 
             match payload_type {
                 PpaassMessageAgentPayloadType::IdleHeartbeat => {
-                    if let Err(e) = handle_idle_heartbeat(agent_address.clone(), user_token, agent_message_payload_data, &mut self.write).await {
+                    if let Err(e) = handle_idle_heartbeat(agent_address.clone(), user_token, agent_message_payload_data, &mut self.write_part).await {
                         error!("Agent connection [{connection_id}] fail to handle idle heartbeat because of error: {e:?}");
                         continue;
                     };
                     continue;
                 },
                 PpaassMessageAgentPayloadType::DomainNameResolve => {
-                    if let Err(e) = handle_domain_name_resolve(user_token, agent_message_payload_data, &mut self.write, configuration.clone()).await {
+                    if let Err(e) = handle_domain_name_resolve(user_token, agent_message_payload_data, &mut self.write_part, configuration.clone()).await {
                         error!("Agent connection [{connection_id}] fail to handle domain resolve because of error: {e:?}");
                         continue;
                     };
@@ -117,8 +118,8 @@ where
                     };
                     let src_address = tcp_loop_init_request.src_address;
                     let dest_address = tcp_loop_init_request.dest_address;
-                    let read = self.read;
-                    let write = self.write;
+                    let read = self.read_part;
+                    let write = self.write_part;
                     let tcp_loop_builder = TcpLoopBuilder::new()
                         .agent_address(agent_address)
                         .agent_connection_id(&connection_id)
@@ -143,14 +144,19 @@ where
                     return Ok(());
                 },
                 PpaassMessageAgentPayloadType::UdpLoopInit => {
+                    let udp_socket = Arc::new(match UdpSocket::bind("0.0.0.0:0").await {
+                        Ok(udp_socket) => udp_socket,
+                        Err(e) => {
+                            error!("Agent connection [{connection_id}] fail to bind udp socket because of error: {e:?}");
+                            return Err(anyhow!(e));
+                        },
+                    });
                     info!("Agent connection [{connection_id}] receive udp loop init from agent.");
-                    let read = self.read;
-                    let write = self.write;
-                    let udp_loop_builder = UdpLoopBuilder::new()
+                    let udp_loop_builder = UdpLoopBuilder::new(udp_socket.clone())
                         .agent_address(agent_address)
                         .agent_connection_id(&connection_id)
-                        .agent_connection_write(write)
-                        .agent_connection_read(read)
+                        .agent_connection_write(self.write_part)
+                        .agent_connection_read(self.read_part)
                         .user_token(user_token);
                     let udp_loop = match udp_loop_builder.build().await {
                         Ok(udp_loop) => udp_loop,
@@ -159,7 +165,7 @@ where
                             return Err(e);
                         },
                     };
-                    let udp_loop_key = udp_loop.get_key().to_owned();
+                    let udp_loop_key = udp_loop.get_loop_key().to_owned();
                     debug!("Agent connection [{connection_id}] start udp loop [{udp_loop_key}]");
                     if let Err(e) = udp_loop.exec().await {
                         error!("Agent connection [{connection_id}] fail to execute udp loop because of error: {e:?}");
