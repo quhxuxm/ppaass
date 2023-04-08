@@ -23,7 +23,7 @@ enum DecodeStatus {
     Data(bool, u64),
 }
 
-pub struct PpaassMessageCodec<T: RsaCryptoFetcher> {
+pub(crate) struct PpaassMessageCodec<T: RsaCryptoFetcher> {
     rsa_crypto_fetcher: Arc<T>,
     compress: bool,
     status: DecodeStatus,

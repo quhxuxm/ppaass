@@ -10,16 +10,16 @@ use tokio::{
     io::{AsyncRead, AsyncWrite},
     time::timeout,
 };
-use tokio_util::codec::Framed;
+
 use tracing::{debug, error, info, trace};
 
 use ppaass_common::{
-    codec::PpaassMessageCodec, generate_uuid, PpaassConnectionWrite, PpaassMessageAgentPayload, PpaassMessageAgentPayloadParts, PpaassMessageAgentPayloadType,
-    PpaassNetAddress, RsaCryptoFetcher,
-};
-use ppaass_common::{
     domain_resolve::DomainResolveRequestPayload, heartbeat::HeartbeatRequestPayload, PpaassMessageGenerator, PpaassMessageParts,
     PpaassMessagePayloadEncryptionSelector,
+};
+use ppaass_common::{
+    generate_uuid, PpaassConnection, PpaassConnectionWrite, PpaassMessageAgentPayload, PpaassMessageAgentPayloadParts, PpaassMessageAgentPayloadType,
+    PpaassNetAddress, RsaCryptoFetcher,
 };
 use ppaass_common::{tcp_loop::TcpLoopInitRequestPayload, PpaassConnectionRead};
 
@@ -35,7 +35,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
-    id: String,
+    connection_id: String,
     read: PpaassConnectionRead<T, R, String>,
     write: PpaassConnectionWrite<T, R, String>,
     agent_address: PpaassNetAddress,
@@ -48,14 +48,18 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
     pub(crate) fn new(agent_io: T, agent_address: PpaassNetAddress, configuration: Arc<ProxyServerConfig>, rsa_crypto_fetcher: Arc<R>) -> Self {
-        let agent_message_codec = PpaassMessageCodec::new(configuration.get_compress(), rsa_crypto_fetcher);
-        let agent_message_framed = Framed::with_capacity(agent_io, agent_message_codec, configuration.get_message_framed_buffer_size());
-        let (agent_message_framed_write, agent_message_framed_read) = agent_message_framed.split();
-        let id = generate_uuid();
-        let read = PpaassConnectionRead::new(id.clone(), agent_message_framed_read);
-        let write = PpaassConnectionWrite::new(id.clone(), agent_message_framed_write);
+        let connection_id = generate_uuid();
+        let ppaass_connection = PpaassConnection::new(
+            connection_id.clone(),
+            agent_io,
+            rsa_crypto_fetcher,
+            configuration.get_compress(),
+            configuration.get_message_framed_buffer_size(),
+        );
+        let (read, write) = ppaass_connection.split();
+
         Self {
-            id,
+            connection_id,
             read,
             write,
             agent_address,
@@ -64,7 +68,7 @@ where
     }
 
     pub(crate) async fn exec(mut self) -> Result<()> {
-        let connection_id = self.id.clone();
+        let connection_id = self.connection_id.clone();
         let agent_address = self.agent_address.clone();
         let configuration = self.configuration.clone();
         debug!("Agent connection [{connection_id}] associated with agent address: {agent_address:?}");

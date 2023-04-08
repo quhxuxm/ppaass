@@ -6,7 +6,6 @@ use std::{
 use std::{net::SocketAddr, time::Duration};
 
 use anyhow::{Context as AnyhowContext, Result};
-use futures::StreamExt;
 
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -14,12 +13,11 @@ use tokio::{
     time::timeout,
 };
 
-use tokio_util::codec::Framed;
 use tracing::{debug, error};
 
 use ppaass_common::PpaassConnectionWrite;
-use ppaass_common::{codec::PpaassMessageCodec, PpaassConnectionRead};
 use ppaass_common::{generate_uuid, RsaCryptoFetcher};
+use ppaass_common::{PpaassConnection, PpaassConnectionRead};
 
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher};
 
@@ -102,7 +100,6 @@ impl ProxyConnectionPool {
 
     pub(crate) async fn take_connection(&self) -> Result<ProxyConnection<TcpStream, AgentServerRsaCryptoFetcher, String>> {
         debug!("Begin to feed proxy connections");
-        let message_framed_buffer_size = self.configuration.get_message_framed_buffer_size();
 
         let proxy_tcp_stream = match timeout(
             Duration::from_secs(self.configuration.get_connect_to_proxy_timeout()),
@@ -121,13 +118,16 @@ impl ProxyConnectionPool {
             },
         };
         debug!("Success connect to proxy when feed connection pool.");
-        let proxy_message_codec = PpaassMessageCodec::new(self.configuration.get_compress(), self.rsa_crypto_fetcher.clone());
-
-        let ppaass_message_framed = Framed::with_capacity(proxy_tcp_stream, proxy_message_codec, message_framed_buffer_size);
-        let (ppaass_message_framed_write, ppaass_message_framed_read) = ppaass_message_framed.split();
         let connection_id = generate_uuid();
-        let read = PpaassConnectionRead::new(connection_id.clone(), ppaass_message_framed_read);
-        let write = PpaassConnectionWrite::new(connection_id.clone(), ppaass_message_framed_write);
+        let ppaass_connection = PpaassConnection::new(
+            connection_id.clone(),
+            proxy_tcp_stream,
+            self.rsa_crypto_fetcher.clone(),
+            self.configuration.get_compress(),
+            self.configuration.get_message_framed_buffer_size(),
+        );
+
+        let (read, write) = ppaass_connection.split();
 
         Ok(ProxyConnection {
             connection_id,

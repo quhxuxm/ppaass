@@ -1,19 +1,59 @@
 use std::{
     fmt::{Debug, Display},
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll},
 };
 
-use crate::{
-    types::{PpaassMessageFramedRead, PpaassMessageFramedWrite},
-    PpaassMessage, RsaCryptoFetcher,
-};
+use crate::{codec::PpaassMessageCodec, PpaassMessage, RsaCryptoFetcher};
 use anyhow::anyhow;
 use anyhow::Result;
-use futures::{Sink, SinkExt, Stream};
+use futures::{
+    stream::{SplitSink, SplitStream},
+    Sink, SinkExt, Stream, StreamExt,
+};
 use log::{debug, error};
 use pin_project::{pin_project, pinned_drop};
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio_util::codec::Framed;
+
+type PpaassMessageFramedRead<T, R> = SplitStream<Framed<T, PpaassMessageCodec<R>>>;
+type PpaassMessageFramedWrite<T, R> = SplitSink<Framed<T, PpaassMessageCodec<R>>, PpaassMessage>;
+
+pub struct PpaassConnection<T, R, I>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    R: RsaCryptoFetcher + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+{
+    framed_read: PpaassMessageFramedRead<T, R>,
+    framed_write: PpaassMessageFramedWrite<T, R>,
+    connection_id: I,
+}
+
+impl<T, R, I> PpaassConnection<T, R, I>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    R: RsaCryptoFetcher + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+{
+    pub fn new(connection_id: I, stream: T, rsa_crypto_fetcher: Arc<R>, compress: bool, buffer_size: usize) -> Self {
+        let ppaass_message_codec = PpaassMessageCodec::new(compress, rsa_crypto_fetcher);
+        let ppaass_message_framed = Framed::with_capacity(stream, ppaass_message_codec, buffer_size);
+        let (framed_write, framed_read) = ppaass_message_framed.split();
+        Self {
+            framed_write,
+            framed_read,
+            connection_id,
+        }
+    }
+
+    pub fn split(self) -> (PpaassConnectionRead<T, R, I>, PpaassConnectionWrite<T, R, I>) {
+        let read_part = PpaassConnectionRead::new(self.connection_id.clone(), self.framed_read);
+        let write_part = PpaassConnectionWrite::new(self.connection_id.clone(), self.framed_write);
+        (read_part, write_part)
+    }
+}
 
 #[pin_project(PinnedDrop)]
 #[derive(Debug)]
@@ -55,7 +95,7 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    pub fn new(connection_id: I, ppaass_message_framed_write: PpaassMessageFramedWrite<T, R>) -> Self {
+    fn new(connection_id: I, ppaass_message_framed_write: PpaassMessageFramedWrite<T, R>) -> Self {
         Self {
             connection_id,
             ppaass_message_framed_write: Some(ppaass_message_framed_write),
@@ -131,7 +171,7 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    pub fn new(connection_id: I, ppaass_message_framed_read: PpaassMessageFramedRead<T, R>) -> Self {
+    fn new(connection_id: I, ppaass_message_framed_read: PpaassMessageFramedRead<T, R>) -> Self {
         Self {
             connection_id,
             ppaass_message_framed_read,
