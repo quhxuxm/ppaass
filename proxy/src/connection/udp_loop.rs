@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fmt::{Debug, Display},
     net::{SocketAddr, ToSocketAddrs},
     sync::Arc,
@@ -36,6 +37,7 @@ where
     user_token: String,
     agent_connection_id: String,
     udp_socket: Arc<UdpSocket>,
+    addresses_repository: Arc<Mutex<HashMap<PpaassNetAddress, PpaassNetAddress>>>,
 }
 
 impl<T, R, I> UdpLoop<T, R, I>
@@ -57,7 +59,62 @@ where
         let agent_connection_id = self.agent_connection_id;
         let agent_connection_write = Arc::new(Mutex::new(self.agent_connection_write));
         let user_token = self.user_token;
+        let dst_udp_socket = self.udp_socket.clone();
+        let addresses_repository = self.addresses_repository;
 
+        {
+            let addresses_repository = addresses_repository.clone();
+            let user_token = user_token.clone();
+            let agent_connection_id = agent_connection_id.clone();
+            let loop_key = loop_key.clone();
+            tokio::spawn(async move {
+                loop {
+                    let mut dst_udp_recv_buf = [0u8; 65535];
+                    let (dst_udp_data_size, receive_from_address) = match dst_udp_socket.recv_from(&mut dst_udp_recv_buf).await {
+                        Ok(size) => size,
+                        Err(e) => {
+                            error!(
+                            "Agent connection [{agent_connection_id}] with udp loop {loop_key} fail to receive data from udp socket because of error: {e:?}"
+                        );
+                            return;
+                        },
+                    };
+                    let dst_address: PpaassNetAddress = receive_from_address.into();
+                    let dst_udp_recv_buf = &dst_udp_recv_buf[..dst_udp_data_size];
+                    info!(
+                        "Agent connection [{agent_connection_id}] receive destination udp data:\n{}\n",
+                        pretty_hex(&dst_udp_recv_buf)
+                    );
+                    let mut agent_connection_write = agent_connection_write.lock().await;
+                    let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
+                    let src_address = {
+                        let mut addresses_repository = addresses_repository.lock().await;
+                        let Some(src_address) = addresses_repository.remove(&dst_address) else {
+                            continue;
+                        };
+                        src_address
+                    };
+                    let udp_loop_data_message = match PpaassMessageGenerator::generate_udp_loop_data(
+                        user_token.clone(),
+                        payload_encryption,
+                        src_address,
+                        dst_address,
+                        dst_udp_recv_buf.to_vec(),
+                    ) {
+                        Ok(udp_loop_data_message) => udp_loop_data_message,
+                        Err(e) => {
+                            error!(
+                            "Agent connection [{agent_connection_id}] with udp loop {loop_key} fail to generate udp loop data message because of error: {e:?}"
+                        );
+                            return;
+                        },
+                    };
+                    if let Err(e) = agent_connection_write.send(udp_loop_data_message).await {
+                        error!("Agent connection [{agent_connection_id}] with udp loop {loop_key} fail to send udp loop data to agent because of error: {e:?}");
+                    }
+                }
+            });
+        }
         loop {
             let agent_message = match self.agent_connection_read.next().await {
                 Some(Ok(agent_message)) => agent_message,
@@ -73,66 +130,28 @@ where
                 dst_address,
                 raw_data_bytes,
             } = TryInto::<UdpLoopData>::try_into(payload_bytes)?.split();
-            let agent_connection_write = agent_connection_write.clone();
-            let user_token = user_token.clone();
             let agent_connection_id = agent_connection_id.clone();
             let loop_key = loop_key.clone();
             let dst_udp_socket = self.udp_socket.clone();
-            tokio::spawn(async move {
-                let dst_udp_socket_address = match dst_address.to_socket_addrs() {
-                    Ok(v) => v,
-                    Err(e) => {
-                        error!("Agent connection [{agent_connection_id}] with udp loop {loop_key} fail to convert destination address [{dst_address}] because of error: {e:?}");
-                        return;
-                    },
-                };
-                info!(
-                    "Agent connection [{agent_connection_id}] receive agent udp data:\n{}\n",
-                    pretty_hex(&raw_data_bytes)
-                );
-                let dst_socket_address = dst_udp_socket_address.collect::<Vec<SocketAddr>>();
-                if let Err(e) = dst_udp_socket.connect(dst_socket_address.as_slice()).await {
-                    error!(
-                        "Agent connection [{agent_connection_id}] with udp loop {loop_key} fail to connect udp socket to [{dst_address}] because of error: {e:?}"
-                    );
-                    return;
-                };
-                if let Err(e) = dst_udp_socket.send(&raw_data_bytes).await {
-                    error!("Agent connection [{agent_connection_id}] with udp loop {loop_key} fail to send data to udp socket because of error: {e:?}");
-                    return;
-                };
-                info!("Agent connection [{agent_connection_id}] waiting for receive destination udp data, destination address: {dst_address}");
-                let mut dst_udp_recv_buf = [0u8; 65535];
-                let dst_udp_data_size = match dst_udp_socket.recv(&mut dst_udp_recv_buf).await {
-                    Ok(size) => size,
-                    Err(e) => {
-                        error!(
-                            "Agent connection [{agent_connection_id}] with udp loop {loop_key} fail to receive data from udp socket because of error: {e:?}"
-                        );
-                        return;
-                    },
-                };
-                let dst_udp_recv_buf = &dst_udp_recv_buf[..dst_udp_data_size];
-                info!(
-                    "Agent connection [{agent_connection_id}] receive destination udp data:\n{}\n",
-                    pretty_hex(&dst_udp_recv_buf)
-                );
-                let mut agent_connection_write = agent_connection_write.lock().await;
-                let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-                let udp_loop_data_message =
-                    match PpaassMessageGenerator::generate_udp_loop_data(user_token, payload_encryption, src_address, dst_address, dst_udp_recv_buf.to_vec()) {
-                        Ok(udp_loop_data_message) => udp_loop_data_message,
-                        Err(e) => {
-                            error!(
-                            "Agent connection [{agent_connection_id}] with udp loop {loop_key} fail to generate udp loop data message because of error: {e:?}"
-                        );
-                            return;
-                        },
-                    };
-                if let Err(e) = agent_connection_write.send(udp_loop_data_message).await {
-                    error!("Agent connection [{agent_connection_id}] with udp loop {loop_key} fail to send udp loop data to agent because of error: {e:?}");
-                }
-            });
+
+            let dst_udp_socket_address = match dst_address.to_socket_addrs() {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("Agent connection [{agent_connection_id}] with udp loop {loop_key} fail to convert destination address [{dst_address}] because of error: {e:?}");
+                    continue;
+                },
+            };
+            info!(
+                "Agent connection [{agent_connection_id}] receive agent udp data:\n{}\n",
+                pretty_hex(&raw_data_bytes)
+            );
+            let dst_socket_address = dst_udp_socket_address.collect::<Vec<SocketAddr>>();
+            if let Err(e) = dst_udp_socket.send_to(&raw_data_bytes, dst_socket_address.as_slice()).await {
+                error!("Agent connection [{agent_connection_id}] with udp loop {loop_key} fail to send data to udp socket because of error: {e:?}");
+                continue;
+            };
+            let mut addresses_repository = addresses_repository.lock().await;
+            addresses_repository.insert(dst_address, src_address);
         }
     }
 }
@@ -218,6 +237,7 @@ where
             agent_connection_write,
             user_token,
             agent_connection_id,
+            addresses_repository: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 }
