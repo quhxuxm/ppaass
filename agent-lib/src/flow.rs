@@ -1,6 +1,12 @@
 pub(crate) mod dispatcher;
 
-use std::{net::SocketAddr, pin::Pin, sync::Arc, task::Poll};
+use std::{
+    fmt::{Debug, Display},
+    net::SocketAddr,
+    pin::Pin,
+    sync::Arc,
+    task::Poll,
+};
 
 use anyhow::Result;
 
@@ -10,58 +16,60 @@ use futures::{
     try_join, Sink, SinkExt, Stream, StreamExt,
 };
 use pin_project::{pin_project, pinned_drop};
-use ppaass_common::{PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryption};
-use tokio::io::{AsyncRead, AsyncWrite};
+use ppaass_common::{
+    PpaassConnectionRead, PpaassConnectionWrite, PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryption, RsaCryptoFetcher,
+};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    net::TcpStream,
+};
 
 use tokio_util::codec::{BytesCodec, Framed};
 use tracing::{debug, error, trace};
 
-use crate::{
-    config::AgentServerConfig,
-    pool::{ProxyConnectionPool, ProxyConnectionRead, ProxyConnectionWrite},
-};
+use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, pool::ProxyConnectionPool};
 
 use self::{http::HttpFlow, socks::Socks5Flow};
 
 mod http;
 mod socks;
 
-struct ClientDataRelayInfo<T>
+#[non_exhaustive]
+struct ClientDataRelayInfo<R, I>
 where
-    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
+    R: RsaCryptoFetcher + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    client_io: T,
+    client_io: TcpStream,
     client_socket_address: SocketAddr,
     tcp_loop_key: String,
     user_token: String,
     payload_encryption: PpaassMessagePayloadEncryption,
-    proxy_connection_read: ProxyConnectionRead,
-    proxy_connection_write: ProxyConnectionWrite,
+    proxy_connection_read: PpaassConnectionRead<TcpStream, R, I>,
+    proxy_connection_write: PpaassConnectionWrite<TcpStream, R, I>,
     configuration: Arc<AgentServerConfig>,
     init_data: Option<Vec<u8>>,
 }
 
-pub(crate) enum ClientFlow<T>
-where
-    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
-{
+pub(crate) enum ClientFlow {
     Http {
-        client_io: T,
+        client_io: TcpStream,
         client_socket_address: SocketAddr,
         initial_buf: BytesMut,
     },
     Socks5 {
-        client_io: T,
+        client_io: TcpStream,
         client_socket_address: SocketAddr,
         initial_buf: BytesMut,
     },
 }
 
-impl<T> ClientFlow<T>
-where
-    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
-{
-    pub(crate) async fn exec(self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>) -> Result<()> {
+impl ClientFlow {
+    pub(crate) async fn exec<R, I>(self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>) -> Result<()>
+    where
+        R: RsaCryptoFetcher + Send + Sync + 'static,
+        I: AsRef<str> + Send + Sync + Clone + Display + 'static,
+    {
         match self {
             ClientFlow::Http {
                 client_io,
@@ -69,7 +77,10 @@ where
                 initial_buf,
             } => {
                 let http_flow = HttpFlow::new(client_io, client_socket_address);
-                if let Err(e) = http_flow.exec(proxy_connection_pool, configuration, initial_buf).await {
+                if let Err(e) = http_flow
+                    .exec::<AgentServerRsaCryptoFetcher, String>(proxy_connection_pool, configuration, initial_buf)
+                    .await
+                {
                     error!("Client tcp connection [{client_socket_address}] error happen on http flow for proxy connection: {e:?}");
                     return Err(e);
                 }
@@ -80,7 +91,10 @@ where
                 initial_buf,
             } => {
                 let socks5_flow = Socks5Flow::new(client_io, client_socket_address);
-                if let Err(e) = socks5_flow.exec(proxy_connection_pool, configuration, initial_buf).await {
+                if let Err(e) = socks5_flow
+                    .exec::<AgentServerRsaCryptoFetcher, String>(proxy_connection_pool, configuration, initial_buf)
+                    .await
+                {
                     error!("Client tcp connection [{client_socket_address}] error happen on socks5 flow for proxy connection: {e:?}");
                     return Err(e);
                 };
@@ -89,7 +103,11 @@ where
         Ok(())
     }
 
-    async fn relay(info: ClientDataRelayInfo<T>) -> Result<()> {
+    async fn relay<R, I>(info: ClientDataRelayInfo<R, I>) -> Result<()>
+    where
+        R: RsaCryptoFetcher + Send + Sync + 'static,
+        I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+    {
         let client_io = info.client_io;
         let tcp_loop_key = info.tcp_loop_key;
         let client_socket_address = info.client_socket_address;

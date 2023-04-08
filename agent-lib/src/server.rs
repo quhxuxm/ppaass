@@ -66,7 +66,7 @@ impl AgentServer {
                     },
                     Ok(v) => v,
                 };
-                if let Err(e) = flow.exec(proxy_connection_pool, configuration).await {
+                if let Err(e) = flow.exec::<AgentServerRsaCryptoFetcher, String>(proxy_connection_pool, configuration).await {
                     error!("Client tcp connection [{client_socket_address}] fail to execute client flow because of error: {e:?}");
                     return;
                 };

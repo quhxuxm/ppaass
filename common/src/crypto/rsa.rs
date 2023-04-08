@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use log::error;
 use rand::rngs::OsRng;
 use rsa::{
     pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding},
@@ -7,7 +8,6 @@ use rsa::{
 use rsa::{PublicKey, RsaPrivateKey, RsaPublicKey};
 use std::{fmt::Debug, path::Path};
 use std::{fs, io::Read};
-use tracing::error;
 
 const DEFAULT_AGENT_PRIVATE_KEY_PATH: &str = "AgentPrivateKey.pem";
 const DEFAULT_AGENT_PUBLIC_KEY_PATH: &str = "AgentPublicKey.pem";

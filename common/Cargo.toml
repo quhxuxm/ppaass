@@ -25,5 +25,6 @@ serde_derive = {workspace = true}
 serde_json = {workspace = true}
 tokio = {workspace = true, features = ["macros", "time", "net", "io-util", "rt-multi-thread"]}
 tokio-util = {workspace = true, features = ["codec"]}
-tracing = {workspace = true}
 uuid = {workspace = true}
+pin-project = {workspace = true}
+log = {workspace = true}

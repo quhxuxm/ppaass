@@ -2,8 +2,8 @@ use crate::serializer::array_u8_l16_to_base64;
 use crate::serializer::array_u8_l4_to_base64;
 
 use bytes::Buf;
+use log::error;
 use serde_derive::{Deserialize, Serialize};
-use tracing::error;
 
 use std::fmt::{Display, Formatter};
 use std::net::{IpAddr, SocketAddr};

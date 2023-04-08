@@ -13,8 +13,8 @@ use bytes::{Buf, BufMut, BytesMut};
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use pretty_hex::*;
 
+use log::{error, trace};
 use tokio_util::codec::{Decoder, Encoder};
-use tracing::{error, trace};
 
 const PPAASS_FLAG: &[u8] = "__PPAASS__".as_bytes();
 

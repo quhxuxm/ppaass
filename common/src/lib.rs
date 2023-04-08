@@ -4,9 +4,12 @@ pub use crypto::*;
 use uuid::Uuid;
 pub mod codec;
 
+mod connection;
 mod message;
 mod serializer;
+mod types;
 
+pub use connection::*;
 pub use message::*;
 
 pub fn generate_uuid() -> String {

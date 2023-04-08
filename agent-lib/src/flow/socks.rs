@@ -4,11 +4,11 @@ use futures::{SinkExt, StreamExt};
 use ppaass_common::{
     tcp_loop::{TcpLoopInitResponsePayload, TcpLoopInitResponseType},
     PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload, PpaassMessageProxyPayloadParts,
-    PpaassMessageProxyPayloadType, PpaassNetAddress,
+    PpaassMessageProxyPayloadType, PpaassNetAddress, RsaCryptoFetcher,
 };
 
-use std::{net::SocketAddr, sync::Arc};
-use tokio::io::{AsyncRead, AsyncWrite};
+use std::{fmt::Display, net::SocketAddr, sync::Arc};
+use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, FramedParts};
 use tracing::{debug, error};
 
@@ -16,10 +16,14 @@ use self::message::Socks5InitCommandResultStatus;
 
 use crate::{
     config::AgentServerConfig,
+    crypto::AgentServerRsaCryptoFetcher,
     flow::{
         socks::{
             codec::{Socks5AuthCommandContentCodec, Socks5InitCommandContentCodec},
-            message::{Socks5AuthCommandContentParts, Socks5AuthCommandResultContent, Socks5InitCommandContentParts, Socks5InitCommandResultContent},
+            message::{
+                Socks5AuthCommandContentParts, Socks5AuthCommandResultContent, Socks5InitCommandContentParts, Socks5InitCommandResultContent,
+                Socks5InitCommandType,
+            },
         },
         ClientDataRelayInfo, ClientFlow,
     },
@@ -32,28 +36,26 @@ use ppaass_common::generate_uuid;
 mod codec;
 mod message;
 
-pub(crate) struct Socks5Flow<T>
-where
-    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
-{
-    client_io: T,
+pub(crate) struct Socks5Flow {
+    client_io: TcpStream,
     client_socket_address: SocketAddr,
 }
 
-impl<T> Socks5Flow<T>
-where
-    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
-{
-    pub(crate) fn new(client_io: T, client_socket_address: SocketAddr) -> Self {
+impl Socks5Flow {
+    pub(crate) fn new(client_io: TcpStream, client_socket_address: SocketAddr) -> Self {
         Self {
             client_io,
             client_socket_address,
         }
     }
 
-    pub(crate) async fn exec(
+    pub(crate) async fn exec<R, I>(
         self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>, initial_buf: BytesMut,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        R: RsaCryptoFetcher + Send + Sync + 'static,
+        I: AsRef<str> + Send + Sync + Clone + Display + 'static,
+    {
         let client_io = self.client_io;
         let client_socket_address = self.client_socket_address;
         let mut auth_framed_parts = FramedParts::new(client_io, Socks5AuthCommandContentCodec::default());
@@ -93,10 +95,10 @@ where
         );
 
         match command_type {
-            message::Socks5InitCommandType::Bind => todo!(),
-            message::Socks5InitCommandType::UdpAssociate => todo!(),
-            message::Socks5InitCommandType::Connect => {
-                Self::handle_connect_command(
+            Socks5InitCommandType::Bind => todo!(),
+            Socks5InitCommandType::UdpAssociate => todo!(),
+            Socks5InitCommandType::Connect => {
+                Self::handle_connect_command::<AgentServerRsaCryptoFetcher, String>(
                     client_socket_address.into(),
                     dest_address.into(),
                     proxy_connection_pool,
@@ -111,10 +113,14 @@ where
         Ok(())
     }
 
-    async fn handle_connect_command(
+    async fn handle_connect_command<R, I>(
         src_address: PpaassNetAddress, dest_address: PpaassNetAddress, proxy_connection_pool: Arc<ProxyConnectionPool>,
-        mut init_framed: Framed<T, Socks5InitCommandContentCodec>, client_socket_address: SocketAddr, configuration: Arc<AgentServerConfig>,
-    ) -> Result<(), anyhow::Error> {
+        mut init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>, client_socket_address: SocketAddr, configuration: Arc<AgentServerConfig>,
+    ) -> Result<(), anyhow::Error>
+    where
+        R: RsaCryptoFetcher + Send + Sync + 'static,
+        I: AsRef<str> + Send + Sync + Clone + Display + 'static,
+    {
         let user_token = configuration
             .get_user_token()
             .as_ref()
@@ -129,7 +135,7 @@ where
         let proxy_connection = proxy_connection_pool.take_connection().await.context(format!(
             "Client tcp connection [{client_socket_address}] fail to take proxy connection from connection poool because of error"
         ))?;
-        let proxy_connection_id = proxy_connection.id.clone();
+        let proxy_connection_id = proxy_connection.connection_id.clone();
         let (mut proxy_connection_read, mut proxy_connection_write) = proxy_connection.split()?;
         debug!("Client tcp connection [{client_socket_address}] take proxy connectopn [{proxy_connection_id}] to do proxy");
         if let Err(e) = proxy_connection_write.send(tcp_loop_init_request).await {

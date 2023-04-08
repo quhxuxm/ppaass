@@ -1,14 +1,15 @@
+use base64::{engine::general_purpose, Engine};
 use serde::{Deserialize, Serialize};
 use serde::{Deserializer, Serializer};
 
 fn serialize_byte_array<S: Serializer>(v: &[u8], s: S) -> Result<S::Ok, S::Error> {
-    let base64 = base64::encode(v);
+    let base64 = general_purpose::STANDARD.encode(v);
     String::serialize(&base64, s)
 }
 
 fn deserialize_byte_array<'de, D: Deserializer<'de>, const N: usize>(d: D) -> Result<[u8; N], D::Error> {
     let base64 = String::deserialize(d)?;
-    let decode_result = base64::decode(base64.as_bytes()).map_err(serde::de::Error::custom)?;
+    let decode_result = general_purpose::STANDARD.decode(base64.as_bytes()).map_err(serde::de::Error::custom)?;
     if decode_result.len() != N {
         return Err(serde::de::Error::custom("The length of the result is not equale to 4."));
     }
@@ -19,7 +20,7 @@ fn deserialize_byte_array<'de, D: Deserializer<'de>, const N: usize>(d: D) -> Re
 
 fn deserialize_byte_vec<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
     let base64 = String::deserialize(d)?;
-    let result = base64::decode(base64.as_bytes()).map_err(serde::de::Error::custom)?;
+    let result = general_purpose::STANDARD.decode(base64.as_bytes()).map_err(serde::de::Error::custom)?;
     Ok(result)
 }
 
@@ -70,8 +71,9 @@ pub(crate) mod array_u8_l16_to_base64 {
 
 pub(crate) mod option_vec_array_u8_l4_to_base64 {
 
+    use base64::{engine::general_purpose, Engine};
+    use log::error;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
-    use tracing::error;
 
     pub fn serialize<S: Serializer>(v: &Option<Vec<[u8; 4]>>, s: S) -> Result<S::Ok, S::Error> {
         match v {
@@ -79,7 +81,7 @@ pub(crate) mod option_vec_array_u8_l4_to_base64 {
             Some(v) => {
                 let mut base64_container = vec![];
                 v.iter().for_each(|v| {
-                    let base64 = base64::encode(v);
+                    let base64 = general_purpose::STANDARD.encode(v);
                     base64_container.push(base64);
                 });
                 Vec::serialize(&base64_container, s)
@@ -91,7 +93,7 @@ pub(crate) mod option_vec_array_u8_l4_to_base64 {
         let base64_vec = Vec::<String>::deserialize(d)?;
         let mut result = vec![];
         base64_vec.iter().for_each(|base64| {
-            let decode_result = match base64::decode(base64.as_bytes()) {
+            let decode_result = match general_purpose::STANDARD.decode(base64.as_bytes()) {
                 Ok(v) => v,
                 Err(e) => {
                     error!("Fail to decode base64 bytes because of error: {e:?}");

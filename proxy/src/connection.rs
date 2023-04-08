@@ -1,11 +1,11 @@
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::{fmt::Debug, sync::Arc};
+
+use std::fmt::Display;
 use std::{net::IpAddr, time::Duration};
 
 use anyhow::Result;
-use futures::{Sink, SinkExt, Stream, StreamExt};
-use pin_project::{pin_project, pinned_drop};
+use futures::{SinkExt, StreamExt};
+
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     time::timeout,
@@ -13,17 +13,16 @@ use tokio::{
 use tokio_util::codec::Framed;
 use tracing::{debug, error, info, trace};
 
-use ppaass_common::tcp_loop::TcpLoopInitRequestPayload;
 use ppaass_common::{
-    codec::PpaassMessageCodec, generate_uuid, PpaassMessage, PpaassMessageAgentPayload, PpaassMessageAgentPayloadParts, PpaassMessageAgentPayloadType,
+    codec::PpaassMessageCodec, generate_uuid, PpaassConnectionWrite, PpaassMessageAgentPayload, PpaassMessageAgentPayloadParts, PpaassMessageAgentPayloadType,
     PpaassNetAddress, RsaCryptoFetcher,
 };
 use ppaass_common::{
     domain_resolve::DomainResolveRequestPayload, heartbeat::HeartbeatRequestPayload, PpaassMessageGenerator, PpaassMessageParts,
     PpaassMessagePayloadEncryptionSelector,
 };
+use ppaass_common::{tcp_loop::TcpLoopInitRequestPayload, PpaassConnectionRead};
 
-use crate::types::{AgentMessageFramedRead, AgentMessageFramedWrite};
 use crate::{common::ProxyServerPayloadEncryptionSelector, connection::udp_loop::UdpLoopBuilder};
 use crate::{config::ProxyServerConfig, connection::tcp_loop::TcpLoopBuilder};
 
@@ -37,8 +36,8 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
     id: String,
-    read: AgentConnectionRead<T, R>,
-    write: AgentConnectionWrite<T, R>,
+    read: PpaassConnectionRead<T, R, String>,
+    write: PpaassConnectionWrite<T, R, String>,
     agent_address: PpaassNetAddress,
     configuration: Arc<ProxyServerConfig>,
 }
@@ -53,8 +52,8 @@ where
         let agent_message_framed = Framed::with_capacity(agent_io, agent_message_codec, configuration.get_message_framed_buffer_size());
         let (agent_message_framed_write, agent_message_framed_read) = agent_message_framed.split();
         let id = generate_uuid();
-        let read = AgentConnectionRead::new(id.clone(), configuration.clone(), agent_address.clone(), agent_message_framed_read);
-        let write = AgentConnectionWrite::new(id.clone(), configuration.clone(), agent_address.clone(), agent_message_framed_write);
+        let read = PpaassConnectionRead::new(id.clone(), agent_message_framed_read);
+        let write = PpaassConnectionWrite::new(id.clone(), agent_message_framed_write);
         Self {
             id,
             read,
@@ -149,7 +148,7 @@ where
                         .agent_connection_write(write)
                         .agent_connection_read(read)
                         .user_token(user_token);
-                    let udp_loop = match udp_loop_builder.build(configuration).await {
+                    let udp_loop = match udp_loop_builder.build().await {
                         Ok(udp_loop) => udp_loop,
                         Err(e) => {
                             error!("Agent connection [{connection_id}] fail to build udp loop because of error: {e:?}");
@@ -169,156 +168,13 @@ where
     }
 }
 
-#[pin_project(PinnedDrop)]
-#[derive(Debug)]
-pub(crate) struct AgentConnectionWrite<T, R>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
-{
-    connection_id: String,
-    configuration: Arc<ProxyServerConfig>,
-    agent_address: PpaassNetAddress,
-    #[pin]
-    agent_message_framed_write: Option<AgentMessageFramedWrite<T, R>>,
-}
-
-#[pinned_drop]
-impl<T, R> PinnedDrop for AgentConnectionWrite<T, R>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
-{
-    fn drop(self: Pin<&mut Self>) {
-        let mut this = self.project();
-        let connection_id = this.connection_id.clone();
-        if let Some(mut agent_message_framed_write) = this.agent_message_framed_write.take() {
-            tokio::spawn(async move {
-                if let Err(e) = agent_message_framed_write.close().await {
-                    error!("Fail to close agent connection because of error: {e:?}");
-                };
-                debug!("Agent connection writer [{connection_id}] dropped")
-            });
-        }
-    }
-}
-
-impl<T, R> AgentConnectionWrite<T, R>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
-{
-    pub(crate) fn new(
-        connection_id: String, configuration: Arc<ProxyServerConfig>, agent_address: PpaassNetAddress,
-        agent_message_framed_write: AgentMessageFramedWrite<T, R>,
-    ) -> Self {
-        Self {
-            connection_id,
-            configuration,
-            agent_address,
-            agent_message_framed_write: Some(agent_message_framed_write),
-        }
-    }
-}
-
-impl<T, R> Sink<PpaassMessage> for AgentConnectionWrite<T, R>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
-{
-    type Error = anyhow::Error;
-
-    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let this = self.project();
-        let agent_message_framed_write = this.agent_message_framed_write.as_pin_mut();
-        if let Some(agent_message_framed_write) = agent_message_framed_write {
-            agent_message_framed_write.poll_ready(cx)
-        } else {
-            Poll::Ready(Err(anyhow::anyhow!("Agent message framed not exist.")))
-        }
-    }
-
-    fn start_send(self: Pin<&mut Self>, item: PpaassMessage) -> Result<(), Self::Error> {
-        let this = self.project();
-        let agent_message_framed_write = this.agent_message_framed_write.as_pin_mut();
-        if let Some(agent_message_framed_write) = agent_message_framed_write {
-            agent_message_framed_write.start_send(item)
-        } else {
-            Err(anyhow::anyhow!("Agent message framed not exist."))
-        }
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let this = self.project();
-        let agent_message_framed_write = this.agent_message_framed_write.as_pin_mut();
-        if let Some(agent_message_framed_write) = agent_message_framed_write {
-            agent_message_framed_write.poll_flush(cx)
-        } else {
-            Poll::Ready(Err(anyhow::anyhow!("Agent message framed not exist.")))
-        }
-    }
-
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let this = self.project();
-        let agent_message_framed_write = this.agent_message_framed_write.as_pin_mut();
-        if let Some(agent_message_framed_write) = agent_message_framed_write {
-            agent_message_framed_write.poll_close(cx)
-        } else {
-            Poll::Ready(Err(anyhow::anyhow!("Agent message framed not exist.")))
-        }
-    }
-}
-
-#[pin_project]
-#[derive(Debug)]
-pub(crate) struct AgentConnectionRead<T, R>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
-{
-    connection_id: String,
-    configuration: Arc<ProxyServerConfig>,
-    agent_address: PpaassNetAddress,
-    #[pin]
-    agent_message_framed_read: AgentMessageFramedRead<T, R>,
-}
-
-impl<T, R> AgentConnectionRead<T, R>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
-{
-    pub(crate) fn new(
-        connection_id: String, configuration: Arc<ProxyServerConfig>, agent_address: PpaassNetAddress, agent_message_framed_read: AgentMessageFramedRead<T, R>,
-    ) -> Self {
-        Self {
-            connection_id,
-            configuration,
-            agent_message_framed_read,
-            agent_address,
-        }
-    }
-}
-
-impl<T, R> Stream for AgentConnectionRead<T, R>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
-{
-    type Item = Result<PpaassMessage>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.project();
-        this.agent_message_framed_read.poll_next(cx)
-    }
-}
-
-async fn handle_idle_heartbeat<T, R>(
-    agent_address: PpaassNetAddress, user_token: String, agent_message_payload_data: Vec<u8>, agent_connection_write: &mut AgentConnectionWrite<T, R>,
+async fn handle_idle_heartbeat<T, R, I>(
+    agent_address: PpaassNetAddress, user_token: String, agent_message_payload_data: Vec<u8>, agent_connection_write: &mut PpaassConnectionWrite<T, R, I>,
 ) -> Result<()>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
     let heartbeat_request: HeartbeatRequestPayload = agent_message_payload_data.try_into()?;
     let timestamp_in_request = heartbeat_request.timestamp;
@@ -330,12 +186,13 @@ where
     Ok(())
 }
 
-async fn handle_domain_name_resolve<T, R>(
-    user_token: String, agent_message_payload_data: Vec<u8>, agent_connection_write: &mut AgentConnectionWrite<T, R>, configurtion: Arc<ProxyServerConfig>,
+async fn handle_domain_name_resolve<T, R, I>(
+    user_token: String, agent_message_payload_data: Vec<u8>, agent_connection_write: &mut PpaassConnectionWrite<T, R, I>, configurtion: Arc<ProxyServerConfig>,
 ) -> Result<()>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
     let DomainResolveRequestPayload {
         domain_name,

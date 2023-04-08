@@ -1,5 +1,5 @@
-use std::pin::Pin;
-use std::task::Poll;
+use std::{fmt::Debug, task::Poll};
+use std::{fmt::Display, pin::Pin};
 use std::{
     net::{SocketAddr, ToSocketAddrs},
     sync::Arc,
@@ -22,34 +22,34 @@ use tokio::{task::JoinHandle, time::timeout};
 use tokio_util::codec::{BytesCodec, Framed};
 use tracing::{debug, error, trace};
 
-use ppaass_common::{generate_uuid, PpaassMessageParts, RsaCryptoFetcher};
+use ppaass_common::{generate_uuid, PpaassConnectionRead, PpaassConnectionWrite, PpaassMessageParts, RsaCryptoFetcher};
 use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
 
 use crate::{common::ProxyServerPayloadEncryptionSelector, config::ProxyServerConfig};
 
-use super::{AgentConnectionRead, AgentConnectionWrite};
-
 type DestBytesFramedRead = SplitStream<Framed<TcpStream, BytesCodec>>;
 type DestBytesFramedWrite = SplitSink<Framed<TcpStream, BytesCodec>, BytesMut>;
 
-pub(crate) struct TcpLoopBuilder<T, R>
+pub(crate) struct TcpLoopBuilder<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
     agent_connection_id: Option<String>,
-    agent_connection_read: Option<AgentConnectionRead<T, R>>,
-    agent_connection_write: Option<AgentConnectionWrite<T, R>>,
+    agent_connection_read: Option<PpaassConnectionRead<T, R, I>>,
+    agent_connection_write: Option<PpaassConnectionWrite<T, R, I>>,
     user_token: Option<String>,
     agent_address: Option<PpaassNetAddress>,
     src_address: Option<PpaassNetAddress>,
     dest_address: Option<PpaassNetAddress>,
 }
 
-impl<T, R> TcpLoopBuilder<T, R>
+impl<T, R, I> TcpLoopBuilder<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
     pub(crate) fn new() -> Self {
         Self {
@@ -62,48 +62,48 @@ where
             dest_address: None,
         }
     }
-    pub(crate) fn agent_connection_id(mut self, agent_connection_id: impl AsRef<str>) -> TcpLoopBuilder<T, R> {
+    pub(crate) fn agent_connection_id(mut self, agent_connection_id: impl AsRef<str>) -> TcpLoopBuilder<T, R, I> {
         self.agent_connection_id = Some(agent_connection_id.as_ref().to_owned());
         self
     }
 
-    pub(crate) fn user_token(mut self, user_token: impl AsRef<str>) -> TcpLoopBuilder<T, R> {
+    pub(crate) fn user_token(mut self, user_token: impl AsRef<str>) -> TcpLoopBuilder<T, R, I> {
         self.user_token = Some(user_token.as_ref().to_owned());
         self
     }
 
-    pub(crate) fn agent_address(mut self, agent_address: PpaassNetAddress) -> TcpLoopBuilder<T, R> {
+    pub(crate) fn agent_address(mut self, agent_address: PpaassNetAddress) -> TcpLoopBuilder<T, R, I> {
         self.agent_address = Some(agent_address);
         self
     }
 
-    pub(crate) fn src_address(mut self, src_address: PpaassNetAddress) -> TcpLoopBuilder<T, R> {
+    pub(crate) fn src_address(mut self, src_address: PpaassNetAddress) -> TcpLoopBuilder<T, R, I> {
         self.src_address = Some(src_address);
         self
     }
 
-    pub(crate) fn dest_address(mut self, dest_address: PpaassNetAddress) -> TcpLoopBuilder<T, R> {
+    pub(crate) fn dest_address(mut self, dest_address: PpaassNetAddress) -> TcpLoopBuilder<T, R, I> {
         self.dest_address = Some(dest_address);
         self
     }
 
-    pub(crate) fn agent_connection_read(mut self, agent_connection_read: AgentConnectionRead<T, R>) -> TcpLoopBuilder<T, R> {
+    pub(crate) fn agent_connection_read(mut self, agent_connection_read: PpaassConnectionRead<T, R, I>) -> TcpLoopBuilder<T, R, I> {
         self.agent_connection_read = Some(agent_connection_read);
         self
     }
 
-    pub(crate) fn agent_connection_write(mut self, agent_connection_write: AgentConnectionWrite<T, R>) -> TcpLoopBuilder<T, R> {
+    pub(crate) fn agent_connection_write(mut self, agent_connection_write: PpaassConnectionWrite<T, R, I>) -> TcpLoopBuilder<T, R, I> {
         self.agent_connection_write = Some(agent_connection_write);
         self
     }
 
-    pub(crate) async fn build(self, configuration: Arc<ProxyServerConfig>) -> Result<TcpLoop<T, R>> {
+    pub(crate) async fn build(self, configuration: Arc<ProxyServerConfig>) -> Result<TcpLoop<T, R, I>> {
         let agent_connection_id = self.agent_connection_id.context("Agent connection id not assigned for tcp loop builder")?;
         let agent_address = self.agent_address.context("Agent address not assigned for tcp loop builder")?;
         let src_address = self.src_address.context("Source address not assigned for tcp loop builder")?;
         let dest_address = self.dest_address.context("Destination address not assigned for tcp loop builder")?;
         let user_token = self.user_token.context("User token not assigned for tcp loop builder")?;
-        let key = TcpLoop::<T, R>::generate_key(&agent_address, &src_address, &dest_address);
+        let key = TcpLoop::<T, R, I>::generate_key(&agent_address, &src_address, &dest_address);
         let mut agent_connection_write = self
             .agent_connection_write
             .context("Agent message framed write not assigned for tcp loop builder")?;
@@ -305,31 +305,33 @@ impl Stream for DestConnectionRead {
 }
 
 #[derive(Debug)]
-pub(crate) struct TcpLoop<T, R>
+pub(crate) struct TcpLoop<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
     dest_tcp: TcpStream,
-    agent_connection_read: AgentConnectionRead<T, R>,
-    agent_connection_write: AgentConnectionWrite<T, R>,
+    agent_connection_read: PpaassConnectionRead<T, R, I>,
+    agent_connection_write: PpaassConnectionWrite<T, R, I>,
     key: String,
     user_token: String,
     agent_connection_id: String,
     configuration: Arc<ProxyServerConfig>,
 }
 
-impl<T, R> TcpLoop<T, R>
+impl<T, R, I> TcpLoop<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
     fn generate_key(agent_address: &PpaassNetAddress, src_address: &PpaassNetAddress, dest_address: &PpaassNetAddress) -> String {
         format!("[{agent_address}]::[{src_address}=>{dest_address}]")
     }
 
     fn start_dest_to_agent_relay(
-        agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_connection_write: AgentConnectionWrite<T, R>,
+        agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_connection_write: PpaassConnectionWrite<T, R, I>,
         mut dest_tcp_read: DestConnectionRead, user_token: impl AsRef<str>,
     ) -> JoinHandle<Result<()>> {
         let user_token = user_token.as_ref().to_owned();
@@ -372,7 +374,7 @@ where
     }
 
     fn start_agent_to_dest_relay(
-        agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_connection_read: AgentConnectionRead<T, R>,
+        agent_connection_id: impl AsRef<str>, tcp_loop_key: impl AsRef<str>, mut agent_connection_read: PpaassConnectionRead<T, R, I>,
         mut dest_tcp_write: DestConnectionWrite,
     ) -> JoinHandle<Result<()>> {
         let key = tcp_loop_key.as_ref().to_owned();

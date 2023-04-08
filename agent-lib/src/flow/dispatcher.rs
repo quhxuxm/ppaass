@@ -1,10 +1,10 @@
 use std::{mem::size_of, net::SocketAddr};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
 use bytes::BytesMut;
 use futures::StreamExt;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::net::TcpStream;
 use tokio_util::codec::{Decoder, Framed, FramedParts};
 use tracing::{debug, error};
 
@@ -44,21 +44,18 @@ impl Decoder for SwitchClientProtocolDecoder {
 pub(crate) struct FlowDispatcher;
 
 impl FlowDispatcher {
-    pub(crate) async fn dispatch<T>(client_io: T, client_socket_address: SocketAddr) -> Result<ClientFlow<T>>
-    where
-        T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
-    {
+    pub(crate) async fn dispatch(client_io: TcpStream, client_socket_address: SocketAddr) -> Result<ClientFlow> {
         let mut client_framed = Framed::with_capacity(client_io, SwitchClientProtocolDecoder, 1024 * 64);
 
         let protocol = match client_framed.next().await {
             Some(Ok(v)) => v,
             Some(Err(e)) => {
                 error!("Fail to read protocol from client io because of error: {e:?}");
-                return Err(anyhow::anyhow!("Fail to read protocol from client io because of nothing to read."));
+                return Err(anyhow!("Fail to read protocol from client io because of nothing to read."));
             },
             None => {
                 error!("Fail to read protocol from client io because of nothing to read.");
-                return Err(anyhow::anyhow!("Fail to read protocol from client io because of nothing to read."));
+                return Err(anyhow!("Fail to read protocol from client io because of nothing to read."));
             },
         };
 
@@ -80,9 +77,7 @@ impl FlowDispatcher {
             Protocol::Socks4 => {
                 // For socks4 protocol
                 error!("Client tcp connection [{client_socket_address}] do not support socks v4 protocol");
-                Err(anyhow::anyhow!(
-                    "Client tcp connection [{client_socket_address}] do not support socks v4 protocol"
-                ))
+                Err(anyhow!("Client tcp connection [{client_socket_address}] do not support socks v4 protocol"))
             },
             Protocol::Http => {
                 // For http protocol

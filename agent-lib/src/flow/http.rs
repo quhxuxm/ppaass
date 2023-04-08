@@ -1,7 +1,7 @@
 pub(crate) mod codec;
 
-use std::net::SocketAddr;
 use std::sync::Arc;
+use std::{fmt::Display, net::SocketAddr};
 
 use bytecodec::{bytes::BytesEncoder, EncodeExt};
 
@@ -12,9 +12,9 @@ use ppaass_common::{
     generate_uuid,
     tcp_loop::{TcpLoopInitResponsePayload, TcpLoopInitResponseType},
     PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload, PpaassMessageProxyPayloadParts,
-    PpaassMessageProxyPayloadType, PpaassNetAddress,
+    PpaassMessageProxyPayloadType, PpaassNetAddress, RsaCryptoFetcher,
 };
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, FramedParts};
 use tracing::{debug, error};
 use url::Url;
@@ -35,28 +35,26 @@ const HTTP_DEFAULT_PORT: u16 = 80;
 const OK_CODE: u16 = 200;
 const CONNECTION_ESTABLISHED: &str = "Connection Established";
 
-pub(crate) struct HttpFlow<T>
-where
-    T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
-{
-    client_io: T,
+pub(crate) struct HttpFlow {
+    client_io: TcpStream,
     client_socket_address: SocketAddr,
 }
 
-impl<T> HttpFlow<T>
-where
-    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
-{
-    pub(crate) fn new(client_io: T, client_socket_address: SocketAddr) -> Self {
+impl HttpFlow {
+    pub(crate) fn new(client_io: TcpStream, client_socket_address: SocketAddr) -> Self {
         Self {
             client_io,
             client_socket_address,
         }
     }
 
-    pub(crate) async fn exec(
+    pub(crate) async fn exec<R, I>(
         self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>, initial_buf: BytesMut,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        R: RsaCryptoFetcher + Send + Sync + 'static,
+        I: AsRef<str> + Send + Sync + Clone + Display + 'static,
+    {
         let client_io = self.client_io;
         let client_socket_address = self.client_socket_address;
         let mut framed_parts = FramedParts::new(client_io, HttpCodec::default());
@@ -126,7 +124,7 @@ where
             "Client tcp connection [{client_socket_address}] fail to take proxy connection from connection poool because of error"
         ))?;
 
-        let proxy_connection_id = proxy_connection.id.clone();
+        let proxy_connection_id = proxy_connection.connection_id.clone();
         let (mut proxy_connection_read, mut proxy_connection_write) = proxy_connection.split()?;
 
         debug!("Client tcp connection [{client_socket_address}] take proxy connectopn [{proxy_connection_id}] to do proxy");
