@@ -354,6 +354,12 @@ where
         let mut stop_read_dst = false;
         loop {
             if stop_read_agent && stop_read_dst {
+                if let Err(e) = agent_connection_write.close().await {
+                    error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to close agent connection because of error: {e:?}");
+                };
+                if let Err(e) = dest_tcp_write.close().await {
+                    error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to close destination connection because of error: {e:?}");
+                };
                 break Ok(());
             }
             tokio::select! {
