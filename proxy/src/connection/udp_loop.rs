@@ -99,7 +99,7 @@ where
                     error!("Agent connection {agent_connection_id} with udp loop {loop_key} fail to send data to udp socket because of error: {e:?}");
                 };
                 let mut dst_recv_buf = [0u8; 65535];
-                let data_size = match timeout(Duration::from_secs(5), dst_udp_socket.recv(&mut dst_recv_buf)).await {
+                let data_size = match timeout(Duration::from_secs(2), dst_udp_socket.recv(&mut dst_recv_buf)).await {
                     Ok(Ok(data_size)) => data_size,
                     Ok(Err(e)) => {
                         error!("Agent connection {agent_connection_id} with udp loop {loop_key} fail to receive data from udp socket because of error: {e:?}");
