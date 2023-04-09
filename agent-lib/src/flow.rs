@@ -13,7 +13,7 @@ use anyhow::Result;
 use bytes::BytesMut;
 use futures::{
     stream::{SplitSink, SplitStream},
-    try_join, Sink, SinkExt, Stream, StreamExt,
+    Sink, SinkExt, Stream, StreamExt,
 };
 use pin_project::{pin_project, pinned_drop};
 use ppaass_common::{
@@ -122,73 +122,80 @@ impl ClientFlow {
             ClientConnectionWrite::new(client_socket_address, tcp_loop_key.clone(), client_io_write),
             ClientConnectionRead::new(client_socket_address, tcp_loop_key.clone(), client_io_read),
         );
-        let tcp_loop_key_a2p = tcp_loop_key.clone();
+
         let init_data = info.init_data;
 
-        let mut client_to_proxy_relay_guard = tokio::spawn(async move {
-            debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] start to relay from agent to proxy.");
-            if let Some(init_data) = init_data {
-                let agent_message = PpaassMessageGenerator::generate_tcp_raw_data(&user_token, payload_encryption.clone(), init_data)?;
-                if let Err(e) = proxy_connection_write.send(agent_message).await {
-                    error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to relay client data to proxy because of error: {e:?}");
-                    return Err(anyhow::anyhow!(e));
-                };
+        if let Some(init_data) = init_data {
+            let agent_message = PpaassMessageGenerator::generate_tcp_raw_data(&user_token, payload_encryption.clone(), init_data)?;
+            if let Err(e) = proxy_connection_write.send(agent_message).await {
+                error!(
+                    "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key}] fail to relay client data to proxy because of error: {e:?}"
+                );
+                return Err(anyhow::anyhow!(e));
+            };
+        }
+        let mut stop_read_client = false;
+        let mut stop_read_proxy = false;
+        loop {
+            if stop_read_client && stop_read_proxy {
+                break Ok(());
             }
-            while let Some(client_message) = client_io_read.next().await {
-                let client_message = match client_message {
-                    Ok(client_message) => client_message,
-                    Err(e) => {
+            tokio::select! {
+                client_message = client_io_read.next(), if !stop_read_client => {
+                   let client_message = match client_message {
+                    Some(Ok(client_message)) => client_message,
+                    Some(Err(e)) => {
                         error!(
-                            "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to read from client because of error: {e:?}"
+                            "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key}] fail to read from client because of error: {e:?}"
                         );
-                        return Err(anyhow::anyhow!(e));
+                        stop_read_client=true;
+                        continue;
                     },
-                };
-                trace!(
-                    "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] read client data:\n{}\n",
-                    pretty_hex::pretty_hex(&client_message)
-                );
-                let agent_raw_date_message = PpaassMessageGenerator::generate_tcp_raw_data(&user_token, payload_encryption.clone(), client_message.to_vec())?;
-                if let Err(e) = proxy_connection_write.send(agent_raw_date_message).await {
-                    error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_a2p}] fail to relay client data to proxy because of error: {e:?}");
-                    return Err(anyhow::anyhow!(e));
-                };
-            }
-            Ok::<_, anyhow::Error>(())
-        });
-
-        let tcp_loop_key_p2a = tcp_loop_key.clone();
-
-        let mut proxy_to_client_relay_guard = tokio::spawn(async move {
-            debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] start to relay from proxy to agent.");
-            while let Some(proxy_message) = proxy_connection_read.next().await {
-                if let Err(e) = proxy_message {
-                    error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to read from proxy because of error: {e:?}");
-                    return Err(e);
+                    None=>{
+                        stop_read_client=true;
+                        continue;
+                    }
+                   };
+                   trace!(
+                       "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key}] read client data:\n{}\n",
+                       pretty_hex::pretty_hex(&client_message)
+                   );
+                   let agent_raw_date_message = PpaassMessageGenerator::generate_tcp_raw_data(&user_token, payload_encryption.clone(), client_message.to_vec())?;
+                   if let Err(e) = proxy_connection_write.send(agent_raw_date_message).await {
+                       error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key}] fail to relay client data to proxy because of error: {e:?}");stop_read_client=true;
+                       continue;
+                   };
                 }
-                let proxy_message = proxy_message.expect("Should not panic when read proxy message");
-                let PpaassMessageParts {
-                    payload_bytes: proxy_message_payload_bytes,
-                    ..
-                } = proxy_message.split();
-                trace!(
-                    "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] read proxy data:\n{}\n",
-                    pretty_hex::pretty_hex(&proxy_message_payload_bytes)
-                );
-                if let Err(e) = client_io_write.send(BytesMut::from_iter(proxy_message_payload_bytes)).await {
-                    error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] fail to relay to proxy because of error: {e:?}");
-                    return Err(anyhow::anyhow!(e));
-                };
+                proxy_message = proxy_connection_read.next(), if !stop_read_proxy => {
+                    let proxy_message = match proxy_message {
+                        Some(Err(e))=>{
+                            error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key}] fail to read from proxy because of error: {e:?}");
+                            stop_read_proxy=true;
+                            continue;
+                        },
+                        Some(Ok(proxy_message))=>proxy_message,
+                        None=>{
+                            stop_read_proxy=true;
+                            continue;
+                        }
+
+                    };
+                    let PpaassMessageParts {
+                        payload_bytes: proxy_message_payload_bytes,
+                        ..
+                    } = proxy_message.split();
+                    trace!(
+                        "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key}] read proxy data:\n{}\n",
+                        pretty_hex::pretty_hex(&proxy_message_payload_bytes)
+                    );
+                    if let Err(e) = client_io_write.send(BytesMut::from_iter(proxy_message_payload_bytes)).await {
+                        error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key}] fail to relay to proxy because of error: {e:?}");
+                        stop_read_proxy=true;
+                        continue;
+                    };
+                }
             }
-            debug!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key_p2a}] complete to relay from proxy to agent.");
-            Ok::<_, anyhow::Error>(())
-        });
-        if let Err(e) = try_join!(&mut client_to_proxy_relay_guard, &mut proxy_to_client_relay_guard) {
-            client_to_proxy_relay_guard.abort();
-            proxy_to_client_relay_guard.abort();
-            error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key}] fail to do relay process because of error: {e:?}",);
-        };
-        Ok(())
+        }
     }
 }
 
