@@ -91,12 +91,16 @@ where
                     pretty_hex(&raw_data_bytes)
                 );
                 let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
-                if let Err(e) = dst_udp_socket.send_to(&raw_data_bytes, dst_socket_addrs.as_slice()).await {
+                if let Err(e) = dst_udp_socket.connect(dst_socket_addrs.as_slice()).await {
+                    error!("Agent connection {agent_connection_id} with udp loop {loop_key} fail connect to destination because of error: {e:?}");
+                    return Err(anyhow!(e));
+                };
+                if let Err(e) = dst_udp_socket.send(&raw_data_bytes).await {
                     error!("Agent connection {agent_connection_id} with udp loop {loop_key} fail to send data to udp socket because of error: {e:?}");
                 };
                 let mut dst_recv_buf = [0u8; 65535];
-                let (data_size, dst_socket_addr) = match timeout(Duration::from_secs(5), dst_udp_socket.recv_from(&mut dst_recv_buf)).await {
-                    Ok(Ok(size)) => size,
+                let data_size = match timeout(Duration::from_secs(5), dst_udp_socket.recv(&mut dst_recv_buf)).await {
+                    Ok(Ok(data_size)) => data_size,
                     Ok(Err(e)) => {
                         error!("Agent connection {agent_connection_id} with udp loop {loop_key} fail to receive data from udp socket because of error: {e:?}");
                         return Err(anyhow!(e));
@@ -106,7 +110,7 @@ where
                         return Err(anyhow!(e));
                     },
                 };
-                let dst_address: PpaassNetAddress = dst_socket_addr.into();
+
                 let dst_recv_buf = &dst_recv_buf[..data_size];
                 info!(
                     "Agent connection {agent_connection_id} receive destination udp data:\n{}\n",
