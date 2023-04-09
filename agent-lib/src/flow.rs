@@ -138,6 +138,16 @@ impl ClientFlow {
         let mut stop_read_proxy = false;
         loop {
             if stop_read_client && stop_read_proxy {
+                if let Err(e) = client_io_write.close().await {
+                    error!(
+                        "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key}] fail to close client connection because of error: {e:?}"
+                    );
+                };
+                if let Err(e) = proxy_connection_write.close().await {
+                    error!(
+                        "Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key}] fail to close proxy connection because of error: {e:?}"
+                    );
+                };
                 break Ok(());
             }
             tokio::select! {
