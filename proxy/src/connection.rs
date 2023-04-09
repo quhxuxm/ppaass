@@ -3,12 +3,11 @@ use std::{fmt::Debug, sync::Arc};
 use std::fmt::Display;
 use std::{net::IpAddr, time::Duration};
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use futures::{SinkExt, StreamExt};
 
 use tokio::{
     io::{AsyncRead, AsyncWrite},
-    net::UdpSocket,
     time::timeout,
 };
 
@@ -144,15 +143,8 @@ where
                     return Ok(());
                 },
                 PpaassMessageAgentPayloadType::UdpLoopInit => {
-                    let udp_socket = Arc::new(match UdpSocket::bind("0.0.0.0:0").await {
-                        Ok(udp_socket) => udp_socket,
-                        Err(e) => {
-                            error!("Agent connection [{connection_id}] fail to bind udp socket because of error: {e:?}");
-                            return Err(anyhow!(e));
-                        },
-                    });
                     info!("Agent connection [{connection_id}] receive udp loop init from agent.");
-                    let udp_loop_builder = UdpLoopBuilder::new(udp_socket.clone())
+                    let udp_loop_builder = UdpLoopBuilder::new()
                         .agent_address(agent_address)
                         .agent_connection_id(&connection_id)
                         .agent_connection_write(self.write_part)
