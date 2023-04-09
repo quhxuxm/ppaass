@@ -2,6 +2,7 @@ use std::{
     fmt::{Debug, Display},
     net::{SocketAddr, ToSocketAddrs},
     sync::Arc,
+    time::Duration,
 };
 
 use futures::{SinkExt, StreamExt};
@@ -16,6 +17,7 @@ use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::UdpSocket,
     sync::Mutex,
+    time::timeout,
 };
 use tracing::{error, info};
 
@@ -93,10 +95,14 @@ where
                     error!("Agent connection {agent_connection_id} with udp loop {loop_key} fail to send data to udp socket because of error: {e:?}");
                 };
                 let mut dst_recv_buf = [0u8; 65535];
-                let (data_size, dst_socket_addr) = match dst_udp_socket.recv_from(&mut dst_recv_buf).await {
-                    Ok(size) => size,
-                    Err(e) => {
+                let (data_size, dst_socket_addr) = match timeout(Duration::from_secs(5), dst_udp_socket.recv_from(&mut dst_recv_buf)).await {
+                    Ok(Ok(size)) => size,
+                    Ok(Err(e)) => {
                         error!("Agent connection {agent_connection_id} with udp loop {loop_key} fail to receive data from udp socket because of error: {e:?}");
+                        return Err(anyhow!(e));
+                    },
+                    Err(e) => {
+                        error!("Agent connection {agent_connection_id} with udp loop {loop_key} fail to receive data from udp socket because of timeout");
                         return Err(anyhow!(e));
                     },
                 };
