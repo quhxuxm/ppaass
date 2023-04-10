@@ -136,6 +136,7 @@ where
 
     pub(crate) async fn exec(mut self) -> Result<()> {
         let agent_connection_write = Arc::new(Mutex::new(self.agent_connection_write));
+        let dst_udp_socket = Arc::new(UdpSocket::bind("0.0.0.0:0").await?);
         loop {
             let handler_key = self.handler_key.clone();
             let agent_connection_id = self.agent_connection_id.clone();
@@ -153,8 +154,9 @@ where
             };
             let user_token = self.user_token.clone();
             let agent_connection_write = agent_connection_write.clone();
+            let dst_udp_socket = dst_udp_socket.clone();
             tokio::spawn(async move {
-                let dst_udp_socket = UdpSocket::bind("0.0.0.0:0").await?;
+                let mut agent_connection_write = agent_connection_write.lock().await;
                 let PpaassMessageParts { payload_bytes, .. } = agent_message.split();
                 let UdpLoopDataParts {
                     src_address,
@@ -175,15 +177,11 @@ where
                     pretty_hex(&raw_data_bytes)
                 );
                 let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
-                if let Err(e) = dst_udp_socket.connect(dst_socket_addrs.as_slice()).await {
-                    error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail connect to destination because of error: {e:?}");
-                    return Err(anyhow!(e));
-                };
-                if let Err(e) = dst_udp_socket.send(&raw_data_bytes).await {
+                if let Err(e) = dst_udp_socket.send_to(&raw_data_bytes, dst_socket_addrs.as_slice()).await {
                     error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail to send data to udp socket because of error: {e:?}");
                 };
                 let mut dst_recv_buf = [0u8; 65535];
-                let data_size = match timeout(Duration::from_secs(2), dst_udp_socket.recv(&mut dst_recv_buf)).await {
+                let (data_size, dst_socket_addr) = match timeout(Duration::from_secs(2), dst_udp_socket.recv_from(&mut dst_recv_buf)).await {
                     Ok(Ok(data_size)) => data_size,
                     Ok(Err(e)) => {
                         error!(
@@ -196,6 +194,7 @@ where
                         return Err(anyhow!(e));
                     },
                 };
+                let dst_address: PpaassNetAddress = dst_socket_addr.into();
 
                 let dst_recv_buf = &dst_recv_buf[..data_size];
                 info!(
@@ -220,7 +219,7 @@ where
                         return Err(anyhow!(e));
                     },
                 };
-                let mut agent_connection_write = agent_connection_write.lock().await;
+
                 if let Err(e) = agent_connection_write.send(data_message).await {
                     error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail to send udp loop data to agent because of error: {e:?}");
                     return Err(anyhow!(e));
