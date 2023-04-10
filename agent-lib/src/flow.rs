@@ -175,7 +175,7 @@ impl ClientFlow {
                        error!("Client tcp connection [{client_socket_address}] for tcp loop [{tcp_loop_key}] fail to relay client data to proxy because of error: {e:?}");stop_read_client=true;
                        continue;
                    };
-                }
+                },
                 proxy_message = proxy_connection_read.next(), if !stop_read_proxy => {
                     let proxy_message = match proxy_message {
                         Some(Err(e))=>{
