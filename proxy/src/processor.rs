@@ -30,7 +30,7 @@ mod tcp;
 mod udp;
 
 #[derive(Debug)]
-pub(crate) struct AgentConnection<T, R>
+pub(crate) struct AgentConnectionProcessor<T, R>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -42,7 +42,7 @@ where
     configuration: Arc<ProxyServerConfig>,
 }
 
-impl<T, R> AgentConnection<T, R>
+impl<T, R> AgentConnectionProcessor<T, R>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -117,13 +117,13 @@ where
                     };
                     let src_address = tcp_loop_init_request.src_address;
                     let dest_address = tcp_loop_init_request.dest_address;
-                    let read = self.read_part;
-                    let write = self.write_part;
+                    let read_part = self.read_part;
+                    let write_part = self.write_part;
                     let tcp_processor_builder = TcpProcessorBuilder::new()
                         .agent_address(agent_address)
                         .agent_connection_id(&connection_id)
-                        .agent_connection_write(write)
-                        .agent_connection_read(read)
+                        .agent_connection_write(write_part)
+                        .agent_connection_read(read_part)
                         .user_token(user_token)
                         .src_address(src_address)
                         .dest_address(dest_address);
@@ -157,7 +157,7 @@ where
                             return Err(e);
                         },
                     };
-                    let udp_processor_key = udp_processor.get_loop_key().to_owned();
+                    let udp_processor_key = udp_processor.get_key().to_owned();
                     debug!("Agent connection [{connection_id}] start udp loop [{udp_processor_key}]");
                     if let Err(e) = udp_processor.exec().await {
                         error!("Agent connection [{connection_id}] fail to execute udp loop because of error: {e:?}");

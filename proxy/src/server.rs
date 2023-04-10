@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{config::ProxyServerConfig, processor::AgentConnection, crypto::ProxyServerRsaCryptoFetcher};
+use crate::{config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher, processor::AgentConnectionProcessor};
 
 use anyhow::{Context, Result};
 
@@ -63,8 +63,9 @@ impl ProxyServer {
             let proxy_server_rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();
             tokio::spawn(async move {
-                let agent_connection = AgentConnection::new(agent_tcp_stream, agent_socket_address.into(), configuration, proxy_server_rsa_crypto_fetcher);
-                if let Err(e) = agent_connection.exec().await {
+                let agent_connection_processor =
+                    AgentConnectionProcessor::new(agent_tcp_stream, agent_socket_address.into(), configuration, proxy_server_rsa_crypto_fetcher);
+                if let Err(e) = agent_connection_processor.exec().await {
                     error!("Fail to execute agent connection [{agent_socket_address}] because of error: {e:?}");
                     drop(agent_connection_number_guard);
                     return Err(anyhow::anyhow!(e));

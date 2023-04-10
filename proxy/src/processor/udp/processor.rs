@@ -49,7 +49,7 @@ where
         format!("[{agent_address}]")
     }
 
-    pub(crate) fn get_loop_key(&self) -> &str {
+    pub(crate) fn get_key(&self) -> &str {
         self.loop_key.as_str()
     }
 
