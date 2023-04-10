@@ -26,7 +26,7 @@ use crate::{common::ProxyServerPayloadEncryptionSelector, config::ProxyServerCon
 
 use super::destination::{DestConnectionRead, DestConnectionWrite};
 
-pub(crate) struct TcpProcessorBuilder<T, R, I>
+pub(crate) struct TcpHandlerBuilder<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -41,7 +41,7 @@ where
     dest_address: Option<PpaassNetAddress>,
 }
 
-impl<T, R, I> TcpProcessorBuilder<T, R, I>
+impl<T, R, I> TcpHandlerBuilder<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -58,48 +58,48 @@ where
             dest_address: None,
         }
     }
-    pub(crate) fn agent_connection_id(mut self, agent_connection_id: impl AsRef<str>) -> TcpProcessorBuilder<T, R, I> {
+    pub(crate) fn agent_connection_id(mut self, agent_connection_id: impl AsRef<str>) -> TcpHandlerBuilder<T, R, I> {
         self.agent_connection_id = Some(agent_connection_id.as_ref().to_owned());
         self
     }
 
-    pub(crate) fn user_token(mut self, user_token: impl AsRef<str>) -> TcpProcessorBuilder<T, R, I> {
+    pub(crate) fn user_token(mut self, user_token: impl AsRef<str>) -> TcpHandlerBuilder<T, R, I> {
         self.user_token = Some(user_token.as_ref().to_owned());
         self
     }
 
-    pub(crate) fn agent_address(mut self, agent_address: PpaassNetAddress) -> TcpProcessorBuilder<T, R, I> {
+    pub(crate) fn agent_address(mut self, agent_address: PpaassNetAddress) -> TcpHandlerBuilder<T, R, I> {
         self.agent_address = Some(agent_address);
         self
     }
 
-    pub(crate) fn src_address(mut self, src_address: PpaassNetAddress) -> TcpProcessorBuilder<T, R, I> {
+    pub(crate) fn src_address(mut self, src_address: PpaassNetAddress) -> TcpHandlerBuilder<T, R, I> {
         self.src_address = Some(src_address);
         self
     }
 
-    pub(crate) fn dest_address(mut self, dest_address: PpaassNetAddress) -> TcpProcessorBuilder<T, R, I> {
+    pub(crate) fn dest_address(mut self, dest_address: PpaassNetAddress) -> TcpHandlerBuilder<T, R, I> {
         self.dest_address = Some(dest_address);
         self
     }
 
-    pub(crate) fn agent_connection_read(mut self, agent_connection_read: PpaassConnectionRead<T, R, I>) -> TcpProcessorBuilder<T, R, I> {
+    pub(crate) fn agent_connection_read(mut self, agent_connection_read: PpaassConnectionRead<T, R, I>) -> TcpHandlerBuilder<T, R, I> {
         self.agent_connection_read = Some(agent_connection_read);
         self
     }
 
-    pub(crate) fn agent_connection_write(mut self, agent_connection_write: PpaassConnectionWrite<T, R, I>) -> TcpProcessorBuilder<T, R, I> {
+    pub(crate) fn agent_connection_write(mut self, agent_connection_write: PpaassConnectionWrite<T, R, I>) -> TcpHandlerBuilder<T, R, I> {
         self.agent_connection_write = Some(agent_connection_write);
         self
     }
 
-    pub(crate) async fn build(self, configuration: Arc<ProxyServerConfig>) -> Result<TcpProcessor<T, R, I>> {
+    pub(crate) async fn build(self, configuration: Arc<ProxyServerConfig>) -> Result<TcpHandler<T, R, I>> {
         let agent_connection_id = self.agent_connection_id.context("Agent connection id not assigned for tcp loop builder")?;
         let agent_address = self.agent_address.context("Agent address not assigned for tcp loop builder")?;
         let src_address = self.src_address.context("Source address not assigned for tcp loop builder")?;
         let dest_address = self.dest_address.context("Destination address not assigned for tcp loop builder")?;
         let user_token = self.user_token.context("User token not assigned for tcp loop builder")?;
-        let key = TcpProcessor::<T, R, I>::generate_key(&agent_address, &src_address, &dest_address);
+        let key = TcpHandler::<T, R, I>::generate_key(&agent_address, &src_address, &dest_address);
         let mut agent_connection_write = self
             .agent_connection_write
             .context("Agent message framed write not assigned for tcp loop builder")?;
@@ -157,7 +157,7 @@ where
             error!("Agent connection [{agent_connection_id}] fail to send tcp initialize success message to agent because of error: {e:?}");
             return Err(anyhow!(e));
         };
-        Ok(TcpProcessor {
+        Ok(TcpHandler {
             key,
             agent_connection_read,
             agent_connection_write,
@@ -171,7 +171,7 @@ where
 
 #[derive(Debug)]
 #[non_exhaustive]
-pub(crate) struct TcpProcessor<T, R, I>
+pub(crate) struct TcpHandler<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -186,7 +186,7 @@ where
     configuration: Arc<ProxyServerConfig>,
 }
 
-impl<T, R, I> TcpProcessor<T, R, I>
+impl<T, R, I> TcpHandler<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,

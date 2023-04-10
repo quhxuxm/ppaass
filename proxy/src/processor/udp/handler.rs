@@ -24,9 +24,90 @@ use tracing::{error, info};
 use crate::common::ProxyServerPayloadEncryptionSelector;
 
 use anyhow::{anyhow, Context, Result};
+
+pub(crate) struct UdpHandlerBuilder<T, R, I>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    R: RsaCryptoFetcher + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+{
+    agent_connection_id: Option<String>,
+    agent_connection_read: Option<PpaassConnectionRead<T, R, I>>,
+    agent_connection_write: Option<PpaassConnectionWrite<T, R, I>>,
+    user_token: Option<String>,
+    agent_address: Option<PpaassNetAddress>,
+}
+
+impl<T, R, I> UdpHandlerBuilder<T, R, I>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    R: RsaCryptoFetcher + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+{
+    pub(crate) fn new() -> Self {
+        Self {
+            agent_connection_id: None,
+            agent_connection_read: None,
+            agent_connection_write: None,
+            user_token: None,
+            agent_address: None,
+        }
+    }
+    pub(crate) fn agent_connection_id(mut self, agent_connection_id: impl AsRef<str>) -> UdpHandlerBuilder<T, R, I> {
+        self.agent_connection_id = Some(agent_connection_id.as_ref().to_owned());
+        self
+    }
+
+    pub(crate) fn user_token(mut self, user_token: impl AsRef<str>) -> UdpHandlerBuilder<T, R, I> {
+        self.user_token = Some(user_token.as_ref().to_owned());
+        self
+    }
+
+    pub(crate) fn agent_address(mut self, agent_address: PpaassNetAddress) -> UdpHandlerBuilder<T, R, I> {
+        self.agent_address = Some(agent_address);
+        self
+    }
+
+    pub(crate) fn agent_connection_read(mut self, agent_connection_read: PpaassConnectionRead<T, R, I>) -> UdpHandlerBuilder<T, R, I> {
+        self.agent_connection_read = Some(agent_connection_read);
+        self
+    }
+
+    pub(crate) fn agent_connection_write(mut self, agent_connection_write: PpaassConnectionWrite<T, R, I>) -> UdpHandlerBuilder<T, R, I> {
+        self.agent_connection_write = Some(agent_connection_write);
+        self
+    }
+
+    pub(crate) async fn build(self) -> Result<UdpHandler<T, R, I>> {
+        let agent_connection_id = self.agent_connection_id.context("Agent connection id not assigned for tcp loop builder")?;
+        let agent_address = self.agent_address.context("Agent address not assigned for tcp loop builder")?;
+        let user_token = self.user_token.context("User token not assigned for tcp loop builder")?;
+        let loop_key = UdpHandler::<T, R, I>::generate_loop_key(&agent_address);
+        let mut agent_connection_write = self
+            .agent_connection_write
+            .context("Agent message framed write not assigned for tcp loop builder")?;
+        let agent_connection_read = self
+            .agent_connection_read
+            .context("Agent message framed read not assigned for tcp loop builder")?;
+        let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
+        let init_success_message = PpaassMessageGenerator::generate_udp_loop_init_success_response(&loop_key, &user_token, payload_encryption_token)?;
+        if let Err(e) = agent_connection_write.send(init_success_message).await {
+            error!("Agent connection {agent_connection_id} fail to send tcp initialize success message to agent because of error: {e:?}");
+            return Err(anyhow!(e));
+        };
+        Ok(UdpHandler {
+            loop_key,
+            agent_connection_read,
+            agent_connection_write,
+            user_token,
+            agent_connection_id,
+        })
+    }
+}
+
 #[derive(Debug)]
 #[non_exhaustive]
-pub(crate) struct UdpProcessor<T, R, I>
+pub(crate) struct UdpHandler<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -39,7 +120,7 @@ where
     agent_connection_id: String,
 }
 
-impl<T, R, I> UdpProcessor<T, R, I>
+impl<T, R, I> UdpHandler<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -142,85 +223,5 @@ where
                 Ok(())
             });
         }
-    }
-}
-
-pub(crate) struct UdpProcessorBuilder<T, R, I>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
-{
-    agent_connection_id: Option<String>,
-    agent_connection_read: Option<PpaassConnectionRead<T, R, I>>,
-    agent_connection_write: Option<PpaassConnectionWrite<T, R, I>>,
-    user_token: Option<String>,
-    agent_address: Option<PpaassNetAddress>,
-}
-
-impl<T, R, I> UdpProcessorBuilder<T, R, I>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
-{
-    pub(crate) fn new() -> Self {
-        Self {
-            agent_connection_id: None,
-            agent_connection_read: None,
-            agent_connection_write: None,
-            user_token: None,
-            agent_address: None,
-        }
-    }
-    pub(crate) fn agent_connection_id(mut self, agent_connection_id: impl AsRef<str>) -> UdpProcessorBuilder<T, R, I> {
-        self.agent_connection_id = Some(agent_connection_id.as_ref().to_owned());
-        self
-    }
-
-    pub(crate) fn user_token(mut self, user_token: impl AsRef<str>) -> UdpProcessorBuilder<T, R, I> {
-        self.user_token = Some(user_token.as_ref().to_owned());
-        self
-    }
-
-    pub(crate) fn agent_address(mut self, agent_address: PpaassNetAddress) -> UdpProcessorBuilder<T, R, I> {
-        self.agent_address = Some(agent_address);
-        self
-    }
-
-    pub(crate) fn agent_connection_read(mut self, agent_connection_read: PpaassConnectionRead<T, R, I>) -> UdpProcessorBuilder<T, R, I> {
-        self.agent_connection_read = Some(agent_connection_read);
-        self
-    }
-
-    pub(crate) fn agent_connection_write(mut self, agent_connection_write: PpaassConnectionWrite<T, R, I>) -> UdpProcessorBuilder<T, R, I> {
-        self.agent_connection_write = Some(agent_connection_write);
-        self
-    }
-
-    pub(crate) async fn build(self) -> Result<UdpProcessor<T, R, I>> {
-        let agent_connection_id = self.agent_connection_id.context("Agent connection id not assigned for tcp loop builder")?;
-        let agent_address = self.agent_address.context("Agent address not assigned for tcp loop builder")?;
-        let user_token = self.user_token.context("User token not assigned for tcp loop builder")?;
-        let loop_key = UdpProcessor::<T, R, I>::generate_loop_key(&agent_address);
-        let mut agent_connection_write = self
-            .agent_connection_write
-            .context("Agent message framed write not assigned for tcp loop builder")?;
-        let agent_connection_read = self
-            .agent_connection_read
-            .context("Agent message framed read not assigned for tcp loop builder")?;
-        let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-        let init_success_message = PpaassMessageGenerator::generate_udp_loop_init_success_response(&loop_key, &user_token, payload_encryption_token)?;
-        if let Err(e) = agent_connection_write.send(init_success_message).await {
-            error!("Agent connection {agent_connection_id} fail to send tcp initialize success message to agent because of error: {e:?}");
-            return Err(anyhow!(e));
-        };
-        Ok(UdpProcessor {
-            loop_key,
-            agent_connection_read,
-            agent_connection_write,
-            user_token,
-            agent_connection_id,
-        })
     }
 }

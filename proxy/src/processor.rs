@@ -23,8 +23,8 @@ use ppaass_common::{
 };
 use ppaass_common::{tcp_loop::TcpLoopInitRequestPayload, PpaassConnectionRead};
 
-use crate::{common::ProxyServerPayloadEncryptionSelector, processor::udp::UdpProcessorBuilder};
-use crate::{config::ProxyServerConfig, processor::tcp::TcpProcessorBuilder};
+use crate::{common::ProxyServerPayloadEncryptionSelector, processor::udp::UdpHandlerBuilder};
+use crate::{config::ProxyServerConfig, processor::tcp::TcpHandlerBuilder};
 
 mod tcp;
 mod udp;
@@ -119,7 +119,7 @@ where
                     let dest_address = tcp_loop_init_request.dest_address;
                     let read_part = self.read_part;
                     let write_part = self.write_part;
-                    let tcp_processor_builder = TcpProcessorBuilder::new()
+                    let tcp_handler_builder = TcpHandlerBuilder::new()
                         .agent_address(agent_address)
                         .agent_connection_id(&connection_id)
                         .agent_connection_write(write_part)
@@ -127,16 +127,16 @@ where
                         .user_token(user_token)
                         .src_address(src_address)
                         .dest_address(dest_address);
-                    let tcp_processor = match tcp_processor_builder.build(configuration).await {
-                        Ok(tcp_processor) => tcp_processor,
+                    let tcp_handler = match tcp_handler_builder.build(configuration).await {
+                        Ok(tcp_handler) => tcp_handler,
                         Err(e) => {
                             error!("Agent connection [{connection_id}] fail to build tcp loop because of error: {e:?}");
                             return Err(e);
                         },
                     };
-                    let tcp_processor_key = tcp_processor.get_key().to_owned();
-                    debug!("Agent connection [{connection_id}] start tcp loop [{tcp_processor_key}]");
-                    if let Err(e) = tcp_processor.exec().await {
+                    let tcp_handler_key = tcp_handler.get_key().to_owned();
+                    debug!("Agent connection [{connection_id}] start tcp loop [{tcp_handler_key}]");
+                    if let Err(e) = tcp_handler.exec().await {
                         error!("Agent connection [{connection_id}] fail to execute tcp loop because of error: {e:?}");
                         return Err(e);
                     };
@@ -144,22 +144,22 @@ where
                 },
                 PpaassMessageAgentPayloadType::UdpLoopInit => {
                     info!("Agent connection [{connection_id}] receive udp loop init from agent.");
-                    let udp_processor_builder = UdpProcessorBuilder::new()
+                    let udp_handler_builder = UdpHandlerBuilder::new()
                         .agent_address(agent_address)
                         .agent_connection_id(&connection_id)
                         .agent_connection_write(self.write_part)
                         .agent_connection_read(self.read_part)
                         .user_token(user_token);
-                    let udp_processor = match udp_processor_builder.build().await {
-                        Ok(udp_processor) => udp_processor,
+                    let udp_handler = match udp_handler_builder.build().await {
+                        Ok(udp_handler) => udp_handler,
                         Err(e) => {
                             error!("Agent connection [{connection_id}] fail to build udp loop because of error: {e:?}");
                             return Err(e);
                         },
                     };
-                    let udp_processor_key = udp_processor.get_key().to_owned();
-                    debug!("Agent connection [{connection_id}] start udp loop [{udp_processor_key}]");
-                    if let Err(e) = udp_processor.exec().await {
+                    let udp_handler_key = udp_handler.get_key().to_owned();
+                    debug!("Agent connection [{connection_id}] start udp loop [{udp_handler_key}]");
+                    if let Err(e) = udp_handler.exec().await {
                         error!("Agent connection [{connection_id}] fail to execute udp loop because of error: {e:?}");
                         return Err(e);
                     };
