@@ -23,11 +23,11 @@ use ppaass_common::{
 };
 use ppaass_common::{tcp_loop::TcpLoopInitRequestPayload, PpaassConnectionRead};
 
-use crate::{common::ProxyServerPayloadEncryptionSelector, connection::udp_loop::UdpLoopBuilder};
-use crate::{config::ProxyServerConfig, connection::tcp_loop::TcpLoopBuilder};
+use crate::{common::ProxyServerPayloadEncryptionSelector, processor::udp::UdpLoopBuilder};
+use crate::{config::ProxyServerConfig, processor::tcp::TcpProcessorBuilder};
 
-mod tcp_loop;
-mod udp_loop;
+mod tcp;
+mod udp;
 
 #[derive(Debug)]
 pub(crate) struct AgentConnection<T, R>
@@ -119,7 +119,7 @@ where
                     let dest_address = tcp_loop_init_request.dest_address;
                     let read = self.read_part;
                     let write = self.write_part;
-                    let tcp_loop_builder = TcpLoopBuilder::new()
+                    let tcp_loop_builder = TcpProcessorBuilder::new()
                         .agent_address(agent_address)
                         .agent_connection_id(&connection_id)
                         .agent_connection_write(write)

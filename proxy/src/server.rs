@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{config::ProxyServerConfig, connection::AgentConnection, crypto::ProxyServerRsaCryptoFetcher};
+use crate::{config::ProxyServerConfig, processor::AgentConnection, crypto::ProxyServerRsaCryptoFetcher};
 
 use anyhow::{Context, Result};
 

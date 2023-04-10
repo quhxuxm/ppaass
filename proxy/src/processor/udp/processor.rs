@@ -24,9 +24,9 @@ use tracing::{error, info};
 use crate::common::ProxyServerPayloadEncryptionSelector;
 
 use anyhow::{anyhow, Context, Result};
-
 #[derive(Debug)]
-pub(crate) struct UdpLoop<T, R, I>
+#[non_exhaustive]
+pub(crate) struct UdpProcessor<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -39,7 +39,7 @@ where
     agent_connection_id: String,
 }
 
-impl<T, R, I> UdpLoop<T, R, I>
+impl<T, R, I> UdpProcessor<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -198,11 +198,11 @@ where
         self
     }
 
-    pub(crate) async fn build(self) -> Result<UdpLoop<T, R, I>> {
+    pub(crate) async fn build(self) -> Result<UdpProcessor<T, R, I>> {
         let agent_connection_id = self.agent_connection_id.context("Agent connection id not assigned for tcp loop builder")?;
         let agent_address = self.agent_address.context("Agent address not assigned for tcp loop builder")?;
         let user_token = self.user_token.context("User token not assigned for tcp loop builder")?;
-        let loop_key = UdpLoop::<T, R, I>::generate_loop_key(&agent_address);
+        let loop_key = UdpProcessor::<T, R, I>::generate_loop_key(&agent_address);
         let mut agent_connection_write = self
             .agent_connection_write
             .context("Agent message framed write not assigned for tcp loop builder")?;
@@ -215,7 +215,7 @@ where
             error!("Agent connection {agent_connection_id} fail to send tcp initialize success message to agent because of error: {e:?}");
             return Err(anyhow!(e));
         };
-        Ok(UdpLoop {
+        Ok(UdpProcessor {
             loop_key,
             agent_connection_read,
             agent_connection_write,
