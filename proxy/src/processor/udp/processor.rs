@@ -145,7 +145,7 @@ where
     }
 }
 
-pub(crate) struct UdpLoopBuilder<T, R, I>
+pub(crate) struct UdpProcessorBuilder<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -158,7 +158,7 @@ where
     agent_address: Option<PpaassNetAddress>,
 }
 
-impl<T, R, I> UdpLoopBuilder<T, R, I>
+impl<T, R, I> UdpProcessorBuilder<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -173,27 +173,27 @@ where
             agent_address: None,
         }
     }
-    pub(crate) fn agent_connection_id(mut self, agent_connection_id: impl AsRef<str>) -> UdpLoopBuilder<T, R, I> {
+    pub(crate) fn agent_connection_id(mut self, agent_connection_id: impl AsRef<str>) -> UdpProcessorBuilder<T, R, I> {
         self.agent_connection_id = Some(agent_connection_id.as_ref().to_owned());
         self
     }
 
-    pub(crate) fn user_token(mut self, user_token: impl AsRef<str>) -> UdpLoopBuilder<T, R, I> {
+    pub(crate) fn user_token(mut self, user_token: impl AsRef<str>) -> UdpProcessorBuilder<T, R, I> {
         self.user_token = Some(user_token.as_ref().to_owned());
         self
     }
 
-    pub(crate) fn agent_address(mut self, agent_address: PpaassNetAddress) -> UdpLoopBuilder<T, R, I> {
+    pub(crate) fn agent_address(mut self, agent_address: PpaassNetAddress) -> UdpProcessorBuilder<T, R, I> {
         self.agent_address = Some(agent_address);
         self
     }
 
-    pub(crate) fn agent_connection_read(mut self, agent_connection_read: PpaassConnectionRead<T, R, I>) -> UdpLoopBuilder<T, R, I> {
+    pub(crate) fn agent_connection_read(mut self, agent_connection_read: PpaassConnectionRead<T, R, I>) -> UdpProcessorBuilder<T, R, I> {
         self.agent_connection_read = Some(agent_connection_read);
         self
     }
 
-    pub(crate) fn agent_connection_write(mut self, agent_connection_write: PpaassConnectionWrite<T, R, I>) -> UdpLoopBuilder<T, R, I> {
+    pub(crate) fn agent_connection_write(mut self, agent_connection_write: PpaassConnectionWrite<T, R, I>) -> UdpProcessorBuilder<T, R, I> {
         self.agent_connection_write = Some(agent_connection_write);
         self
     }

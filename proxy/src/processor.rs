@@ -23,7 +23,7 @@ use ppaass_common::{
 };
 use ppaass_common::{tcp_loop::TcpLoopInitRequestPayload, PpaassConnectionRead};
 
-use crate::{common::ProxyServerPayloadEncryptionSelector, processor::udp::UdpLoopBuilder};
+use crate::{common::ProxyServerPayloadEncryptionSelector, processor::udp::UdpProcessorBuilder};
 use crate::{config::ProxyServerConfig, processor::tcp::TcpProcessorBuilder};
 
 mod tcp;
@@ -119,7 +119,7 @@ where
                     let dest_address = tcp_loop_init_request.dest_address;
                     let read = self.read_part;
                     let write = self.write_part;
-                    let tcp_loop_builder = TcpProcessorBuilder::new()
+                    let tcp_processor_builder = TcpProcessorBuilder::new()
                         .agent_address(agent_address)
                         .agent_connection_id(&connection_id)
                         .agent_connection_write(write)
@@ -127,16 +127,16 @@ where
                         .user_token(user_token)
                         .src_address(src_address)
                         .dest_address(dest_address);
-                    let tcp_loop = match tcp_loop_builder.build(configuration).await {
-                        Ok(tcp_loop) => tcp_loop,
+                    let tcp_processor = match tcp_processor_builder.build(configuration).await {
+                        Ok(tcp_processor) => tcp_processor,
                         Err(e) => {
                             error!("Agent connection [{connection_id}] fail to build tcp loop because of error: {e:?}");
                             return Err(e);
                         },
                     };
-                    let tcp_loop_key = tcp_loop.get_key().to_owned();
-                    debug!("Agent connection [{connection_id}] start tcp loop [{tcp_loop_key}]");
-                    if let Err(e) = tcp_loop.exec().await {
+                    let tcp_processor_key = tcp_processor.get_key().to_owned();
+                    debug!("Agent connection [{connection_id}] start tcp loop [{tcp_processor_key}]");
+                    if let Err(e) = tcp_processor.exec().await {
                         error!("Agent connection [{connection_id}] fail to execute tcp loop because of error: {e:?}");
                         return Err(e);
                     };
@@ -144,22 +144,22 @@ where
                 },
                 PpaassMessageAgentPayloadType::UdpLoopInit => {
                     info!("Agent connection [{connection_id}] receive udp loop init from agent.");
-                    let udp_loop_builder = UdpLoopBuilder::new()
+                    let udp_processor_builder = UdpProcessorBuilder::new()
                         .agent_address(agent_address)
                         .agent_connection_id(&connection_id)
                         .agent_connection_write(self.write_part)
                         .agent_connection_read(self.read_part)
                         .user_token(user_token);
-                    let udp_loop = match udp_loop_builder.build().await {
-                        Ok(udp_loop) => udp_loop,
+                    let udp_processor = match udp_processor_builder.build().await {
+                        Ok(udp_processor) => udp_processor,
                         Err(e) => {
                             error!("Agent connection [{connection_id}] fail to build udp loop because of error: {e:?}");
                             return Err(e);
                         },
                     };
-                    let udp_loop_key = udp_loop.get_loop_key().to_owned();
-                    debug!("Agent connection [{connection_id}] start udp loop [{udp_loop_key}]");
-                    if let Err(e) = udp_loop.exec().await {
+                    let udp_processor_key = udp_processor.get_loop_key().to_owned();
+                    debug!("Agent connection [{connection_id}] start udp loop [{udp_processor_key}]");
+                    if let Err(e) = udp_processor.exec().await {
                         error!("Agent connection [{connection_id}] fail to execute udp loop because of error: {e:?}");
                         return Err(e);
                     };

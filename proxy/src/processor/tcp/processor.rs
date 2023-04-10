@@ -238,6 +238,7 @@ where
                             continue;
                         }
                         None => {
+                            debug!("Agent connection [{agent_connection_id}] with tcp loop [{key}] complete to read agent message.");
                             stop_read_agent = true;
                             continue;
                         },
@@ -254,7 +255,7 @@ where
                 dst_message = dest_tcp_read.next(), if !stop_read_dst => {
                     let dst_message = match dst_message {
                         None => {
-                            debug!("Agent connection [{agent_connection_id}] with tcp loop [{key}] complete to relay destination data to agent.");
+                            debug!("Agent connection [{agent_connection_id}] with tcp loop [{key}] complete to read destination data.");
                             stop_read_dst=true;
                             continue;
                         },
