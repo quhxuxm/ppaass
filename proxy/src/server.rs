@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use crate::{config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher, processor::AgentConnectionProcessor};
 
@@ -39,6 +39,10 @@ impl ProxyServer {
                 },
                 Ok(v) => v,
             };
+            if let Err(e) = agent_tcp_stream.set_linger(Some(Duration::from_secs(20))) {
+                error!("Fail to set so linger on agent tcp connection because of error: {e:?}");
+                continue;
+            }
             if let Err(e) = agent_tcp_stream.set_nodelay(true) {
                 error!("Fail to set no delay on agent tcp connection because of error: {e:?}");
                 continue;

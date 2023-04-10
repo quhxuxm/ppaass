@@ -114,7 +114,7 @@ where
             },
         };
         let dest_socket_address = dest_socket_address.collect::<Vec<SocketAddr>>();
-        let dest_tcp = match timeout(
+        let dest_tcp_stream = match timeout(
             Duration::from_secs(configuration.get_dest_connect_timeout()),
             TcpStream::connect(dest_socket_address.as_slice()),
         )
@@ -167,11 +167,13 @@ where
             error!("Agent connection [{agent_connection_id}] fail to send tcp initialize success message to agent because of error: {e:?}");
             return Err(anyhow!(e));
         };
+        dest_tcp_stream.set_nodelay(true)?;
+        dest_tcp_stream.set_linger(Some(Duration::from_secs(20)))?;
         Ok(TcpHandler {
             handler_key,
             agent_connection_read,
             agent_connection_write,
-            dest_tcp,
+            dest_tcp_stream,
             user_token,
             agent_connection_id,
             configuration,
@@ -187,7 +189,7 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    dest_tcp: TcpStream,
+    dest_tcp_stream: TcpStream,
     agent_connection_read: PpaassConnectionRead<T, R, I>,
     agent_connection_write: PpaassConnectionWrite<T, R, I>,
     handler_key: String,
@@ -213,7 +215,7 @@ where
     pub(crate) async fn exec(self) -> Result<()> {
         let agent_connection_id = self.agent_connection_id.clone();
         let tcp_loop_key = self.handler_key.clone();
-        let dest_tcp = self.dest_tcp;
+        let dest_tcp = self.dest_tcp_stream;
         let dest_bytes_framed = Framed::with_capacity(dest_tcp, BytesCodec::new(), self.configuration.get_dest_tcp_buffer_size());
         let (dest_tcp_write, dest_tcp_read) = dest_bytes_framed.split::<BytesMut>();
         let (mut dest_tcp_write, mut dest_tcp_read) = (
