@@ -79,24 +79,24 @@ where
     }
 
     pub(crate) async fn build(self) -> Result<UdpHandler<T, R, I>> {
-        let agent_connection_id = self.agent_connection_id.context("Agent connection id not assigned for tcp loop builder")?;
-        let agent_address = self.agent_address.context("Agent address not assigned for tcp loop builder")?;
-        let user_token = self.user_token.context("User token not assigned for tcp loop builder")?;
-        let loop_key = UdpHandler::<T, R, I>::generate_loop_key(&agent_address);
+        let agent_connection_id = self.agent_connection_id.context("Agent connection id not assigned for udp handler builder")?;
+        let agent_address = self.agent_address.context("Agent address not assigned for udp handler builder")?;
+        let user_token = self.user_token.context("User token not assigned for udp handler builder")?;
+        let handler_key = UdpHandler::<T, R, I>::generate_key(&agent_address);
         let mut agent_connection_write = self
             .agent_connection_write
-            .context("Agent message framed write not assigned for tcp loop builder")?;
+            .context("Agent message framed write not assigned for udp handler builder")?;
         let agent_connection_read = self
             .agent_connection_read
-            .context("Agent message framed read not assigned for tcp loop builder")?;
+            .context("Agent message framed read not assigned for udp handler builder")?;
         let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-        let init_success_message = PpaassMessageGenerator::generate_udp_loop_init_success_response(&loop_key, &user_token, payload_encryption_token)?;
+        let init_success_message = PpaassMessageGenerator::generate_udp_loop_init_success_response(&handler_key, &user_token, payload_encryption_token)?;
         if let Err(e) = agent_connection_write.send(init_success_message).await {
             error!("Agent connection {agent_connection_id} fail to send tcp initialize success message to agent because of error: {e:?}");
             return Err(anyhow!(e));
         };
         Ok(UdpHandler {
-            loop_key,
+            handler_key,
             agent_connection_read,
             agent_connection_write,
             user_token,
@@ -115,7 +115,7 @@ where
 {
     agent_connection_read: PpaassConnectionRead<T, R, I>,
     agent_connection_write: PpaassConnectionWrite<T, R, I>,
-    loop_key: String,
+    handler_key: String,
     user_token: String,
     agent_connection_id: String,
 }
@@ -126,18 +126,18 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    fn generate_loop_key(agent_address: &PpaassNetAddress) -> String {
+    fn generate_key(agent_address: &PpaassNetAddress) -> String {
         format!("[{agent_address}]")
     }
 
     pub(crate) fn get_key(&self) -> &str {
-        self.loop_key.as_str()
+        self.handler_key.as_str()
     }
 
     pub(crate) async fn exec(mut self) -> Result<()> {
         let agent_connection_write = Arc::new(Mutex::new(self.agent_connection_write));
         loop {
-            let loop_key = self.loop_key.clone();
+            let loop_key = self.handler_key.clone();
             let agent_connection_id = self.agent_connection_id.clone();
 
             let agent_message = match self.agent_connection_read.next().await {

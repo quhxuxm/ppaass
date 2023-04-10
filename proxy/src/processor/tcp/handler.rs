@@ -99,7 +99,7 @@ where
         let src_address = self.src_address.context("Source address not assigned for tcp loop builder")?;
         let dest_address = self.dest_address.context("Destination address not assigned for tcp loop builder")?;
         let user_token = self.user_token.context("User token not assigned for tcp loop builder")?;
-        let key = TcpHandler::<T, R, I>::generate_key(&agent_address, &src_address, &dest_address);
+        let handler_key = TcpHandler::<T, R, I>::generate_key(&agent_address, &src_address, &dest_address);
         let mut agent_connection_write = self
             .agent_connection_write
             .context("Agent message framed write not assigned for tcp loop builder")?;
@@ -123,8 +123,13 @@ where
             Err(_) => {
                 error!("Agent connection [{agent_connection_id}] fail connect to dest address [{dest_address}] because of timeout.");
                 let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-                let tcp_initialize_fail_message =
-                    PpaassMessageGenerator::generate_tcp_loop_init_fail_response(&key, &user_token, src_address, dest_address, payload_encryption_token)?;
+                let tcp_initialize_fail_message = PpaassMessageGenerator::generate_tcp_loop_init_fail_response(
+                    &handler_key,
+                    &user_token,
+                    src_address,
+                    dest_address,
+                    payload_encryption_token,
+                )?;
                 agent_connection_write.send(tcp_initialize_fail_message).await.context(format!(
                     "Agent connection [{agent_connection_id}] fail to send tcp loop init fail response to agent."
                 ))?;
@@ -136,8 +141,13 @@ where
             Ok(Err(e)) => {
                 error!("Agent connection [{agent_connection_id}] fail connect to dest address [{dest_address}] because of error: {e:?}");
                 let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-                let tcp_initialize_fail_message =
-                    PpaassMessageGenerator::generate_tcp_loop_init_fail_response(&key, &user_token, src_address, dest_address, payload_encryption_token)?;
+                let tcp_initialize_fail_message = PpaassMessageGenerator::generate_tcp_loop_init_fail_response(
+                    &handler_key,
+                    &user_token,
+                    src_address,
+                    dest_address,
+                    payload_encryption_token,
+                )?;
                 agent_connection_write.send(tcp_initialize_fail_message).await.context(format!(
                     "Agent connection [{agent_connection_id}] fail to send tcp loop init fail response to agent."
                 ))?;
@@ -147,7 +157,7 @@ where
 
         let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
         let tcp_initialize_success_message = PpaassMessageGenerator::generate_tcp_loop_init_success_response(
-            &key,
+            &handler_key,
             &user_token,
             src_address.clone(),
             dest_address.clone(),
@@ -158,7 +168,7 @@ where
             return Err(anyhow!(e));
         };
         Ok(TcpHandler {
-            key,
+            handler_key,
             agent_connection_read,
             agent_connection_write,
             dest_tcp,
@@ -180,7 +190,7 @@ where
     dest_tcp: TcpStream,
     agent_connection_read: PpaassConnectionRead<T, R, I>,
     agent_connection_write: PpaassConnectionWrite<T, R, I>,
-    key: String,
+    handler_key: String,
     user_token: String,
     agent_connection_id: String,
     configuration: Arc<ProxyServerConfig>,
@@ -197,12 +207,12 @@ where
     }
 
     pub(crate) fn get_key(&self) -> &str {
-        self.key.as_str()
+        self.handler_key.as_str()
     }
 
     pub(crate) async fn exec(self) -> Result<()> {
         let agent_connection_id = self.agent_connection_id.clone();
-        let tcp_loop_key = self.key.clone();
+        let tcp_loop_key = self.handler_key.clone();
         let dest_tcp = self.dest_tcp;
         let dest_bytes_framed = Framed::with_capacity(dest_tcp, BytesCodec::new(), self.configuration.get_dest_tcp_buffer_size());
         let (dest_tcp_write, dest_tcp_read) = dest_bytes_framed.split::<BytesMut>();
@@ -213,7 +223,7 @@ where
         let mut agent_connection_write = self.agent_connection_write;
         let mut agent_connection_read = self.agent_connection_read;
         let user_token = self.user_token;
-        let key = self.key;
+        let key = self.handler_key;
         let agent_connection_id = self.agent_connection_id;
         let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
         let mut stop_read_agent = false;
