@@ -19,7 +19,7 @@ use tokio::{
     sync::Mutex,
     time::timeout,
 };
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::common::ProxyServerPayloadEncryptionSelector;
 
@@ -137,16 +137,19 @@ where
     pub(crate) async fn exec(mut self) -> Result<()> {
         let agent_connection_write = Arc::new(Mutex::new(self.agent_connection_write));
         loop {
-            let loop_key = self.handler_key.clone();
+            let handler_key = self.handler_key.clone();
             let agent_connection_id = self.agent_connection_id.clone();
 
             let agent_message = match self.agent_connection_read.next().await {
                 Some(Ok(agent_message)) => agent_message,
                 Some(Err(e)) => {
-                    error!("Agent connection {agent_connection_id} with udp loop {loop_key} fail to read agent message because of error: {e:?}");
+                    error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail to read agent message because of error: {e:?}");
                     return Err(anyhow!(e));
                 },
-                None => return Ok(()),
+                None => {
+                    debug!("Agent connection {agent_connection_id} with udp loop {handler_key} complete to read agent message from TCP.");
+                    return Ok(());
+                },
             };
             let user_token = self.user_token.clone();
             let agent_connection_write = agent_connection_write.clone();
@@ -163,7 +166,7 @@ where
                 let dst_socket_addrs = match dst_address.to_socket_addrs() {
                     Ok(v) => v,
                     Err(e) => {
-                        error!("Agent connection {agent_connection_id} with udp loop {loop_key} fail to convert destination address [{dst_address}] because of error: {e:?}");
+                        error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail to convert destination address [{dst_address}] because of error: {e:?}");
                         return Err(anyhow!(e));
                     },
                 };
@@ -173,28 +176,30 @@ where
                 );
                 let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
                 if let Err(e) = dst_udp_socket.connect(dst_socket_addrs.as_slice()).await {
-                    error!("Agent connection {agent_connection_id} with udp loop {loop_key} fail connect to destination because of error: {e:?}");
+                    error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail connect to destination because of error: {e:?}");
                     return Err(anyhow!(e));
                 };
                 if let Err(e) = dst_udp_socket.send(&raw_data_bytes).await {
-                    error!("Agent connection {agent_connection_id} with udp loop {loop_key} fail to send data to udp socket because of error: {e:?}");
+                    error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail to send data to udp socket because of error: {e:?}");
                 };
                 let mut dst_recv_buf = [0u8; 65535];
                 let data_size = match timeout(Duration::from_secs(2), dst_udp_socket.recv(&mut dst_recv_buf)).await {
                     Ok(Ok(data_size)) => data_size,
                     Ok(Err(e)) => {
-                        error!("Agent connection {agent_connection_id} with udp loop {loop_key} fail to receive data from udp socket because of error: {e:?}");
+                        error!(
+                            "Agent connection {agent_connection_id} with udp loop {handler_key} fail to receive data from udp socket because of error: {e:?}"
+                        );
                         return Err(anyhow!(e));
                     },
                     Err(e) => {
-                        error!("Agent connection {agent_connection_id} with udp loop {loop_key} fail to receive data from udp socket because of timeout");
+                        error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail to receive data from udp socket because of timeout");
                         return Err(anyhow!(e));
                     },
                 };
 
                 let dst_recv_buf = &dst_recv_buf[..data_size];
                 info!(
-                    "Agent connection {agent_connection_id} receive destination udp data:\n{}\n",
+                    "Agent connection {agent_connection_id} with udp loop {handler_key} receive destination udp data:\n{}\n",
                     pretty_hex(&dst_recv_buf)
                 );
 
@@ -210,14 +215,14 @@ where
                     Ok(data_message) => data_message,
                     Err(e) => {
                         error!(
-                            "Agent connection {agent_connection_id} with udp loop {loop_key} fail to generate udp loop data message because of error: {e:?}"
+                            "Agent connection {agent_connection_id} with udp loop {handler_key} fail to generate udp loop data message because of error: {e:?}"
                         );
                         return Err(anyhow!(e));
                     },
                 };
                 let mut agent_connection_write = agent_connection_write.lock().await;
                 if let Err(e) = agent_connection_write.send(data_message).await {
-                    error!("Agent connection {agent_connection_id} with udp loop {loop_key} fail to send udp loop data to agent because of error: {e:?}");
+                    error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail to send udp loop data to agent because of error: {e:?}");
                     return Err(anyhow!(e));
                 };
                 Ok(())
