@@ -225,19 +225,17 @@ where
 
     pub(crate) async fn exec(self) -> Result<()> {
         let agent_connection_id = self.agent_connection_id.clone();
-        let tcp_loop_key = self.handler_key.clone();
+        let handler_key = self.handler_key.clone();
         let dst_tcp = self.dst_tcp_stream;
         let dst_bytes_framed = Framed::with_capacity(dst_tcp, BytesCodec::new(), self.configuration.get_dst_tcp_buffer_size());
         let (dst_tcp_write, dst_tcp_read) = dst_bytes_framed.split::<BytesMut>();
         let (mut dst_tcp_write, mut dst_tcp_read) = (
-            DestConnectionWrite::new(agent_connection_id.clone(), tcp_loop_key.clone(), dst_tcp_write),
-            DestConnectionRead::new(agent_connection_id, tcp_loop_key, dst_tcp_read),
+            DestConnectionWrite::new(agent_connection_id.clone(), handler_key.clone(), dst_tcp_write),
+            DestConnectionRead::new(agent_connection_id.clone(), handler_key.clone(), dst_tcp_read),
         );
         let mut agent_connection_write = self.agent_connection_write;
         let mut agent_connection_read = self.agent_connection_read;
         let user_token = self.user_token;
-        let key = self.handler_key;
-        let agent_connection_id = self.agent_connection_id;
         let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
         let mut stop_read_agent = false;
         let mut stop_read_dst = false;
@@ -246,10 +244,10 @@ where
         loop {
             if stop_read_agent && stop_read_dst {
                 if let Err(e) = agent_connection_write.close().await {
-                    error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to close agent connection because of error: {e:?}");
+                    error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to close agent connection because of error: {e:?}");
                 };
                 if let Err(e) = dst_tcp_write.close().await {
-                    error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to close destination connection because of error: {e:?}");
+                    error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to close destination connection because of error: {e:?}");
                 };
                 break Ok(());
             }
@@ -258,12 +256,12 @@ where
                     let agent_message = match agent_message {
                         Some(Ok(agent_message)) => agent_message,
                         Some(Err(e))=>{
-                            error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to read agent message because of error: {e:?}");
+                            error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to read agent message because of error: {e:?}");
                             stop_read_agent = true;
                             continue;
                         }
                         None => {
-                            debug!("Agent connection [{agent_connection_id}] with tcp loop [{key}] complete to read agent message.");
+                            debug!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} complete to read agent message.");
                             stop_read_agent = true;
                             continue;
                         },
@@ -272,7 +270,7 @@ where
                     let tcp_data: TcpData = match payload.try_into(){
                         Ok(tcp_data)=>tcp_data,
                         Err(e)=>{
-                            error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to relay agent message to destination because of can not parse tcp data error: {e:?}");
+                            error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to relay agent message to destination because of can not parse tcp data error: {e:?}");
                             stop_read_agent = true;
                             continue;
                         }
@@ -283,19 +281,19 @@ where
                         dst_address: dst_address_in_data
                     } = tcp_data.split();
                     if src_address != src_address_in_data{
-                        error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to relay agent message to destination because of src address is not the same.");
+                        error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to relay agent message to destination because of src address is not the same.");
                         stop_read_agent = true;
                         continue;
                     }
                     if dst_address != dst_address_in_data{
-                        error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to relay agent message to destination because of dst address is not the same.");
+                        error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to relay agent message to destination because of dst address is not the same.");
                         stop_read_agent = true;
                         continue;
                     }
-                    trace!("Agent connection [{agent_connection_id}] with tcp loop [{key}] read agent data:\n{}\n", pretty_hex::pretty_hex(&raw_data));
+                    trace!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} read agent data:\n{}\n", pretty_hex::pretty_hex(&raw_data));
                     let tcp_raw_data = BytesMut::from_iter(raw_data);
                     if let Err(e) = dst_tcp_write.send(tcp_raw_data).await {
-                        error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to relay agent message to destination because of error: {e:?}");
+                        error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to relay agent message to destination because of error: {e:?}");
                         stop_read_agent = true;
                         continue;
                     };
@@ -303,28 +301,28 @@ where
                 dst_message = dst_tcp_read.next(), if !stop_read_dst => {
                     let dst_message = match dst_message {
                         None => {
-                            debug!("Agent connection [{agent_connection_id}] with tcp loop [{key}] complete to read destination data.");
+                            debug!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} complete to read destination data.");
                             stop_read_dst=true;
                             continue;
                         },
                         Some(Ok(dst_message)) => dst_message,
                         Some(Err(e)) => {
-                            error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to read destination data because of error: {e:?}");
+                            error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to read destination data because of error: {e:?}");
                             stop_read_dst=true;
                             continue;
                         },
                     };
-                    trace!("Agent connection [{agent_connection_id}] with tcp loop [{key}] read destination data:\n{}\n", pretty_hex::pretty_hex(&dst_message));
+                    trace!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} read destination data:\n{}\n", pretty_hex::pretty_hex(&dst_message));
                     let tcp_data_message = match PpaassMessageGenerator::generate_tcp_data(&user_token, payload_encryption_token.clone(),src_address.clone(), dst_address.clone(),  dst_message.to_vec()) {
                         Ok(tcp_data_message) => tcp_data_message,
                         Err(e) => {
-                            error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to generate raw data because of error: {e:?}");
+                            error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to generate raw data because of error: {e:?}");
                             stop_read_dst=true;
                             continue;
                         },
                     };
                     if let Err(e) = agent_connection_write.send(tcp_data_message).await {
-                        error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to relay destination data to agent because of error: {e:?}");
+                        error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to relay destination data to agent because of error: {e:?}");
                         stop_read_dst=true;
                         continue;
                     };

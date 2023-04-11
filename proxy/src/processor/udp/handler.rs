@@ -177,6 +177,7 @@ where
                 let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
                 if let Err(e) = dst_udp_socket.send_to(&raw_data, dst_socket_addrs.as_slice()).await {
                     error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail to send data to udp socket because of error: {e:?}");
+                    return Err(anyhow!(e));
                 };
                 let mut dst_recv_buf = [0u8; 65535];
                 let (data_size, dst_socket_addr) = match timeout(Duration::from_secs(2), dst_udp_socket.recv_from(&mut dst_recv_buf)).await {
