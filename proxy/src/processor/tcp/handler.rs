@@ -279,8 +279,19 @@ where
                     };
                     let TcpDataParts{
                         raw_data,
-                        ..
+                        src_address: src_address_in_data,
+                        dst_address: dst_address_in_data
                     } = tcp_data.split();
+                    if src_address != src_address_in_data{
+                        error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to relay agent message to destination because of src address is not the same.");
+                        stop_read_agent = true;
+                        continue;
+                    }
+                    if dst_address != dst_address_in_data{
+                        error!("Agent connection [{agent_connection_id}] with tcp loop [{key}] fail to relay agent message to destination because of dst address is not the same.");
+                        stop_read_agent = true;
+                        continue;
+                    }
                     trace!("Agent connection [{agent_connection_id}] with tcp loop [{key}] read agent data:\n{}\n", pretty_hex::pretty_hex(&raw_data));
                     let tcp_raw_data = BytesMut::from_iter(raw_data);
                     if let Err(e) = dst_tcp_write.send(tcp_raw_data).await {
