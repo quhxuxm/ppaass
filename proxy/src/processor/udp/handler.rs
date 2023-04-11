@@ -158,12 +158,12 @@ where
             let dst_udp_socket = dst_udp_socket.clone();
             tokio::spawn(async move {
                 let mut agent_connection_write = agent_connection_write.lock().await;
-                let PpaassMessageParts { payload: payload_bytes, .. } = agent_message.split();
+                let PpaassMessageParts { payload, .. } = agent_message.split();
                 let UdpDataParts {
                     src_address,
                     dst_address,
-                    raw_data_bytes,
-                } = TryInto::<UdpData>::try_into(payload_bytes)?.split();
+                    raw_data,
+                } = TryInto::<UdpData>::try_into(payload)?.split();
                 let agent_connection_id = agent_connection_id.clone();
 
                 let dst_socket_addrs = match dst_address.to_socket_addrs() {
@@ -173,12 +173,9 @@ where
                         return Err(anyhow!(e));
                     },
                 };
-                info!(
-                    "Agent connection {agent_connection_id} receive agent udp data:\n{}\n",
-                    pretty_hex(&raw_data_bytes)
-                );
+                info!("Agent connection {agent_connection_id} receive agent udp data:\n{}\n", pretty_hex(&raw_data));
                 let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
-                if let Err(e) = dst_udp_socket.send_to(&raw_data_bytes, dst_socket_addrs.as_slice()).await {
+                if let Err(e) = dst_udp_socket.send_to(&raw_data, dst_socket_addrs.as_slice()).await {
                     error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail to send data to udp socket because of error: {e:?}");
                 };
                 let mut dst_recv_buf = [0u8; 65535];
@@ -205,7 +202,7 @@ where
 
                 let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
 
-                let data_message =
+                let udp_data_message =
                     match PpaassMessageGenerator::generate_udp_data(user_token.clone(), payload_encryption, src_address, dst_address, dst_recv_buf.to_vec()) {
                         Ok(data_message) => data_message,
                         Err(e) => {
@@ -216,7 +213,7 @@ where
                         },
                     };
 
-                if let Err(e) = agent_connection_write.send(data_message).await {
+                if let Err(e) = agent_connection_write.send(udp_data_message).await {
                     error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail to send udp loop data to agent because of error: {e:?}");
                     return Err(anyhow!(e));
                 };

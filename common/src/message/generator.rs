@@ -74,7 +74,7 @@ impl PpaassMessageGenerator {
         let udp_data_parts = UdpDataParts {
             src_address,
             dst_address,
-            raw_data_bytes,
+            raw_data: raw_data_bytes,
         };
         let udp_data: UdpData = udp_data_parts.into();
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, udp_data.try_into()?);

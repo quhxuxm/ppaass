@@ -55,7 +55,7 @@ impl TryFrom<UdpInitResponse> for Vec<u8> {
 pub struct UdpDataParts {
     pub src_address: PpaassNetAddress,
     pub dst_address: PpaassNetAddress,
-    pub raw_data_bytes: Vec<u8>,
+    pub raw_data: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -64,7 +64,7 @@ pub struct UdpDataParts {
 pub struct UdpData {
     src_address: PpaassNetAddress,
     dst_address: PpaassNetAddress,
-    raw_data_bytes: Vec<u8>,
+    raw_data: Vec<u8>,
 }
 
 impl UdpData {
@@ -72,7 +72,7 @@ impl UdpData {
         UdpDataParts {
             src_address: self.src_address,
             dst_address: self.dst_address,
-            raw_data_bytes: self.raw_data_bytes,
+            raw_data: self.raw_data,
         }
     }
 }
@@ -82,7 +82,7 @@ impl From<UdpDataParts> for UdpData {
         Self {
             src_address: value.src_address,
             dst_address: value.dst_address,
-            raw_data_bytes: value.raw_data_bytes,
+            raw_data: value.raw_data,
         }
     }
 }
