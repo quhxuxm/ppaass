@@ -132,7 +132,7 @@ where
             id,
             user_token,
             payload_encryption,
-            payload_bytes,
+            payload: payload_bytes,
         } = encrypted_message.split();
 
         let rsa_crypto = self
@@ -160,7 +160,7 @@ where
             id,
             user_token,
             payload_encryption,
-            payload_bytes: decrypt_payload_bytes,
+            payload: decrypt_payload_bytes,
         };
         Ok(Some(new_message_parts.into()))
     }
@@ -185,7 +185,7 @@ where
             id,
             user_token,
             payload_encryption,
-            payload_bytes,
+            payload: payload_bytes,
         } = original_message.split();
 
         let rsa_crypto = self
@@ -215,7 +215,7 @@ where
             id,
             user_token,
             payload_encryption: encrypted_payload_encryption_type,
-            payload_bytes: encrypted_payload_bytes,
+            payload: encrypted_payload_bytes,
         };
         let message_to_encode: PpaassMessage = message_parts_to_encode.into();
         let result_bytes: Vec<u8> = message_to_encode.try_into().context("Fail to encode message object to bytes")?;

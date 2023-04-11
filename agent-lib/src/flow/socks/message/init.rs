@@ -72,24 +72,24 @@ impl From<Socks5InitCommandResultStatus> for u8 {
 
 pub(crate) struct Socks5InitCommandContentParts {
     pub command_type: Socks5InitCommandType,
-    pub dest_address: Socks5Address,
+    pub dst_address: Socks5Address,
 }
 
 #[derive(Debug)]
 pub(crate) struct Socks5InitCommandContent {
     request_type: Socks5InitCommandType,
-    dest_address: Socks5Address,
+    dst_address: Socks5Address,
 }
 
 impl Socks5InitCommandContent {
-    pub fn new(request_type: Socks5InitCommandType, dest_address: Socks5Address) -> Self {
-        Socks5InitCommandContent { request_type, dest_address }
+    pub fn new(request_type: Socks5InitCommandType, dst_address: Socks5Address) -> Self {
+        Socks5InitCommandContent { request_type, dst_address }
     }
 
     pub(crate) fn split(self) -> Socks5InitCommandContentParts {
         Socks5InitCommandContentParts {
             command_type: self.request_type,
-            dest_address: self.dest_address,
+            dst_address: self.dst_address,
         }
     }
 }

@@ -70,7 +70,7 @@ impl FlowDispatcher {
                 debug!("Client tcp connection [{client_socket_address}] begin to serve socks 5 protocol");
                 Ok(ClientFlow::Socks5 {
                     client_io,
-                    client_socket_address,
+                    src_address: client_socket_address.into(),
                     initial_buf,
                 })
             },
@@ -89,7 +89,7 @@ impl FlowDispatcher {
                 debug!("Client tcp connection [{client_socket_address}] begin to serve http protocol");
                 Ok(ClientFlow::Http {
                     client_io,
-                    client_socket_address,
+                    src_address: client_socket_address.into(),
                     initial_buf,
                 })
             },

@@ -8,7 +8,7 @@ use std::{
 use futures::{SinkExt, StreamExt};
 use ppaass_common::{
     generate_uuid,
-    udp_loop::{UdpLoopData, UdpLoopDataParts},
+    udp::{UdpData, UdpDataParts, UdpInitResponseType},
     PpaassConnectionRead, PpaassConnectionWrite, PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress,
     RsaCryptoFetcher,
 };
@@ -90,8 +90,9 @@ where
             .agent_connection_read
             .context("Agent message framed read not assigned for udp handler builder")?;
         let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-        let init_success_message = PpaassMessageGenerator::generate_udp_loop_init_success_response(&handler_key, &user_token, payload_encryption_token)?;
-        if let Err(e) = agent_connection_write.send(init_success_message).await {
+        let udp_init_success_message =
+            PpaassMessageGenerator::generate_udp_init_response(&handler_key, &user_token, payload_encryption_token, UdpInitResponseType::Success)?;
+        if let Err(e) = agent_connection_write.send(udp_init_success_message).await {
             error!("Agent connection {agent_connection_id} fail to send tcp initialize success message to agent because of error: {e:?}");
             return Err(anyhow!(e));
         };
@@ -157,12 +158,12 @@ where
             let dst_udp_socket = dst_udp_socket.clone();
             tokio::spawn(async move {
                 let mut agent_connection_write = agent_connection_write.lock().await;
-                let PpaassMessageParts { payload_bytes, .. } = agent_message.split();
-                let UdpLoopDataParts {
+                let PpaassMessageParts { payload: payload_bytes, .. } = agent_message.split();
+                let UdpDataParts {
                     src_address,
                     dst_address,
                     raw_data_bytes,
-                } = TryInto::<UdpLoopData>::try_into(payload_bytes)?.split();
+                } = TryInto::<UdpData>::try_into(payload_bytes)?.split();
                 let agent_connection_id = agent_connection_id.clone();
 
                 let dst_socket_addrs = match dst_address.to_socket_addrs() {
@@ -204,21 +205,16 @@ where
 
                 let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
 
-                let data_message = match PpaassMessageGenerator::generate_udp_loop_data(
-                    user_token.clone(),
-                    payload_encryption,
-                    src_address,
-                    dst_address,
-                    dst_recv_buf.to_vec(),
-                ) {
-                    Ok(data_message) => data_message,
-                    Err(e) => {
-                        error!(
+                let data_message =
+                    match PpaassMessageGenerator::generate_udp_data(user_token.clone(), payload_encryption, src_address, dst_address, dst_recv_buf.to_vec()) {
+                        Ok(data_message) => data_message,
+                        Err(e) => {
+                            error!(
                             "Agent connection {agent_connection_id} with udp loop {handler_key} fail to generate udp loop data message because of error: {e:?}"
                         );
-                        return Err(anyhow!(e));
-                    },
-                };
+                            return Err(anyhow!(e));
+                        },
+                    };
 
                 if let Err(e) = agent_connection_write.send(data_message).await {
                     error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail to send udp loop data to agent because of error: {e:?}");
