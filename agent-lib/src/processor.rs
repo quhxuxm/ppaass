@@ -4,17 +4,17 @@ use std::{
     fmt::{Debug, Display},
     pin::Pin,
     sync::Arc,
-    task::Poll,
+    task::{Context, Poll},
 };
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
 use bytes::BytesMut;
 use futures::{
     stream::{SplitSink, SplitStream},
     Sink, SinkExt, Stream, StreamExt,
 };
-use pin_project::{pin_project, pinned_drop};
+use pin_project::pin_project;
 use ppaass_common::{
     tcp::{TcpData, TcpDataParts},
     PpaassConnectionRead, PpaassConnectionWrite, PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryption, PpaassNetAddress,
@@ -26,7 +26,7 @@ use tokio::{
 };
 
 use tokio_util::codec::{BytesCodec, Framed};
-use tracing::{debug, error, trace};
+use tracing::{error, trace};
 
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, pool::ProxyConnectionPool};
 
@@ -122,8 +122,8 @@ impl ClientProcessor {
         let client_io_framed = Framed::with_capacity(client_tcp_stream, BytesCodec::new(), configuration.get_client_io_buffer_size());
         let (client_io_write, client_io_read) = client_io_framed.split::<BytesMut>();
         let (mut client_io_write, mut client_io_read) = (
-            ClientConnectionWrite::new(src_address.clone(), tcp_loop_key.clone(), client_io_write),
-            ClientConnectionRead::new(src_address.clone(), tcp_loop_key.clone(), client_io_read),
+            ClientConnectionWrite::new(src_address.clone(), client_io_write),
+            ClientConnectionRead::new(src_address.clone(), client_io_read),
         );
 
         let init_data = info.init_data;
@@ -219,47 +219,26 @@ impl ClientProcessor {
     }
 }
 
-#[pin_project(PinnedDrop)]
+#[pin_project]
 struct ClientConnectionWrite<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
     src_address: PpaassNetAddress,
-    tcp_loop_key: String,
+
     #[pin]
-    client_bytes_framed_write: Option<SplitSink<Framed<T, BytesCodec>, BytesMut>>,
+    client_bytes_framed_write: SplitSink<Framed<T, BytesCodec>, BytesMut>,
 }
 
 impl<T> ClientConnectionWrite<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
-    fn new(src_address: PpaassNetAddress, tcp_loop_key: String, client_bytes_framed_write: SplitSink<Framed<T, BytesCodec>, BytesMut>) -> Self {
+    fn new(src_address: PpaassNetAddress, client_bytes_framed_write: SplitSink<Framed<T, BytesCodec>, BytesMut>) -> Self {
         Self {
             src_address,
-            tcp_loop_key,
-            client_bytes_framed_write: Some(client_bytes_framed_write),
+            client_bytes_framed_write,
         }
-    }
-}
-
-#[pinned_drop]
-impl<T> PinnedDrop for ClientConnectionWrite<T>
-where
-    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
-{
-    fn drop(self: Pin<&mut Self>) {
-        let mut this = self.project();
-        let src_address = this.src_address.clone();
-        let tcp_loop_key = this.tcp_loop_key.clone();
-        if let Some(mut client_bytes_framed_write) = this.client_bytes_framed_write.take() {
-            tokio::spawn(async move {
-                debug!("Client connection {src_address} with tcp loop key {tcp_loop_key} drop dest connection write.");
-                if let Err(e) = client_bytes_framed_write.close().await {
-                    error!("Client connection {src_address} with tcp loop key {tcp_loop_key}, error happen on drop dest connection write: {e:?}")
-                }
-            });
-        };
     }
 }
 
@@ -269,87 +248,46 @@ where
 {
     type Error = anyhow::Error;
 
-    fn poll_ready(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        if let Some(client_bytes_framed_write) = this.client_bytes_framed_write.as_pin_mut() {
-            match client_bytes_framed_write.poll_ready(cx) {
-                Poll::Ready(value) => return Poll::Ready(value.map_err(|e| anyhow::anyhow!(e))),
-                Poll::Pending => return Poll::Pending,
-            }
-        }
-        Poll::Ready(Err(anyhow::anyhow!("Client bytes framed write not exist")))
+        this.client_bytes_framed_write.poll_ready(cx).map_err(|e| anyhow!(e))
     }
 
     fn start_send(self: Pin<&mut Self>, item: BytesMut) -> Result<(), Self::Error> {
         let this = self.project();
-        if let Some(client_bytes_framed_write) = this.client_bytes_framed_write.as_pin_mut() {
-            return client_bytes_framed_write.start_send(item).map_err(|e| anyhow::anyhow!(e));
-        }
-        Err(anyhow::anyhow!("Client bytes framed write not exist"))
+        this.client_bytes_framed_write.start_send(item).map_err(|e| anyhow::anyhow!(e))
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        if let Some(client_bytes_framed_write) = this.client_bytes_framed_write.as_pin_mut() {
-            match client_bytes_framed_write.poll_flush(cx) {
-                Poll::Ready(value) => return Poll::Ready(value.map_err(|e| anyhow::anyhow!(e))),
-                Poll::Pending => return Poll::Pending,
-            }
-        }
-        Poll::Ready(Err(anyhow::anyhow!("Client bytes framed write not exist")))
+        this.client_bytes_framed_write.poll_flush(cx).map_err(|e| anyhow::anyhow!(e))
     }
 
-    fn poll_close(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        if let Some(client_bytes_framed_write) = this.client_bytes_framed_write.as_pin_mut() {
-            match client_bytes_framed_write.poll_close(cx) {
-                Poll::Ready(value) => return Poll::Ready(value.map_err(|e| anyhow::anyhow!(e))),
-                Poll::Pending => return Poll::Pending,
-            }
-        }
-        Poll::Ready(Err(anyhow::anyhow!("Client bytes framed write not exist")))
+        this.client_bytes_framed_write.poll_close(cx).map_err(|e| anyhow::anyhow!(e))
     }
 }
 
-#[pin_project(PinnedDrop)]
+#[pin_project]
 struct ClientConnectionRead<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
     src_address: PpaassNetAddress,
-    tcp_loop_key: String,
     #[pin]
-    client_bytes_framed_read: Option<SplitStream<Framed<T, BytesCodec>>>,
+    client_bytes_framed_read: SplitStream<Framed<T, BytesCodec>>,
 }
 
 impl<T> ClientConnectionRead<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
-    fn new(src_address: PpaassNetAddress, tcp_loop_key: String, client_bytes_framed_read: SplitStream<Framed<T, BytesCodec>>) -> Self {
+    fn new(src_address: PpaassNetAddress, client_bytes_framed_read: SplitStream<Framed<T, BytesCodec>>) -> Self {
         Self {
             src_address,
-            tcp_loop_key,
-            client_bytes_framed_read: Some(client_bytes_framed_read),
+            client_bytes_framed_read,
         }
-    }
-}
-
-#[pinned_drop]
-impl<T> PinnedDrop for ClientConnectionRead<T>
-where
-    T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
-{
-    fn drop(self: Pin<&mut Self>) {
-        let mut this = self.project();
-        let src_address = this.src_address.clone();
-        let tcp_loop_key = this.tcp_loop_key.clone();
-        if let Some(client_bytes_framed_read) = this.client_bytes_framed_read.take() {
-            tokio::spawn(async move {
-                debug!("Client connection {src_address} with tcp loop key {tcp_loop_key} drop dest connection read.");
-                drop(client_bytes_framed_read)
-            });
-        };
     }
 }
 
@@ -359,17 +297,8 @@ where
 {
     type Item = Result<BytesMut, anyhow::Error>;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        if let Some(client_bytes_framed_read) = this.client_bytes_framed_read.as_pin_mut() {
-            return match client_bytes_framed_read.poll_next(cx) {
-                Poll::Ready(value) => match value {
-                    None => Poll::Ready(None),
-                    Some(value) => Poll::Ready(Some(value.map_err(|e| anyhow::anyhow!(e)))),
-                },
-                Poll::Pending => Poll::Pending,
-            };
-        }
-        Poll::Ready(None)
+        this.client_bytes_framed_read.poll_next(cx).map_err(|e| anyhow::anyhow!(e))
     }
 }
