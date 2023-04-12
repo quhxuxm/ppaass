@@ -42,10 +42,10 @@ impl PpaassMessageGenerator {
     }
 
     pub fn generate_udp_init_response(
-        loop_key: impl AsRef<str>, user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption, response_type: UdpInitResponseType,
+        unique_key: impl AsRef<str>, user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption, response_type: UdpInitResponseType,
     ) -> Result<PpaassMessage> {
         let udp_init_response = UdpInitResponse {
-            loop_key: loop_key.as_ref().to_owned(),
+            unique_key: unique_key.as_ref().to_owned(),
             response_type,
         };
         let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::UdpInit, udp_init_response.try_into()?);

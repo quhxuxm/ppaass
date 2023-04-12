@@ -16,7 +16,7 @@ pub enum UdpInitResponseType {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UdpInitResponse {
-    pub loop_key: String,
+    pub unique_key: String,
     pub response_type: UdpInitResponseType,
 }
 
