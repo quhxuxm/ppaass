@@ -239,12 +239,6 @@ where
         debug!("Tcp handler {handler_key} create destination connection: {dst_connection_id}");
         loop {
             if stop_read_agent && stop_read_dst {
-                if let Err(e) = ppaass_connection_write.close().await {
-                    error!("Tcp handler {handler_key} fail to close agent connection because of error: {e:?}");
-                };
-                if let Err(e) = dst_tcp_write.close().await {
-                    error!("Tcp handler {handler_key} fail to close destination connection because of error: {e:?}");
-                };
                 break Ok(());
             }
             tokio::select! {
@@ -253,11 +247,17 @@ where
                         Some(Ok(agent_message)) => agent_message,
                         Some(Err(e))=>{
                             error!("Tcp handler {handler_key} fail to read agent message because of error: {e:?}");
+                            if let Err(e) = dst_tcp_write.close().await {
+                                error!("Tcp handler {handler_key} fail to close destination connection because of error: {e:?}");
+                            };
                             stop_read_agent = true;
                             continue;
                         }
                         None => {
                             debug!("Tcp handler {handler_key} complete to read agent message.");
+                            if let Err(e) = dst_tcp_write.close().await {
+                                error!("Tcp handler {handler_key} fail to close destination connection because of error: {e:?}");
+                            };
                             stop_read_agent = true;
                             continue;
                         },
@@ -296,14 +296,20 @@ where
                 },
                 dst_message = dst_tcp_read.next(), if !stop_read_dst => {
                     let dst_message = match dst_message {
-                        None => {
-                            debug!("Tcp handler {handler_key} complete to read destination data.");
-                            stop_read_dst=true;
-                            continue;
-                        },
                         Some(Ok(dst_message)) => dst_message,
                         Some(Err(e)) => {
                             error!("Tcp handler {handler_key} fail to read destination data because of error: {e:?}");
+                            if let Err(e) = ppaass_connection_write.close().await{
+                                error!("Tcp handler {handler_key} fail to close agent connection because of error: {e:?}");
+                            };
+                            stop_read_dst=true;
+                            continue;
+                        },
+                        None => {
+                            debug!("Tcp handler {handler_key} complete to read destination data.");
+                            if let Err(e) = ppaass_connection_write.close().await{
+                                error!("Tcp handler {handler_key} fail to close agent connection because of error: {e:?}");
+                            };
                             stop_read_dst=true;
                             continue;
                         },
