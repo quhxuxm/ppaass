@@ -140,12 +140,6 @@ impl ClientProcessor {
         let mut stop_read_proxy = false;
         loop {
             if stop_read_client && stop_read_proxy {
-                if let Err(e) = client_io_write.close().await {
-                    error!("Client tcp connection [{src_address}] for tcp loop [{tcp_loop_key}] fail to close client connection because of error: {e:?}");
-                };
-                if let Err(e) = proxy_connection_write.close().await {
-                    error!("Client tcp connection [{src_address}] for tcp loop [{tcp_loop_key}] fail to close proxy connection because of error: {e:?}");
-                };
                 break Ok(());
             }
             tokio::select! {
@@ -156,10 +150,16 @@ impl ClientProcessor {
                         error!(
                             "Client tcp connection [{src_address}] for tcp loop [{tcp_loop_key}] fail to read from client because of error: {e:?}"
                         );
+                        if let Err(e) = proxy_connection_write.close().await {
+                            error!("Client tcp connection [{src_address}] for tcp loop [{tcp_loop_key}] fail to close client connection because of error: {e:?}");
+                        };
                         stop_read_client=true;
                         continue;
                     },
                     None=>{
+                        if let Err(e) = proxy_connection_write.close().await {
+                            error!("Client tcp connection [{src_address}] for tcp loop [{tcp_loop_key}] fail to close client connection because of error: {e:?}");
+                        };
                         stop_read_client=true;
                         continue;
                     }
@@ -171,19 +171,29 @@ impl ClientProcessor {
                    let tcp_data = PpaassMessageGenerator::generate_tcp_data(&user_token, payload_encryption.clone(), src_address.clone(), dst_address.clone(), client_message.to_vec())?;
 
                    if let Err(e) = proxy_connection_write.send(tcp_data).await {
-                       error!("Client tcp connection [{src_address}] for tcp loop [{tcp_loop_key}] fail to relay client data to proxy because of error: {e:?}");stop_read_client=true;
+                       error!("Client tcp connection [{src_address}] for tcp loop [{tcp_loop_key}] fail to relay client data to proxy because of error: {e:?}");
+                       if let Err(e) = proxy_connection_write.close().await {
+                            error!("Client tcp connection [{src_address}] for tcp loop [{tcp_loop_key}] fail to close client connection because of error: {e:?}");
+                       };
+                       stop_read_client=true;
                        continue;
                    };
                 },
                 proxy_message = proxy_connection_read.next(), if !stop_read_proxy => {
                     let proxy_message = match proxy_message {
+                        Some(Ok(proxy_message))=>proxy_message,
                         Some(Err(e))=>{
                             error!("Client tcp connection [{src_address}] for tcp loop [{tcp_loop_key}] fail to read from proxy because of error: {e:?}");
+                            if let Err(e) = client_io_write.close().await {
+                                error!("Client tcp connection [{src_address}] for tcp loop [{tcp_loop_key}] fail to close proxy connection because of error: {e:?}");
+                            };
                             stop_read_proxy=true;
                             continue;
                         },
-                        Some(Ok(proxy_message))=>proxy_message,
                         None=>{
+                            if let Err(e) = client_io_write.close().await {
+                                error!("Client tcp connection [{src_address}] for tcp loop [{tcp_loop_key}] fail to close proxy connection because of error: {e:?}");
+                            };
                             stop_read_proxy=true;
                             continue;
                         }
@@ -210,6 +220,9 @@ impl ClientProcessor {
                     );
                     if let Err(e) = client_io_write.send(BytesMut::from_iter(raw_data)).await {
                         error!("Client tcp connection [{src_address}] for tcp loop [{tcp_loop_key}] fail to relay to proxy because of error: {e:?}");
+                        if let Err(e) = client_io_write.close().await {
+                            error!("Client tcp connection [{src_address}] for tcp loop [{tcp_loop_key}] fail to close proxy connection because of error: {e:?}");
+                        };
                         stop_read_proxy=true;
                         continue;
                     };

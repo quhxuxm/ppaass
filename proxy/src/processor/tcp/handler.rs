@@ -290,6 +290,9 @@ where
                     let tcp_raw_data = BytesMut::from_iter(raw_data);
                     if let Err(e) = dst_tcp_write.send(tcp_raw_data).await {
                         error!("Tcp handler {handler_key} fail to relay agent message to destination because of error: {e:?}");
+                        if let Err(e) = dst_tcp_write.close().await {
+                            error!("Tcp handler {handler_key} fail to close destination connection because of error: {e:?}");
+                        };
                         stop_read_agent = true;
                         continue;
                     };
@@ -325,6 +328,9 @@ where
                     };
                     if let Err(e) = ppaass_connection_write.send(tcp_data_message).await {
                         error!("Tcp handler {handler_key} fail to relay destination data to agent because of error: {e:?}");
+                        if let Err(e) = ppaass_connection_write.close().await{
+                            error!("Tcp handler {handler_key} fail to close agent connection because of error: {e:?}");
+                        };
                         stop_read_dst=true;
                         continue;
                     };
