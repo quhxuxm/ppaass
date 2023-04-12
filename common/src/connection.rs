@@ -20,6 +20,19 @@ use tokio_util::codec::Framed;
 type PpaassMessageFramedRead<T, R> = SplitStream<Framed<T, PpaassMessageCodec<R>>>;
 type PpaassMessageFramedWrite<T, R> = SplitSink<Framed<T, PpaassMessageCodec<R>>, PpaassMessage>;
 
+pub struct PpaassConnectionParts<T, R, I>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    R: RsaCryptoFetcher + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+{
+    pub read: PpaassConnectionRead<T, R, I>,
+    pub write: PpaassConnectionWrite<T, R, I>,
+    pub id: I,
+}
+
+#[derive(Debug)]
+#[non_exhaustive]
 pub struct PpaassConnection<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
@@ -28,7 +41,7 @@ where
 {
     framed_read: PpaassMessageFramedRead<T, R>,
     framed_write: PpaassMessageFramedWrite<T, R>,
-    connection_id: I,
+    id: I,
 }
 
 impl<T, R, I> PpaassConnection<T, R, I>
@@ -37,21 +50,18 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    pub fn new(connection_id: I, stream: T, rsa_crypto_fetcher: Arc<R>, compress: bool, buffer_size: usize) -> Self {
+    pub fn new(id: I, stream: T, rsa_crypto_fetcher: Arc<R>, compress: bool, buffer_size: usize) -> Self {
         let ppaass_message_codec = PpaassMessageCodec::new(compress, rsa_crypto_fetcher);
         let ppaass_message_framed = Framed::with_capacity(stream, ppaass_message_codec, buffer_size);
         let (framed_write, framed_read) = ppaass_message_framed.split();
-        Self {
-            framed_write,
-            framed_read,
-            connection_id,
-        }
+        Self { framed_write, framed_read, id }
     }
 
-    pub fn split(self) -> (PpaassConnectionRead<T, R, I>, PpaassConnectionWrite<T, R, I>) {
-        let read_part = PpaassConnectionRead::new(self.connection_id.clone(), self.framed_read);
-        let write_part = PpaassConnectionWrite::new(self.connection_id.clone(), self.framed_write);
-        (read_part, write_part)
+    pub fn split(self) -> PpaassConnectionParts<T, R, I> {
+        let read = PpaassConnectionRead::new(self.id.clone(), self.framed_read);
+        let write = PpaassConnectionWrite::new(self.id.clone(), self.framed_write);
+        let id = self.id;
+        PpaassConnectionParts { read, write, id }
     }
 }
 

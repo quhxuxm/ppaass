@@ -1,149 +1,147 @@
-use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::{
+    fmt::{Debug, Display},
+    pin::Pin,
+};
 
 use anyhow::{anyhow, Result};
 use bytes::BytesMut;
 use futures::{
     stream::{SplitSink, SplitStream},
-    Sink,
+    Sink, StreamExt,
 };
-use futures_util::{SinkExt, Stream};
-use pin_project::{pin_project, pinned_drop};
+use futures_util::Stream;
+use pin_project::pin_project;
 
-use tokio::net::TcpStream;
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::{BytesCodec, Framed};
-use tracing::{debug, error};
 
-type DestBytesFramedRead = SplitStream<Framed<TcpStream, BytesCodec>>;
-type DestBytesFramedWrite = SplitSink<Framed<TcpStream, BytesCodec>, BytesMut>;
+type DstBytesFramedRead<T> = SplitStream<Framed<T, BytesCodec>>;
+type DstBytesFramedWrite<T> = SplitSink<Framed<T, BytesCodec>, BytesMut>;
 
-#[pin_project(PinnedDrop)]
-pub(crate) struct DestConnectionWrite {
-    agent_connection_id: String,
-    tcp_loop_key: String,
-    #[pin]
-    dest_bytes_framed_write: Option<DestBytesFramedWrite>,
+pub(crate) struct DstConnectionParts<T, I>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+{
+    pub read: DstConnectionRead<T, I>,
+    pub write: DstConnectionWrite<T, I>,
+    pub id: I,
+}
+pub(crate) struct DstConnection<T, I>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+{
+    framed_read: DstBytesFramedRead<T>,
+    framed_write: DstBytesFramedWrite<T>,
+    id: I,
 }
 
-impl DestConnectionWrite {
-    pub(crate) fn new(agent_connection_id: String, tcp_loop_key: String, dest_bytes_framed_write: DestBytesFramedWrite) -> Self {
+impl<T, I> DstConnection<T, I>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+{
+    pub fn new(id: I, stream: T, buffer_size: usize) -> Self {
+        let dst_bytes_framed = Framed::with_capacity(stream, BytesCodec::new(), buffer_size);
+        let (framed_write, framed_read) = dst_bytes_framed.split::<BytesMut>();
+        Self { framed_write, framed_read, id }
+    }
+
+    pub fn split(self) -> DstConnectionParts<T, I> {
+        let read = DstConnectionRead::new(self.id.clone(), self.framed_read);
+        let write = DstConnectionWrite::new(self.id.clone(), self.framed_write);
+        let id = self.id;
+        DstConnectionParts { read, write, id }
+    }
+}
+
+#[pin_project]
+pub(crate) struct DstConnectionWrite<T, I>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+{
+    connection_id: I,
+    #[pin]
+    dst_bytes_framed_write: DstBytesFramedWrite<T>,
+}
+
+impl<T, I> DstConnectionWrite<T, I>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+{
+    fn new(connection_id: I, dst_bytes_framed_write: DstBytesFramedWrite<T>) -> Self {
         Self {
-            agent_connection_id,
-            tcp_loop_key,
-            dest_bytes_framed_write: Some(dest_bytes_framed_write),
+            connection_id,
+            dst_bytes_framed_write,
         }
     }
 }
 
-#[pinned_drop]
-impl PinnedDrop for DestConnectionWrite {
-    fn drop(self: Pin<&mut Self>) {
-        let mut this = self.project();
-        let agent_connection_id = this.agent_connection_id.clone();
-        let tcp_loop_key = this.tcp_loop_key.clone();
-        if let Some(mut dest_bytes_framed_write) = this.dest_bytes_framed_write.take() {
-            tokio::spawn(async move {
-                debug!("Agent connection {agent_connection_id} with tcp loop key {tcp_loop_key} drop dest connection write.");
-                if let Err(e) = dest_bytes_framed_write.close().await {
-                    error!("Agent connection {agent_connection_id} with tcp loop key {tcp_loop_key}, error happen on drop dest connection write: {e:?}")
-                }
-            });
-        };
-    }
-}
-
-impl Sink<BytesMut> for DestConnectionWrite {
+impl<T, I> Sink<BytesMut> for DstConnectionWrite<T, I>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+{
     type Error = anyhow::Error;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        if let Some(dest_bytes_framed_write) = this.dest_bytes_framed_write.as_pin_mut() {
-            match dest_bytes_framed_write.poll_ready(cx) {
-                Poll::Ready(value) => return Poll::Ready(value.map_err(|e| anyhow!(e))),
-                Poll::Pending => return Poll::Pending,
-            }
-        }
-        Poll::Ready(Err(anyhow!("Dest bytes framed write not exist")))
+        this.dst_bytes_framed_write.poll_ready(cx).map_err(|e| anyhow!(e))
     }
 
     fn start_send(self: Pin<&mut Self>, item: BytesMut) -> Result<(), Self::Error> {
         let this = self.project();
-        if let Some(dest_bytes_framed_write) = this.dest_bytes_framed_write.as_pin_mut() {
-            return dest_bytes_framed_write.start_send(item).map_err(|e| anyhow!(e));
-        }
-        Err(anyhow!("Dest bytes framed write not exist"))
+        this.dst_bytes_framed_write.start_send(item).map_err(|e| anyhow!(e))
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        if let Some(dest_bytes_framed_write) = this.dest_bytes_framed_write.as_pin_mut() {
-            match dest_bytes_framed_write.poll_flush(cx) {
-                Poll::Ready(value) => return Poll::Ready(value.map_err(|e| anyhow!(e))),
-                Poll::Pending => return Poll::Pending,
-            }
-        }
-        Poll::Ready(Err(anyhow!("Dest bytes framed write not exist")))
+        this.dst_bytes_framed_write.poll_flush(cx).map_err(|e| anyhow!(e))
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        if let Some(dest_bytes_framed_write) = this.dest_bytes_framed_write.as_pin_mut() {
-            match dest_bytes_framed_write.poll_close(cx) {
-                Poll::Ready(value) => return Poll::Ready(value.map_err(|e| anyhow!(e))),
-                Poll::Pending => return Poll::Pending,
-            }
-        }
-        Poll::Ready(Err(anyhow!("Dest bytes framed write not exist")))
+        this.dst_bytes_framed_write.poll_close(cx).map_err(|e| anyhow!(e))
     }
 }
 
-#[pin_project(PinnedDrop)]
-pub(crate) struct DestConnectionRead {
-    agent_connection_id: String,
-    tcp_loop_key: String,
+#[pin_project]
+pub(crate) struct DstConnectionRead<T, I>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+{
+    connection_id: I,
     #[pin]
-    dest_bytes_framed_read: Option<DestBytesFramedRead>,
+    dst_bytes_framed_read: DstBytesFramedRead<T>,
 }
 
-impl DestConnectionRead {
-    pub(crate) fn new(agent_connection_id: String, tcp_loop_key: String, dest_bytes_framed_read: DestBytesFramedRead) -> Self {
+impl<T, I> DstConnectionRead<T, I>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+{
+    fn new(connection_id: I, dst_bytes_framed_read: DstBytesFramedRead<T>) -> Self {
         Self {
-            agent_connection_id,
-            tcp_loop_key,
-            dest_bytes_framed_read: Some(dest_bytes_framed_read),
+            connection_id,
+            dst_bytes_framed_read,
         }
     }
 }
 
-#[pinned_drop]
-impl PinnedDrop for DestConnectionRead {
-    fn drop(self: Pin<&mut Self>) {
-        let mut this = self.project();
-        let agent_connection_id = this.agent_connection_id.clone();
-        let tcp_loop_key = this.tcp_loop_key.clone();
-        if let Some(dest_bytes_framed_read) = this.dest_bytes_framed_read.take() {
-            tokio::spawn(async move {
-                debug!("Agent connection {agent_connection_id} with tcp loop key {tcp_loop_key} drop dest connection read.");
-                drop(dest_bytes_framed_read)
-            });
-        };
-    }
-}
-
-impl Stream for DestConnectionRead {
+impl<T, I> Stream for DstConnectionRead<T, I>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+{
     type Item = Result<BytesMut, anyhow::Error>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        if let Some(dest_bytes_framed_read) = this.dest_bytes_framed_read.as_pin_mut() {
-            return match dest_bytes_framed_read.poll_next(cx) {
-                Poll::Ready(value) => match value {
-                    None => Poll::Ready(None),
-                    Some(value) => Poll::Ready(Some(value.map_err(|e| anyhow!(e)))),
-                },
-                Poll::Pending => Poll::Pending,
-            };
-        }
-        Poll::Ready(None)
+        this.dst_bytes_framed_read.poll_next(cx).map_err(|e| anyhow!(e))
     }
 }

@@ -15,9 +15,9 @@ use tokio::{
 
 use tracing::{debug, error};
 
-use ppaass_common::PpaassConnectionWrite;
 use ppaass_common::{generate_uuid, RsaCryptoFetcher};
 use ppaass_common::{PpaassConnection, PpaassConnectionRead};
+use ppaass_common::{PpaassConnectionParts, PpaassConnectionWrite};
 
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher};
 
@@ -118,18 +118,21 @@ impl ProxyConnectionPool {
             },
         };
         debug!("Success connect to proxy when feed connection pool.");
-        let connection_id = generate_uuid();
+
         proxy_tcp_stream.set_nodelay(true)?;
         proxy_tcp_stream.set_linger(Some(Duration::from_secs(20)))?;
         let ppaass_connection = PpaassConnection::new(
-            connection_id.clone(),
+            generate_uuid(),
             proxy_tcp_stream,
             self.rsa_crypto_fetcher.clone(),
             self.configuration.get_compress(),
             self.configuration.get_message_framed_buffer_size(),
         );
-
-        let (read, write) = ppaass_connection.split();
+        let PpaassConnectionParts {
+            read,
+            write,
+            id: connection_id,
+        } = ppaass_connection.split();
 
         Ok(ProxyConnection {
             connection_id,

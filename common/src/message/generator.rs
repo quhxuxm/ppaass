@@ -20,11 +20,11 @@ impl PpaassMessageGenerator {
     }
 
     pub fn generate_tcp_init_response(
-        loop_key: impl AsRef<str>, user_token: impl AsRef<str>, src_address: PpaassNetAddress, dst_address: PpaassNetAddress,
+        unique_key: String, user_token: impl AsRef<str>, src_address: PpaassNetAddress, dst_address: PpaassNetAddress,
         payload_encryption: PpaassMessagePayloadEncryption, response_type: TcpInitResponseType,
     ) -> Result<PpaassMessage> {
         let tcp_init_response = TcpInitResponse {
-            loop_key: loop_key.as_ref().to_owned(),
+            unique_key,
             src_address,
             dst_address,
             response_type,

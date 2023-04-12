@@ -31,9 +31,9 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    agent_connection_id: Option<String>,
-    agent_connection_read: Option<PpaassConnectionRead<T, R, I>>,
-    agent_connection_write: Option<PpaassConnectionWrite<T, R, I>>,
+    ppaass_connection_id: Option<String>,
+    ppaass_connection_read: Option<PpaassConnectionRead<T, R, I>>,
+    ppaass_connection_write: Option<PpaassConnectionWrite<T, R, I>>,
     user_token: Option<String>,
     agent_address: Option<PpaassNetAddress>,
 }
@@ -46,15 +46,15 @@ where
 {
     pub(crate) fn new() -> Self {
         Self {
-            agent_connection_id: None,
-            agent_connection_read: None,
-            agent_connection_write: None,
+            ppaass_connection_id: None,
+            ppaass_connection_read: None,
+            ppaass_connection_write: None,
             user_token: None,
             agent_address: None,
         }
     }
-    pub(crate) fn agent_connection_id(mut self, agent_connection_id: impl AsRef<str>) -> UdpHandlerBuilder<T, R, I> {
-        self.agent_connection_id = Some(agent_connection_id.as_ref().to_owned());
+    pub(crate) fn ppaass_connection_id(mut self, ppaass_connection_id: impl AsRef<str>) -> UdpHandlerBuilder<T, R, I> {
+        self.ppaass_connection_id = Some(ppaass_connection_id.as_ref().to_owned());
         self
     }
 
@@ -68,40 +68,35 @@ where
         self
     }
 
-    pub(crate) fn agent_connection_read(mut self, agent_connection_read: PpaassConnectionRead<T, R, I>) -> UdpHandlerBuilder<T, R, I> {
-        self.agent_connection_read = Some(agent_connection_read);
+    pub(crate) fn ppaass_connection_read(mut self, ppaass_connection_read: PpaassConnectionRead<T, R, I>) -> UdpHandlerBuilder<T, R, I> {
+        self.ppaass_connection_read = Some(ppaass_connection_read);
         self
     }
 
-    pub(crate) fn agent_connection_write(mut self, agent_connection_write: PpaassConnectionWrite<T, R, I>) -> UdpHandlerBuilder<T, R, I> {
-        self.agent_connection_write = Some(agent_connection_write);
+    pub(crate) fn ppaass_connection_write(mut self, ppaass_connection_write: PpaassConnectionWrite<T, R, I>) -> UdpHandlerBuilder<T, R, I> {
+        self.ppaass_connection_write = Some(ppaass_connection_write);
         self
     }
 
+    fn generate_handler_key(user_token: &str, agent_address: &PpaassNetAddress, ppaass_connection_id: &str) -> String {
+        format!("[{ppaass_connection_id}]#[{user_token}]@UDP::[{agent_address}]")
+    }
     pub(crate) async fn build(self) -> Result<UdpHandler<T, R, I>> {
-        let agent_connection_id = self.agent_connection_id.context("Agent connection id not assigned for udp handler builder")?;
+        let ppaass_connection_id = self.ppaass_connection_id.context("Agent connection id not assigned for udp handler builder")?;
         let agent_address = self.agent_address.context("Agent address not assigned for udp handler builder")?;
         let user_token = self.user_token.context("User token not assigned for udp handler builder")?;
-        let handler_key = UdpHandler::<T, R, I>::generate_key(&agent_address);
-        let mut agent_connection_write = self
-            .agent_connection_write
+        let handler_key = Self::generate_handler_key(&user_token, &agent_address, &ppaass_connection_id);
+        let ppaass_connection_write = self
+            .ppaass_connection_write
             .context("Agent message framed write not assigned for udp handler builder")?;
-        let agent_connection_read = self
-            .agent_connection_read
+        let ppaass_connection_read = self
+            .ppaass_connection_read
             .context("Agent message framed read not assigned for udp handler builder")?;
-        let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-        let udp_init_success_message =
-            PpaassMessageGenerator::generate_udp_init_response(&handler_key, &user_token, payload_encryption_token, UdpInitResponseType::Success)?;
-        if let Err(e) = agent_connection_write.send(udp_init_success_message).await {
-            error!("Agent connection {agent_connection_id} fail to send tcp initialize success message to agent because of error: {e:?}");
-            return Err(anyhow!(e));
-        };
         Ok(UdpHandler {
             handler_key,
-            agent_connection_read,
-            agent_connection_write,
+            ppaass_connection_read,
+            ppaass_connection_write,
             user_token,
-            agent_connection_id,
         })
     }
 }
@@ -114,11 +109,10 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    agent_connection_read: PpaassConnectionRead<T, R, I>,
-    agent_connection_write: PpaassConnectionWrite<T, R, I>,
+    ppaass_connection_read: PpaassConnectionRead<T, R, I>,
+    ppaass_connection_write: PpaassConnectionWrite<T, R, I>,
     handler_key: String,
     user_token: String,
-    agent_connection_id: String,
 }
 
 impl<T, R, I> UdpHandler<T, R, I>
@@ -127,80 +121,75 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    fn generate_key(agent_address: &PpaassNetAddress) -> String {
-        format!("[{agent_address}]")
-    }
+    pub(crate) async fn exec(self) -> Result<()> {
+        let mut ppaass_connection_write = self.ppaass_connection_write;
+        let mut ppaass_connection_read = self.ppaass_connection_read;
+        let user_token = self.user_token;
+        let handler_key = self.handler_key;
+        let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
+        let udp_init_success_message =
+            PpaassMessageGenerator::generate_udp_init_response(&handler_key, &user_token, payload_encryption_token, UdpInitResponseType::Success)?;
+        if let Err(e) = ppaass_connection_write.send(udp_init_success_message).await {
+            error!("Udp handler {handler_key} fail to send tcp initialize success message to agent because of error: {e:?}");
+            return Err(anyhow!(e));
+        };
 
-    pub(crate) fn get_key(&self) -> &str {
-        self.handler_key.as_str()
-    }
-
-    pub(crate) async fn exec(mut self) -> Result<()> {
-        let agent_connection_write = Arc::new(Mutex::new(self.agent_connection_write));
+        let ppaass_connection_write = Arc::new(Mutex::new(ppaass_connection_write));
 
         loop {
-            let handler_key = self.handler_key.clone();
-            let agent_connection_id = self.agent_connection_id.clone();
-
-            let agent_message = match self.agent_connection_read.next().await {
+            let agent_message = match ppaass_connection_read.next().await {
                 Some(Ok(agent_message)) => agent_message,
                 Some(Err(e)) => {
-                    error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail to read agent message because of error: {e:?}");
+                    error!("Udp handler {handler_key} fail to read agent message because of error: {e:?}");
                     return Err(anyhow!(e));
                 },
                 None => {
-                    debug!("Agent connection {agent_connection_id} with udp loop {handler_key} complete to read agent message from TCP.");
+                    debug!("Udp handler {handler_key} complete to read agent message from TCP.");
                     return Ok(());
                 },
             };
-            let user_token = self.user_token.clone();
-            let agent_connection_write = agent_connection_write.clone();
-
+            let ppaass_connection_write = ppaass_connection_write.clone();
+            let handler_key = handler_key.clone();
+            let user_token = user_token.clone();
             tokio::spawn(async move {
                 let dst_udp_socket = UdpSocket::bind("0.0.0.0:0").await?;
-                let mut agent_connection_write = agent_connection_write.lock().await;
+                let mut ppaass_connection_write = ppaass_connection_write.lock().await;
                 let PpaassMessageParts { payload, .. } = agent_message.split();
                 let UdpDataParts {
                     src_address,
                     dst_address,
                     raw_data,
                 } = TryInto::<UdpData>::try_into(payload)?.split();
-                let agent_connection_id = agent_connection_id.clone();
 
                 let dst_socket_addrs = match dst_address.to_socket_addrs() {
                     Ok(v) => v,
                     Err(e) => {
-                        error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail to convert destination address [{dst_address}] because of error: {e:?}");
+                        error!("Udp handler {handler_key} fail to convert destination address [{dst_address}] because of error: {e:?}");
                         return Err(anyhow!(e));
                     },
                 };
-                info!("Agent connection {agent_connection_id} receive agent udp data:\n{}\n", pretty_hex(&raw_data));
+                info!("Udp handler {handler_key} receive agent udp data:\n{}\n", pretty_hex(&raw_data));
                 let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
                 dst_udp_socket.connect(dst_socket_addrs.as_slice()).await?;
                 if let Err(e) = dst_udp_socket.send(&raw_data).await {
-                    error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail to send data to udp socket because of error: {e:?}");
+                    error!("Udp handler {handler_key} fail to send data to udp socket because of error: {e:?}");
                     return Err(anyhow!(e));
                 };
                 let mut dst_recv_buf = [0u8; 65535];
                 let data_size = match timeout(Duration::from_secs(2), dst_udp_socket.recv(&mut dst_recv_buf)).await {
                     Ok(Ok(data_size)) => data_size,
                     Ok(Err(e)) => {
-                        error!(
-                            "Agent connection {agent_connection_id} with udp loop {handler_key} fail to receive data from udp socket because of error: {e:?}"
-                        );
+                        error!("Udp handler {handler_key} fail to receive data from udp socket because of error: {e:?}");
                         return Err(anyhow!(e));
                     },
                     Err(e) => {
-                        error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail to receive data from udp socket because of timeout");
+                        error!("Udp handler {handler_key} fail to receive data from udp socket because of timeout");
                         return Err(anyhow!(e));
                     },
                 };
 
                 let dst_recv_buf = &dst_recv_buf[..data_size];
-                info!(
-                    "Agent connection {agent_connection_id} with udp loop {handler_key} receive destination udp data:\n{}\n",
-                    pretty_hex(&dst_recv_buf)
-                );
+                info!("Udp handler {handler_key} receive destination udp data:\n{}\n", pretty_hex(&dst_recv_buf));
 
                 let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
 
@@ -208,15 +197,13 @@ where
                     match PpaassMessageGenerator::generate_udp_data(user_token.clone(), payload_encryption, src_address, dst_address, dst_recv_buf.to_vec()) {
                         Ok(data_message) => data_message,
                         Err(e) => {
-                            error!(
-                            "Agent connection {agent_connection_id} with udp loop {handler_key} fail to generate udp loop data message because of error: {e:?}"
-                        );
+                            error!("Udp handler {handler_key} fail to generate udp loop data message because of error: {e:?}");
                             return Err(anyhow!(e));
                         },
                     };
 
-                if let Err(e) = agent_connection_write.send(udp_data_message).await {
-                    error!("Agent connection {agent_connection_id} with udp loop {handler_key} fail to send udp loop data to agent because of error: {e:?}");
+                if let Err(e) = ppaass_connection_write.send(udp_data_message).await {
+                    error!("Udp handler {handler_key} fail to send udp loop data to agent because of error: {e:?}");
                     return Err(anyhow!(e));
                 };
                 Ok(())

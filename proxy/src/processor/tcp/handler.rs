@@ -16,7 +16,7 @@ use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpStream,
 };
-use tokio_util::codec::{BytesCodec, Framed};
+
 use tracing::{debug, error, trace};
 
 use ppaass_common::{
@@ -28,7 +28,7 @@ use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelect
 
 use crate::{common::ProxyServerPayloadEncryptionSelector, config::ProxyServerConfig};
 
-use super::destination::{DestConnectionRead, DestConnectionWrite};
+use super::destination::{DstConnection, DstConnectionParts};
 
 pub(crate) struct TcpHandlerBuilder<T, R, I>
 where
@@ -36,13 +36,13 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    agent_connection_id: Option<String>,
-    agent_connection_read: Option<PpaassConnectionRead<T, R, I>>,
-    agent_connection_write: Option<PpaassConnectionWrite<T, R, I>>,
+    ppaass_connection_read: Option<PpaassConnectionRead<T, R, I>>,
+    ppaass_connection_write: Option<PpaassConnectionWrite<T, R, I>>,
     user_token: Option<String>,
     agent_address: Option<PpaassNetAddress>,
     src_address: Option<PpaassNetAddress>,
     dst_address: Option<PpaassNetAddress>,
+    ppaass_connection_id: Option<String>,
 }
 
 impl<T, R, I> TcpHandlerBuilder<T, R, I>
@@ -53,18 +53,14 @@ where
 {
     pub(crate) fn new() -> Self {
         Self {
-            agent_connection_id: None,
-            agent_connection_read: None,
-            agent_connection_write: None,
-            user_token: None,
             agent_address: None,
             src_address: None,
             dst_address: None,
+            ppaass_connection_read: None,
+            ppaass_connection_write: None,
+            user_token: None,
+            ppaass_connection_id: None,
         }
-    }
-    pub(crate) fn agent_connection_id(mut self, agent_connection_id: impl AsRef<str>) -> TcpHandlerBuilder<T, R, I> {
-        self.agent_connection_id = Some(agent_connection_id.as_ref().to_owned());
-        self
     }
 
     pub(crate) fn user_token(mut self, user_token: impl AsRef<str>) -> TcpHandlerBuilder<T, R, I> {
@@ -87,102 +83,45 @@ where
         self
     }
 
-    pub(crate) fn agent_connection_read(mut self, agent_connection_read: PpaassConnectionRead<T, R, I>) -> TcpHandlerBuilder<T, R, I> {
-        self.agent_connection_read = Some(agent_connection_read);
+    pub(crate) fn ppaass_connection_read(mut self, ppaass_connection_read: PpaassConnectionRead<T, R, I>) -> TcpHandlerBuilder<T, R, I> {
+        self.ppaass_connection_read = Some(ppaass_connection_read);
         self
     }
 
-    pub(crate) fn agent_connection_write(mut self, agent_connection_write: PpaassConnectionWrite<T, R, I>) -> TcpHandlerBuilder<T, R, I> {
-        self.agent_connection_write = Some(agent_connection_write);
+    pub(crate) fn ppaass_connection_write(mut self, ppaass_connection_write: PpaassConnectionWrite<T, R, I>) -> TcpHandlerBuilder<T, R, I> {
+        self.ppaass_connection_write = Some(ppaass_connection_write);
         self
+    }
+
+    pub(crate) fn ppaass_connection_id(mut self, ppaass_connection_id: String) -> TcpHandlerBuilder<T, R, I> {
+        self.ppaass_connection_id = Some(ppaass_connection_id);
+        self
+    }
+
+    fn generate_handler_key(
+        user_token: &str, agent_address: &PpaassNetAddress, src_address: &PpaassNetAddress, dst_address: &PpaassNetAddress, ppaass_connection_id: &str,
+    ) -> String {
+        format!("[{ppaass_connection_id}]#[{user_token}]@TCP::[{agent_address}]::[{src_address}=>{dst_address}]")
     }
 
     pub(crate) async fn build(self, configuration: Arc<ProxyServerConfig>) -> Result<TcpHandler<T, R, I>> {
-        let agent_connection_id = self.agent_connection_id.context("Agent connection id not assigned for tcp loop builder")?;
-        let agent_address = self.agent_address.context("Agent address not assigned for tcp loop builder")?;
-        let src_address = self.src_address.context("Source address not assigned for tcp loop builder")?;
-        let dst_address = self.dst_address.context("Destination address not assigned for tcp loop builder")?;
-        let user_token = self.user_token.context("User token not assigned for tcp loop builder")?;
-        let handler_key = TcpHandler::<T, R, I>::generate_key(&agent_address, &src_address, &dst_address);
-        let mut agent_connection_write = self
-            .agent_connection_write
-            .context("Agent message framed write not assigned for tcp loop builder")?;
-        let agent_connection_read = self
-            .agent_connection_read
-            .context("Agent message framed read not assigned for tcp loop builder")?;
-        let dst_socket_address = match dst_address.to_socket_addrs() {
-            Ok(v) => v,
-            Err(e) => {
-                error!("Fail to convert dest address [{dst_address}] to valid socket address because of error:{e:?}");
-                return Err(anyhow!(e));
-            },
-        };
-        let dst_socket_address = dst_socket_address.collect::<Vec<SocketAddr>>();
-        let dst_tcp_stream = match timeout(
-            Duration::from_secs(configuration.get_dst_connect_timeout()),
-            TcpStream::connect(dst_socket_address.as_slice()),
-        )
-        .await
-        {
-            Err(_) => {
-                error!("Agent connection [{agent_connection_id}] fail connect to dest address [{dst_address}] because of timeout.");
-                let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-                let tcp_init_fail_message = PpaassMessageGenerator::generate_tcp_init_response(
-                    &handler_key,
-                    &user_token,
-                    src_address,
-                    dst_address,
-                    payload_encryption_token,
-                    TcpInitResponseType::Fail,
-                )?;
-                agent_connection_write.send(tcp_init_fail_message).await.context(format!(
-                    "Agent connection [{agent_connection_id}] fail to send tcp loop init fail response to agent."
-                ))?;
-                return Err(anyhow!(
-                    "Agent connection [{agent_connection_id}] fail connect to dest address because of timeout."
-                ));
-            },
-            Ok(Ok(stream)) => stream,
-            Ok(Err(e)) => {
-                error!("Agent connection [{agent_connection_id}] fail connect to dest address [{dst_address}] because of error: {e:?}");
-                let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-                let tcp_initialize_fail_message = PpaassMessageGenerator::generate_tcp_init_response(
-                    &handler_key,
-                    &user_token,
-                    src_address,
-                    dst_address,
-                    payload_encryption_token,
-                    TcpInitResponseType::Fail,
-                )?;
-                agent_connection_write.send(tcp_initialize_fail_message).await.context(format!(
-                    "Agent connection [{agent_connection_id}] fail to send tcp loop init fail response to agent."
-                ))?;
-                return Err(anyhow!(e));
-            },
-        };
-
-        let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-        let tcp_init_success_message = PpaassMessageGenerator::generate_tcp_init_response(
-            &handler_key,
-            &user_token,
-            src_address.clone(),
-            dst_address.clone(),
-            payload_encryption_token,
-            TcpInitResponseType::Success,
-        )?;
-        if let Err(e) = agent_connection_write.send(tcp_init_success_message).await {
-            error!("Agent connection [{agent_connection_id}] fail to send tcp initialize success message to agent because of error: {e:?}");
-            return Err(anyhow!(e));
-        };
-        dst_tcp_stream.set_nodelay(true)?;
-        dst_tcp_stream.set_linger(Some(Duration::from_secs(20)))?;
+        let agent_address = self.agent_address.context("Agent address not assigned for tcp handler builder")?;
+        let src_address = self.src_address.context("Source address not assigned for tcp handler builder")?;
+        let dst_address = self.dst_address.context("Destination address not assigned for tcp handler builder")?;
+        let user_token = self.user_token.context("User token not assigned for tcp handler builder")?;
+        let ppaass_connection_id = self.ppaass_connection_id.context("Ppaass connection id not assigned for tcp handler builder")?;
+        let handler_key = Self::generate_handler_key(&user_token, &agent_address, &src_address, &dst_address, &ppaass_connection_id);
+        let ppaass_connection_write = self
+            .ppaass_connection_write
+            .context("Agent message framed write not assigned for tcp handler builder")?;
+        let ppaass_connection_read = self
+            .ppaass_connection_read
+            .context("Agent message framed read not assigned for tcp handler builder")?;
         Ok(TcpHandler {
             handler_key,
-            agent_connection_read,
-            agent_connection_write,
-            dst_tcp_stream,
+            ppaass_connection_read,
+            ppaass_connection_write,
             user_token,
-            agent_connection_id,
             configuration,
             src_address,
             dst_address,
@@ -198,14 +137,12 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    dst_tcp_stream: TcpStream,
     src_address: PpaassNetAddress,
     dst_address: PpaassNetAddress,
-    agent_connection_read: PpaassConnectionRead<T, R, I>,
-    agent_connection_write: PpaassConnectionWrite<T, R, I>,
+    ppaass_connection_read: PpaassConnectionRead<T, R, I>,
+    ppaass_connection_write: PpaassConnectionWrite<T, R, I>,
     handler_key: String,
     user_token: String,
-    agent_connection_id: String,
     configuration: Arc<ProxyServerConfig>,
 }
 
@@ -215,53 +152,111 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    pub(crate) fn generate_key(agent_address: &PpaassNetAddress, src_address: &PpaassNetAddress, dst_address: &PpaassNetAddress) -> String {
-        format!("[{agent_address}]::[{src_address}=>{dst_address}]")
-    }
-
-    pub(crate) fn get_key(&self) -> &str {
-        self.handler_key.as_str()
-    }
-
     pub(crate) async fn exec(self) -> Result<()> {
-        let agent_connection_id = self.agent_connection_id.clone();
         let handler_key = self.handler_key.clone();
-        let dst_tcp = self.dst_tcp_stream;
-        let dst_bytes_framed = Framed::with_capacity(dst_tcp, BytesCodec::new(), self.configuration.get_dst_tcp_buffer_size());
-        let (dst_tcp_write, dst_tcp_read) = dst_bytes_framed.split::<BytesMut>();
-        let (mut dst_tcp_write, mut dst_tcp_read) = (
-            DestConnectionWrite::new(agent_connection_id.clone(), handler_key.clone(), dst_tcp_write),
-            DestConnectionRead::new(agent_connection_id.clone(), handler_key.clone(), dst_tcp_read),
-        );
-        let mut agent_connection_write = self.agent_connection_write;
-        let mut agent_connection_read = self.agent_connection_read;
+        let src_address = self.src_address;
+        let dst_address = self.dst_address;
         let user_token = self.user_token;
+        let mut ppaass_connection_write = self.ppaass_connection_write;
+        let mut ppaass_connection_read = self.ppaass_connection_read;
+
+        let dst_socket_address = dst_address
+            .to_socket_addrs()
+            .map_err(|e| {
+                error!("Fail to convert dest address [{dst_address}] to valid socket address because of error:{e:?}");
+                anyhow!("Fail to convert dest address [{dst_address}] to valid socket address because of error:{e:?}")
+            })?
+            .collect::<Vec<SocketAddr>>();
+
+        let dst_tcp_stream = match timeout(
+            Duration::from_secs(self.configuration.get_dst_connect_timeout()),
+            TcpStream::connect(dst_socket_address.as_slice()),
+        )
+        .await
+        {
+            Err(_) => {
+                error!("Tcp handler {handler_key} fail connect to destination [{dst_address}] because of timeout.");
+                let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
+                let tcp_init_fail_message = PpaassMessageGenerator::generate_tcp_init_response(
+                    handler_key.clone(),
+                    &user_token,
+                    src_address,
+                    dst_address,
+                    payload_encryption_token,
+                    TcpInitResponseType::Fail,
+                )?;
+                ppaass_connection_write
+                    .send(tcp_init_fail_message)
+                    .await
+                    .context(format!("Tcp handler {handler_key} fail to send tcp loop init fail response to agent."))?;
+                return Err(anyhow!("Tcp handler {handler_key} fail connect to dest address because of timeout."));
+            },
+            Ok(Ok(dst_tcp_stream)) => dst_tcp_stream,
+            Ok(Err(e)) => {
+                error!("Tcp handler {handler_key} fail connect to dest address [{dst_address}] because of error: {e:?}");
+                let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
+                let tcp_initialize_fail_message = PpaassMessageGenerator::generate_tcp_init_response(
+                    handler_key.clone(),
+                    &user_token,
+                    src_address,
+                    dst_address,
+                    payload_encryption_token,
+                    TcpInitResponseType::Fail,
+                )?;
+                ppaass_connection_write
+                    .send(tcp_initialize_fail_message)
+                    .await
+                    .context(format!("Tcp handler {handler_key} fail to send tcp loop init fail response to agent."))?;
+                return Err(anyhow!(e));
+            },
+        };
+        dst_tcp_stream.set_nodelay(true)?;
+        let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
+        let tcp_init_success_message = PpaassMessageGenerator::generate_tcp_init_response(
+            handler_key.clone(),
+            &user_token,
+            src_address.clone(),
+            dst_address.clone(),
+            payload_encryption_token,
+            TcpInitResponseType::Success,
+        )?;
+        if let Err(e) = ppaass_connection_write.send(tcp_init_success_message).await {
+            error!("Tcp handler {handler_key} fail to send tcp initialize success message to agent because of error: {e:?}");
+            return Err(anyhow!(e));
+        };
+
         let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
         let mut stop_read_agent = false;
         let mut stop_read_dst = false;
-        let src_address = self.src_address;
-        let dst_address = self.dst_address;
+
+        let dst_connection = DstConnection::new(handler_key.clone(), dst_tcp_stream, self.configuration.get_dst_tcp_buffer_size());
+        let DstConnectionParts {
+            read: mut dst_tcp_read,
+            write: mut dst_tcp_write,
+            id: dst_connection_id,
+        } = dst_connection.split();
+        debug!("Tcp handler {handler_key} create destination connection: {dst_connection_id}");
         loop {
             if stop_read_agent && stop_read_dst {
-                if let Err(e) = agent_connection_write.close().await {
-                    error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to close agent connection because of error: {e:?}");
+                if let Err(e) = ppaass_connection_write.close().await {
+                    error!("Tcp handler {handler_key} fail to close agent connection because of error: {e:?}");
                 };
                 if let Err(e) = dst_tcp_write.close().await {
-                    error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to close destination connection because of error: {e:?}");
+                    error!("Tcp handler {handler_key} fail to close destination connection because of error: {e:?}");
                 };
                 break Ok(());
             }
             tokio::select! {
-                agent_message = agent_connection_read.next(), if !stop_read_agent => {
+                agent_message = ppaass_connection_read.next(), if !stop_read_agent => {
                     let agent_message = match agent_message {
                         Some(Ok(agent_message)) => agent_message,
                         Some(Err(e))=>{
-                            error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to read agent message because of error: {e:?}");
+                            error!("Tcp handler {handler_key} fail to read agent message because of error: {e:?}");
                             stop_read_agent = true;
                             continue;
                         }
                         None => {
-                            debug!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} complete to read agent message.");
+                            debug!("Tcp handler {handler_key} complete to read agent message.");
                             stop_read_agent = true;
                             continue;
                         },
@@ -270,7 +265,7 @@ where
                     let tcp_data: TcpData = match payload.try_into(){
                         Ok(tcp_data)=>tcp_data,
                         Err(e)=>{
-                            error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to relay agent message to destination because of can not parse tcp data error: {e:?}");
+                            error!("Tcp handler {handler_key} fail to relay agent message to destination because of can not parse tcp data error: {e:?}");
                             stop_read_agent = true;
                             continue;
                         }
@@ -281,19 +276,19 @@ where
                         dst_address: dst_address_in_data
                     } = tcp_data.split();
                     if src_address != src_address_in_data{
-                        error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to relay agent message to destination because of src address is not the same.");
+                        error!("Tcp handler {handler_key} fail to relay agent message to destination because of src address is not the same.");
                         stop_read_agent = true;
                         continue;
                     }
                     if dst_address != dst_address_in_data{
-                        error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to relay agent message to destination because of dst address is not the same.");
+                        error!("Tcp handler {handler_key} fail to relay agent message to destination because of dst address is not the same.");
                         stop_read_agent = true;
                         continue;
                     }
-                    trace!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} read agent data:\n{}\n", pretty_hex::pretty_hex(&raw_data));
+                    trace!("Tcp handler {handler_key} read agent data:\n{}\n", pretty_hex::pretty_hex(&raw_data));
                     let tcp_raw_data = BytesMut::from_iter(raw_data);
                     if let Err(e) = dst_tcp_write.send(tcp_raw_data).await {
-                        error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to relay agent message to destination because of error: {e:?}");
+                        error!("Tcp handler {handler_key} fail to relay agent message to destination because of error: {e:?}");
                         stop_read_agent = true;
                         continue;
                     };
@@ -301,28 +296,28 @@ where
                 dst_message = dst_tcp_read.next(), if !stop_read_dst => {
                     let dst_message = match dst_message {
                         None => {
-                            debug!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} complete to read destination data.");
+                            debug!("Tcp handler {handler_key} complete to read destination data.");
                             stop_read_dst=true;
                             continue;
                         },
                         Some(Ok(dst_message)) => dst_message,
                         Some(Err(e)) => {
-                            error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to read destination data because of error: {e:?}");
+                            error!("Tcp handler {handler_key} fail to read destination data because of error: {e:?}");
                             stop_read_dst=true;
                             continue;
                         },
                     };
-                    trace!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} read destination data:\n{}\n", pretty_hex::pretty_hex(&dst_message));
+                    trace!("Tcp handler {handler_key} read destination data:\n{}\n", pretty_hex::pretty_hex(&dst_message));
                     let tcp_data_message = match PpaassMessageGenerator::generate_tcp_data(&user_token, payload_encryption_token.clone(),src_address.clone(), dst_address.clone(),  dst_message.to_vec()) {
                         Ok(tcp_data_message) => tcp_data_message,
                         Err(e) => {
-                            error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to generate raw data because of error: {e:?}");
+                            error!("Tcp handler {handler_key} fail to generate raw data because of error: {e:?}");
                             stop_read_dst=true;
                             continue;
                         },
                     };
-                    if let Err(e) = agent_connection_write.send(tcp_data_message).await {
-                        error!("Agent connection [{agent_connection_id}] with tcp loop {handler_key} fail to relay destination data to agent because of error: {e:?}");
+                    if let Err(e) = ppaass_connection_write.send(tcp_data_message).await {
+                        error!("Tcp handler {handler_key} fail to relay destination data to agent because of error: {e:?}");
                         stop_read_dst=true;
                         continue;
                     };

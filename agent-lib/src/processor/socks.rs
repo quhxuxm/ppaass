@@ -17,7 +17,8 @@ use self::message::Socks5InitCommandResultStatus;
 use crate::{
     config::AgentServerConfig,
     crypto::AgentServerRsaCryptoFetcher,
-    flow::{
+    pool::ProxyConnectionPool,
+    processor::{
         socks::{
             codec::{Socks5AuthCommandContentCodec, Socks5InitCommandContentCodec},
             message::{
@@ -25,9 +26,8 @@ use crate::{
                 Socks5InitCommandType,
             },
         },
-        ClientDataRelayInfo, ClientFlow,
+        ClientDataRelayInfo, ClientProcessor,
     },
-    pool::ProxyConnectionPool,
     AgentServerPayloadEncryptionTypeSelector,
 };
 use anyhow::{Context, Result};
@@ -36,14 +36,17 @@ use ppaass_common::generate_uuid;
 mod codec;
 mod message;
 
-pub(crate) struct Socks5Flow {
-    client_io: TcpStream,
+pub(crate) struct Socks5ClientProcessor {
+    client_tcp_stream: TcpStream,
     src_address: PpaassNetAddress,
 }
 
-impl Socks5Flow {
-    pub(crate) fn new(client_io: TcpStream, src_address: PpaassNetAddress) -> Self {
-        Self { client_io, src_address }
+impl Socks5ClientProcessor {
+    pub(crate) fn new(client_tcp_stream: TcpStream, src_address: PpaassNetAddress) -> Self {
+        Self {
+            client_tcp_stream,
+            src_address,
+        }
     }
 
     pub(crate) async fn exec<R, I>(
@@ -53,9 +56,9 @@ impl Socks5Flow {
         R: RsaCryptoFetcher + Send + Sync + 'static,
         I: AsRef<str> + Send + Sync + Clone + Display + 'static,
     {
-        let client_io = self.client_io;
+        let client_tcp_stream = self.client_tcp_stream;
         let src_address = self.src_address;
-        let mut auth_framed_parts = FramedParts::new(client_io, Socks5AuthCommandContentCodec::default());
+        let mut auth_framed_parts = FramedParts::new(client_tcp_stream, Socks5AuthCommandContentCodec::default());
         auth_framed_parts.read_buf = initial_buf;
         let mut auth_framed = Framed::from_parts(auth_framed_parts);
         let auth_message = auth_framed
@@ -75,8 +78,8 @@ impl Socks5Flow {
             return Err(e);
         };
 
-        let FramedParts { io: client_io, .. } = auth_framed.into_parts();
-        let mut init_framed = Framed::new(client_io, Socks5InitCommandContentCodec::default());
+        let FramedParts { io: client_tcp_stream, .. } = auth_framed.into_parts();
+        let mut init_framed = Framed::new(client_tcp_stream, Socks5InitCommandContentCodec::default());
         let init_message = init_framed
             .next()
             .await
@@ -151,7 +154,7 @@ impl Socks5Flow {
             ..
         } = proxy_message.split();
         let PpaassMessageProxyPayloadParts { payload_type, data } = TryInto::<PpaassMessageProxyPayload>::try_into(proxy_message_payload_bytes)?.split();
-        let tcp_loop_init_response = match payload_type {
+        let tcp_init_response = match payload_type {
             PpaassMessageProxyPayloadType::TcpInit => TryInto::<TcpInitResponse>::try_into(data)?,
             _ => {
                 error!("Client tcp connection [{src_address}] receive invalid message from proxy, payload type: {payload_type:?}");
@@ -161,11 +164,11 @@ impl Socks5Flow {
             },
         };
         let TcpInitResponse {
-            loop_key: tcp_loop_key,
+            unique_key: tcp_loop_key,
             dst_address,
             response_type,
             ..
-        } = tcp_loop_init_response;
+        } = tcp_init_response;
         match response_type {
             TcpInitResponseType::Success => {
                 debug!("Client tcp connection [{src_address}] receive init tcp loop init response: {tcp_loop_key}");
@@ -182,10 +185,10 @@ impl Socks5Flow {
             error!("Client tcp connection [{src_address}] fail reply init success in socks5 flow, tcp loop key: [{tcp_loop_key}].");
             return Err(e);
         };
-        let FramedParts { io: client_io, .. } = init_framed.into_parts();
+        let FramedParts { io: client_tcp_stream, .. } = init_framed.into_parts();
         debug!("Client tcp connection [{src_address}] success to do sock5 handshake begin to relay, tcp loop key: [{tcp_loop_key}].");
-        ClientFlow::relay(ClientDataRelayInfo {
-            client_io,
+        ClientProcessor::relay(ClientDataRelayInfo {
+            client_tcp_stream,
             src_address: src_address.clone(),
             dst_address,
             tcp_loop_key: tcp_loop_key.clone(),

@@ -10,9 +10,9 @@ use tracing::{debug, error};
 
 use crate::{SOCKS_V4, SOCKS_V5};
 
-use super::ClientFlow;
+use super::ClientProcessor;
 
-pub(crate) enum Protocol {
+pub(crate) enum ClientProtocol {
     /// The client side choose to use HTTP proxy
     Http,
     /// The client side choose to use Socks5 proxy
@@ -23,7 +23,7 @@ pub(crate) enum Protocol {
 pub(crate) struct SwitchClientProtocolDecoder;
 
 impl Decoder for SwitchClientProtocolDecoder {
-    type Item = Protocol;
+    type Item = ClientProtocol;
 
     type Error = anyhow::Error;
 
@@ -34,21 +34,20 @@ impl Decoder for SwitchClientProtocolDecoder {
         }
         let protocol_flag = src[0];
         match protocol_flag {
-            SOCKS_V5 => Ok(Some(Protocol::Socks5)),
-            SOCKS_V4 => Ok(Some(Protocol::Socks4)),
-            _ => Ok(Some(Protocol::Http)),
+            SOCKS_V5 => Ok(Some(ClientProtocol::Socks5)),
+            SOCKS_V4 => Ok(Some(ClientProtocol::Socks4)),
+            _ => Ok(Some(ClientProtocol::Http)),
         }
     }
 }
 
-pub(crate) struct FlowDispatcher;
+pub(crate) struct ClientConnectionProcessorDispatcher;
 
-impl FlowDispatcher {
-    pub(crate) async fn dispatch(client_io: TcpStream, client_socket_address: SocketAddr) -> Result<ClientFlow> {
-        let mut client_framed = Framed::with_capacity(client_io, SwitchClientProtocolDecoder, 1024 * 64);
-
-        let protocol = match client_framed.next().await {
-            Some(Ok(v)) => v,
+impl ClientConnectionProcessorDispatcher {
+    pub(crate) async fn dispatch(client_tcp_stream: TcpStream, client_socket_address: SocketAddr) -> Result<ClientProcessor> {
+        let mut client_message_framed = Framed::with_capacity(client_tcp_stream, SwitchClientProtocolDecoder, 1024 * 64);
+        let client_protocol = match client_message_framed.next().await {
+            Some(Ok(client_protocol)) => client_protocol,
             Some(Err(e)) => {
                 error!("Fail to read protocol from client io because of error: {e:?}");
                 return Err(anyhow!("Fail to read protocol from client io because of nothing to read."));
@@ -59,36 +58,36 @@ impl FlowDispatcher {
             },
         };
 
-        match protocol {
-            Protocol::Socks5 => {
+        match client_protocol {
+            ClientProtocol::Socks5 => {
                 // For socks5 protocol
                 let FramedParts {
-                    io: client_io,
+                    io: client_tcp_stream,
                     read_buf: initial_buf,
                     ..
-                } = client_framed.into_parts();
+                } = client_message_framed.into_parts();
                 debug!("Client tcp connection [{client_socket_address}] begin to serve socks 5 protocol");
-                Ok(ClientFlow::Socks5 {
-                    client_io,
+                Ok(ClientProcessor::Socks5 {
+                    client_tcp_stream,
                     src_address: client_socket_address.into(),
                     initial_buf,
                 })
             },
-            Protocol::Socks4 => {
+            ClientProtocol::Socks4 => {
                 // For socks4 protocol
                 error!("Client tcp connection [{client_socket_address}] do not support socks v4 protocol");
                 Err(anyhow!("Client tcp connection [{client_socket_address}] do not support socks v4 protocol"))
             },
-            Protocol::Http => {
+            ClientProtocol::Http => {
                 // For http protocol
                 let FramedParts {
-                    io: client_io,
+                    io: client_tcp_stream,
                     read_buf: initial_buf,
                     ..
-                } = client_framed.into_parts();
+                } = client_message_framed.into_parts();
                 debug!("Client tcp connection [{client_socket_address}] begin to serve http protocol");
-                Ok(ClientFlow::Http {
-                    client_io,
+                Ok(ClientProcessor::Http {
+                    client_tcp_stream,
                     src_address: client_socket_address.into(),
                     initial_buf,
                 })

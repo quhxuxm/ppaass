@@ -18,7 +18,6 @@ pub struct AgentServerConfig {
     /// The proxy addresses
     proxy_addresses: Option<Vec<String>>,
     message_framed_buffer_size: Option<usize>,
-    client_connection_accept_timeout: Option<u64>,
     connect_to_proxy_timeout: Option<u64>,
     client_io_buffer_size: Option<usize>,
 }
@@ -80,10 +79,6 @@ impl AgentServerConfig {
 
     pub fn get_message_framed_buffer_size(&self) -> usize {
         self.message_framed_buffer_size.unwrap_or(65536)
-    }
-
-    pub fn get_client_connection_accept_timeout(&self) -> u64 {
-        self.client_connection_accept_timeout.unwrap_or(5)
     }
 
     pub fn get_client_io_buffer_size(&self) -> usize {

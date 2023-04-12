@@ -21,8 +21,8 @@ use url::Url;
 
 use crate::{
     config::AgentServerConfig,
-    flow::{http::codec::HttpCodec, ClientDataRelayInfo, ClientFlow},
     pool::ProxyConnectionPool,
+    processor::{http::codec::HttpCodec, ClientDataRelayInfo, ClientProcessor},
     AgentServerPayloadEncryptionTypeSelector,
 };
 use anyhow::{Context, Result};
@@ -35,14 +35,17 @@ const HTTP_DEFAULT_PORT: u16 = 80;
 const OK_CODE: u16 = 200;
 const CONNECTION_ESTABLISHED: &str = "Connection Established";
 
-pub(crate) struct HttpFlow {
-    client_io: TcpStream,
+pub(crate) struct HttpClientProcessor {
+    client_tcp_stream: TcpStream,
     src_address: PpaassNetAddress,
 }
 
-impl HttpFlow {
-    pub(crate) fn new(client_io: TcpStream, src_address: PpaassNetAddress) -> Self {
-        Self { client_io, src_address }
+impl HttpClientProcessor {
+    pub(crate) fn new(client_tcp_stream: TcpStream, src_address: PpaassNetAddress) -> Self {
+        Self {
+            client_tcp_stream,
+            src_address,
+        }
     }
 
     pub(crate) async fn exec<R, I>(
@@ -52,9 +55,9 @@ impl HttpFlow {
         R: RsaCryptoFetcher + Send + Sync + 'static,
         I: AsRef<str> + Send + Sync + Clone + Display + 'static,
     {
-        let client_io = self.client_io;
+        let client_tcp_stream = self.client_tcp_stream;
         let src_address = self.src_address;
-        let mut framed_parts = FramedParts::new(client_io, HttpCodec::default());
+        let mut framed_parts = FramedParts::new(client_tcp_stream, HttpCodec::default());
         framed_parts.read_buf = initial_buf;
         let mut http_framed = Framed::from_parts(framed_parts);
         let http_message = http_framed
@@ -146,7 +149,7 @@ impl HttpFlow {
             ..
         } = proxy_message.split();
         let PpaassMessageProxyPayloadParts { payload_type, data } = TryInto::<PpaassMessageProxyPayload>::try_into(proxy_message_payload_bytes)?.split();
-        let tcp_loop_init_response = match payload_type {
+        let tcp_init_response = match payload_type {
             PpaassMessageProxyPayloadType::TcpInit => TryInto::<TcpInitResponse>::try_into(data)?,
             _ => {
                 error!("Client tcp connection [{src_address}] receive invalid message from proxy, payload type: {payload_type:?}");
@@ -157,10 +160,10 @@ impl HttpFlow {
         };
 
         let TcpInitResponse {
-            loop_key: tcp_loop_key,
+            unique_key: tcp_loop_key,
             response_type,
             ..
-        } = tcp_loop_init_response;
+        } = tcp_init_response;
 
         match response_type {
             TcpInitResponseType::Success => {
@@ -184,10 +187,10 @@ impl HttpFlow {
             http_framed.send(http_connect_success_response).await?;
         }
 
-        let FramedParts { io: client_io, .. } = http_framed.into_parts();
-        ClientFlow::relay(ClientDataRelayInfo {
-            client_io,
-            src_address: src_address.into(),
+        let FramedParts { io: client_tcp_stream, .. } = http_framed.into_parts();
+        ClientProcessor::relay(ClientDataRelayInfo {
+            client_tcp_stream,
+            src_address,
             dst_address,
             tcp_loop_key,
             user_token,

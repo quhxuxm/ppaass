@@ -30,7 +30,7 @@ use tracing::{debug, error, trace};
 
 use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, pool::ProxyConnectionPool};
 
-use self::{http::HttpFlow, socks::Socks5Flow};
+use self::{http::HttpClientProcessor, socks::Socks5ClientProcessor};
 
 mod http;
 mod socks;
@@ -41,7 +41,7 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    client_io: TcpStream,
+    client_tcp_stream: TcpStream,
     src_address: PpaassNetAddress,
     dst_address: PpaassNetAddress,
     tcp_loop_key: String,
@@ -53,32 +53,32 @@ where
     init_data: Option<Vec<u8>>,
 }
 
-pub(crate) enum ClientFlow {
+pub(crate) enum ClientProcessor {
     Http {
-        client_io: TcpStream,
+        client_tcp_stream: TcpStream,
         src_address: PpaassNetAddress,
         initial_buf: BytesMut,
     },
     Socks5 {
-        client_io: TcpStream,
+        client_tcp_stream: TcpStream,
         src_address: PpaassNetAddress,
         initial_buf: BytesMut,
     },
 }
 
-impl ClientFlow {
+impl ClientProcessor {
     pub(crate) async fn exec<R, I>(self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>) -> Result<()>
     where
         R: RsaCryptoFetcher + Send + Sync + 'static,
         I: AsRef<str> + Send + Sync + Clone + Display + 'static,
     {
         match self {
-            ClientFlow::Http {
-                client_io,
+            ClientProcessor::Http {
+                client_tcp_stream,
                 src_address,
                 initial_buf,
             } => {
-                let http_flow = HttpFlow::new(client_io, src_address.clone());
+                let http_flow = HttpClientProcessor::new(client_tcp_stream, src_address.clone());
                 if let Err(e) = http_flow
                     .exec::<AgentServerRsaCryptoFetcher, String>(proxy_connection_pool, configuration, initial_buf)
                     .await
@@ -87,12 +87,12 @@ impl ClientFlow {
                     return Err(e);
                 }
             },
-            ClientFlow::Socks5 {
-                client_io,
+            ClientProcessor::Socks5 {
+                client_tcp_stream,
                 src_address,
                 initial_buf,
             } => {
-                let socks5_flow = Socks5Flow::new(client_io, src_address.clone());
+                let socks5_flow = Socks5ClientProcessor::new(client_tcp_stream, src_address.clone());
                 if let Err(e) = socks5_flow
                     .exec::<AgentServerRsaCryptoFetcher, String>(proxy_connection_pool, configuration, initial_buf)
                     .await
@@ -110,7 +110,7 @@ impl ClientFlow {
         R: RsaCryptoFetcher + Send + Sync + 'static,
         I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
     {
-        let client_io = info.client_io;
+        let client_tcp_stream = info.client_tcp_stream;
         let tcp_loop_key = info.tcp_loop_key;
         let src_address = info.src_address;
         let dst_address = info.dst_address;
@@ -119,7 +119,7 @@ impl ClientFlow {
         let mut proxy_connection_write = info.proxy_connection_write;
         let user_token = info.user_token;
         let mut proxy_connection_read = info.proxy_connection_read;
-        let client_io_framed = Framed::with_capacity(client_io, BytesCodec::new(), configuration.get_client_io_buffer_size());
+        let client_io_framed = Framed::with_capacity(client_tcp_stream, BytesCodec::new(), configuration.get_client_io_buffer_size());
         let (client_io_write, client_io_read) = client_io_framed.split::<BytesMut>();
         let (mut client_io_write, mut client_io_read) = (
             ClientConnectionWrite::new(src_address.clone(), tcp_loop_key.clone(), client_io_write),
