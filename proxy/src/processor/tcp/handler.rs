@@ -211,6 +211,7 @@ where
             },
         };
         dst_tcp_stream.set_nodelay(true)?;
+        dst_tcp_stream.set_linger(None)?;
         let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
         let tcp_init_success_message = PpaassMessageGenerator::generate_tcp_init_response(
             handler_key.clone(),

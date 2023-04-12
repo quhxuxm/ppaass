@@ -119,6 +119,7 @@ impl ProxyConnectionPool {
         };
         debug!("Success connect to proxy when feed connection pool.");
         proxy_tcp_stream.set_nodelay(true)?;
+        proxy_tcp_stream.set_linger(None)?;
         let ppaass_connection = PpaassConnection::new(
             generate_uuid(),
             proxy_tcp_stream,
