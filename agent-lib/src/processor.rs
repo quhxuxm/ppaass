@@ -207,6 +207,10 @@ impl ClientProcessor {
                         Ok(tcp_data) => tcp_data,
                         Err(e) => {
                             error!("Client tcp connection [{src_address}] for tcp loop [{tcp_loop_key}] fail to parse tcp data because of error: {e:?}");
+                            if let Err(e) = client_io_write.close().await {
+                                error!("Client tcp connection [{src_address}] for tcp loop [{tcp_loop_key}] fail to close proxy connection because of error: {e:?}");
+                            };
+                            stop_read_proxy=true;
                             continue;
                         },
                     };
