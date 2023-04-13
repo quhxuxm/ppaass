@@ -189,6 +189,9 @@ where
                     .send(tcp_init_fail_message)
                     .await
                     .context(format!("Tcp handler {handler_key} fail to send tcp loop init fail response to agent."))?;
+                if let Err(e) = ppaass_connection_write.close().await {
+                    error!("Tcp handler {handler_key} fail to close agent connection because of error: {e:?}");
+                };
                 return Err(anyhow!("Tcp handler {handler_key} fail connect to dest address because of timeout."));
             },
             Ok(Ok(dst_tcp_stream)) => dst_tcp_stream,
@@ -207,6 +210,9 @@ where
                     .send(tcp_initialize_fail_message)
                     .await
                     .context(format!("Tcp handler {handler_key} fail to send tcp loop init fail response to agent."))?;
+                if let Err(e) = ppaass_connection_write.close().await {
+                    error!("Tcp handler {handler_key} fail to close agent connection because of error: {e:?}");
+                };
                 return Err(anyhow!(e));
             },
         };
@@ -223,6 +229,9 @@ where
         )?;
         if let Err(e) = ppaass_connection_write.send(tcp_init_success_message).await {
             error!("Tcp handler {handler_key} fail to send tcp initialize success message to agent because of error: {e:?}");
+            if let Err(e) = ppaass_connection_write.close().await {
+                error!("Tcp handler {handler_key} fail to close agent connection because of error: {e:?}");
+            };
             return Err(anyhow!(e));
         };
 
@@ -267,6 +276,9 @@ where
                         Ok(tcp_data)=>tcp_data,
                         Err(e)=>{
                             error!("Tcp handler {handler_key} fail to relay agent message to destination because of can not parse tcp data error: {e:?}");
+                            if let Err(e) = dst_tcp_write.close().await {
+                                error!("Tcp handler {handler_key} fail to close destination connection because of error: {e:?}");
+                            };
                             stop_read_agent = true;
                             continue;
                         }
@@ -278,11 +290,17 @@ where
                     } = tcp_data.split();
                     if src_address != src_address_in_data{
                         error!("Tcp handler {handler_key} fail to relay agent message to destination because of src address is not the same.");
+                        if let Err(e) = dst_tcp_write.close().await {
+                            error!("Tcp handler {handler_key} fail to close destination connection because of error: {e:?}");
+                        };
                         stop_read_agent = true;
                         continue;
                     }
                     if dst_address != dst_address_in_data{
                         error!("Tcp handler {handler_key} fail to relay agent message to destination because of dst address is not the same.");
+                        if let Err(e) = dst_tcp_write.close().await {
+                            error!("Tcp handler {handler_key} fail to close destination connection because of error: {e:?}");
+                        };
                         stop_read_agent = true;
                         continue;
                     }
@@ -322,6 +340,9 @@ where
                         Ok(tcp_data_message) => tcp_data_message,
                         Err(e) => {
                             error!("Tcp handler {handler_key} fail to generate raw data because of error: {e:?}");
+                            if let Err(e) = ppaass_connection_write.close().await{
+                                error!("Tcp handler {handler_key} fail to close agent connection because of error: {e:?}");
+                            };
                             stop_read_dst=true;
                             continue;
                         },
