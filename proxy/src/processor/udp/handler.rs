@@ -179,7 +179,7 @@ where
                     return Err(anyhow!(e));
                 };
                 let mut dst_recv_buf = [0u8; 65535];
-                let data_size = match timeout(Duration::from_secs(2), dst_udp_socket.recv(&mut dst_recv_buf)).await {
+                let data_size = match timeout(Duration::from_secs(5), dst_udp_socket.recv(&mut dst_recv_buf)).await {
                     Ok(Ok(data_size)) => data_size,
                     Ok(Err(e)) => {
                         error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
