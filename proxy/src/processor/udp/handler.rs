@@ -172,24 +172,27 @@ where
                 let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
                 dst_udp_socket.connect(dst_socket_addrs.as_slice()).await?;
                 if let Err(e) = dst_udp_socket.send(&raw_data).await {
-                    error!("Udp handler {handler_key} fail to send data to udp socket because of error: {e:?}");
+                    error!("Udp handler {handler_key} fail to send data to udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
                     return Err(anyhow!(e));
                 };
                 let mut dst_recv_buf = [0u8; 65535];
                 let data_size = match timeout(Duration::from_secs(2), dst_udp_socket.recv(&mut dst_recv_buf)).await {
                     Ok(Ok(data_size)) => data_size,
                     Ok(Err(e)) => {
-                        error!("Udp handler {handler_key} fail to receive data from udp socket because of error: {e:?}");
+                        error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
                         return Err(anyhow!(e));
                     },
                     Err(e) => {
-                        error!("Udp handler {handler_key} fail to receive data from udp socket because of timeout");
+                        error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of timeout");
                         return Err(anyhow!(e));
                     },
                 };
 
                 let dst_recv_buf = &dst_recv_buf[..data_size];
-                info!("Udp handler {handler_key} receive destination udp data:\n{}\n", pretty_hex(&dst_recv_buf));
+                info!(
+                    "Udp handler {handler_key} receive destination udp data [{dst_socket_addrs:?}]:\n{}\n",
+                    pretty_hex(&dst_recv_buf)
+                );
 
                 let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
 
@@ -197,13 +200,13 @@ where
                     match PpaassMessageGenerator::generate_udp_data(user_token.clone(), payload_encryption, src_address, dst_address, dst_recv_buf.to_vec()) {
                         Ok(data_message) => data_message,
                         Err(e) => {
-                            error!("Udp handler {handler_key} fail to generate udp loop data message because of error: {e:?}");
+                            error!("Udp handler {handler_key} fail to generate udp data from [{dst_socket_addrs:?}] because of error: {e:?}");
                             return Err(anyhow!(e));
                         },
                     };
 
                 if let Err(e) = ppaass_connection_write.send(udp_data_message).await {
-                    error!("Udp handler {handler_key} fail to send udp loop data to agent because of error: {e:?}");
+                    error!("Udp handler {handler_key} fail to send udp data from [{dst_socket_addrs:?}] to agent because of error: {e:?}");
                     return Err(anyhow!(e));
                 };
                 Ok(())
