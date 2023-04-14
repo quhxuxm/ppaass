@@ -16,7 +16,6 @@ use pretty_hex::pretty_hex;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::UdpSocket,
-    sync::Mutex,
     time::timeout,
 };
 use tracing::{debug, error, info};
