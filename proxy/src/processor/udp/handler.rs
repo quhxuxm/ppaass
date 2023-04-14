@@ -135,7 +135,7 @@ where
         };
 
         let ppaass_connection_write = Arc::new(Mutex::new(ppaass_connection_write));
-
+        let dst_udp_socket = Arc::new(UdpSocket::bind("0.0.0.0:0").await?);
         loop {
             let agent_message = match ppaass_connection_read.next().await {
                 Some(Ok(agent_message)) => agent_message,
@@ -151,8 +151,8 @@ where
             let ppaass_connection_write = ppaass_connection_write.clone();
             let handler_key = handler_key.clone();
             let user_token = user_token.clone();
+            let dst_udp_socket = dst_udp_socket.clone();
             tokio::spawn(async move {
-                let dst_udp_socket = UdpSocket::bind("0.0.0.0:0").await?;
                 let mut ppaass_connection_write = ppaass_connection_write.lock().await;
                 let PpaassMessageParts { payload, .. } = agent_message.split();
                 let UdpDataParts {
@@ -173,14 +173,14 @@ where
                     pretty_hex(&raw_data)
                 );
                 let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
-                dst_udp_socket.connect(dst_socket_addrs.as_slice()).await?;
-                if let Err(e) = dst_udp_socket.send(&raw_data).await {
+                // dst_udp_socket.connect(dst_socket_addrs.as_slice()).await?;
+                if let Err(e) = dst_udp_socket.send_to(&raw_data, dst_socket_addrs.as_slice()).await {
                     error!("Udp handler {handler_key} fail to send data to udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
                     return Err(anyhow!(e));
                 };
                 let mut dst_recv_buf = [0u8; 65535];
-                let data_size = match timeout(Duration::from_secs(5), dst_udp_socket.recv(&mut dst_recv_buf)).await {
-                    Ok(Ok(data_size)) => data_size,
+                let (data_size, recv_from_address) = match timeout(Duration::from_secs(5), dst_udp_socket.recv_from(&mut dst_recv_buf)).await {
+                    Ok(Ok((data_size, recv_from_address))) => (data_size, recv_from_address),
                     Ok(Err(e)) => {
                         error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
                         return Err(anyhow!(e));
@@ -190,10 +190,9 @@ where
                         return Err(anyhow!(e));
                     },
                 };
-
                 let dst_recv_buf = &dst_recv_buf[..data_size];
-                info!(
-                    "Udp handler {handler_key} receive destination udp data [{dst_socket_addrs:?}]:\n{}\n",
+                debug!(
+                    "Udp handler {handler_key} receive data from destination: {recv_from_address}:\n{}\n",
                     pretty_hex(&dst_recv_buf)
                 );
 
