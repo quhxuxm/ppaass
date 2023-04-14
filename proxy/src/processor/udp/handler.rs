@@ -168,7 +168,10 @@ where
                         return Err(anyhow!(e));
                     },
                 };
-                info!("Udp handler {handler_key} receive agent udp data:\n{}\n", pretty_hex(&raw_data));
+                info!(
+                    "Udp handler {handler_key} receive agent udp data from [{dst_address}]:\n{}\n",
+                    pretty_hex(&raw_data)
+                );
                 let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
                 dst_udp_socket.connect(dst_socket_addrs.as_slice()).await?;
                 if let Err(e) = dst_udp_socket.send(&raw_data).await {
