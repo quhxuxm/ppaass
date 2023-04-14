@@ -117,7 +117,7 @@ where
                     .ppaass_connection_write(ppaass_connection_write)
                     .ppaass_connection_read(ppaass_connection_read)
                     .user_token(user_token);
-                let udp_handler = match udp_handler_builder.build().await {
+                let udp_handler = match udp_handler_builder.build(configuration.clone()).await {
                     Ok(udp_handler) => udp_handler,
                     Err(e) => {
                         error!("Agent connection [{ppaass_connection_id}] fail to build udp loop because of error: {e:?}");

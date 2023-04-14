@@ -21,7 +21,7 @@ use tokio::{
 };
 use tracing::{debug, error, info};
 
-use crate::common::ProxyServerPayloadEncryptionSelector;
+use crate::{common::ProxyServerPayloadEncryptionSelector, config::ProxyServerConfig};
 
 use anyhow::{anyhow, Context, Result};
 
@@ -81,7 +81,7 @@ where
     fn generate_handler_key(user_token: &str, agent_address: &PpaassNetAddress, ppaass_connection_id: &str) -> String {
         format!("[{ppaass_connection_id}]#[{user_token}]@UDP::[{agent_address}]")
     }
-    pub(crate) async fn build(self) -> Result<UdpHandler<T, R, I>> {
+    pub(crate) async fn build(self, configuration: Arc<ProxyServerConfig>) -> Result<UdpHandler<T, R, I>> {
         let ppaass_connection_id = self.ppaass_connection_id.context("Agent connection id not assigned for udp handler builder")?;
         let agent_address = self.agent_address.context("Agent address not assigned for udp handler builder")?;
         let user_token = self.user_token.context("User token not assigned for udp handler builder")?;
@@ -97,6 +97,7 @@ where
             ppaass_connection_read,
             ppaass_connection_write,
             user_token,
+            configuration,
         })
     }
 }
@@ -113,6 +114,7 @@ where
     ppaass_connection_write: PpaassConnectionWrite<T, R, I>,
     handler_key: String,
     user_token: String,
+    configuration: Arc<ProxyServerConfig>,
 }
 
 impl<T, R, I> UdpHandler<T, R, I>
@@ -152,6 +154,7 @@ where
             let handler_key = handler_key.clone();
             let user_token = user_token.clone();
             let dst_udp_socket = dst_udp_socket.clone();
+            let configuration = self.configuration.clone();
             tokio::spawn(async move {
                 let mut ppaass_connection_write = ppaass_connection_write.lock().await;
                 let PpaassMessageParts { payload, .. } = agent_message.split();
@@ -179,7 +182,12 @@ where
                     return Err(anyhow!(e));
                 };
                 let mut dst_recv_buf = [0u8; 65535];
-                let (data_size, recv_from_address) = match timeout(Duration::from_secs(5), dst_udp_socket.recv_from(&mut dst_recv_buf)).await {
+                let (data_size, recv_from_address) = match timeout(
+                    Duration::from_secs(configuration.get_dst_udp_recv_timeout()),
+                    dst_udp_socket.recv_from(&mut dst_recv_buf),
+                )
+                .await
+                {
                     Ok(Ok((data_size, recv_from_address))) => (data_size, recv_from_address),
                     Ok(Err(e)) => {
                         error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
