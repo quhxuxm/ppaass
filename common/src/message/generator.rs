@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use crate::{
     tcp::{TcpData, TcpDataParts, TcpInitRequest, TcpInitResponse, TcpInitResponseType},
-    udp::{UdpData, UdpDataParts, UdpInitRequest, UdpInitResponse, UdpInitResponseType},
+    udp::{UdpData, UdpDataParts},
     PpaassMessage, PpaassMessageAgentPayload, PpaassMessageAgentPayloadType, PpaassMessagePayloadEncryption, PpaassMessageProxyPayload,
     PpaassMessageProxyPayloadType, PpaassNetAddress,
 };
@@ -34,25 +34,6 @@ impl PpaassMessageGenerator {
         Ok(message)
     }
 
-    pub fn generate_udp_init_request(user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption) -> Result<PpaassMessage> {
-        let udp_init_request = UdpInitRequest {};
-        let message_payload = PpaassMessageAgentPayload::new(PpaassMessageAgentPayloadType::UdpInit, udp_init_request.try_into()?);
-        let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
-        Ok(message)
-    }
-
-    pub fn generate_udp_init_response(
-        unique_key: impl AsRef<str>, user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption, response_type: UdpInitResponseType,
-    ) -> Result<PpaassMessage> {
-        let udp_init_response = UdpInitResponse {
-            unique_key: unique_key.as_ref().to_owned(),
-            response_type,
-        };
-        let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::UdpInit, udp_init_response.try_into()?);
-        let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
-        Ok(message)
-    }
-
     pub fn generate_tcp_data(
         user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption, src_address: PpaassNetAddress, dst_address: PpaassNetAddress,
         raw_data_bytes: Vec<u8>,
@@ -69,15 +50,16 @@ impl PpaassMessageGenerator {
 
     pub fn generate_udp_data(
         user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption, src_address: PpaassNetAddress, dst_address: PpaassNetAddress,
-        raw_data_bytes: Vec<u8>,
+        raw_data: Vec<u8>,
     ) -> Result<PpaassMessage> {
         let udp_data_parts = UdpDataParts {
             src_address,
             dst_address,
-            raw_data: raw_data_bytes,
+            raw_data,
         };
         let udp_data: UdpData = udp_data_parts.into();
-        let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, udp_data.try_into()?);
+        let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::UdpData, udp_data.try_into()?);
+        let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
         Ok(message)
     }
 }

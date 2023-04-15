@@ -5,12 +5,11 @@ use std::{
     time::Duration,
 };
 
-use futures::{SinkExt, StreamExt};
+use futures::SinkExt;
 use ppaass_common::{
     generate_uuid,
-    udp::{UdpData, UdpDataParts, UdpInitResponseType},
-    PpaassConnectionRead, PpaassConnectionWrite, PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress,
-    RsaCryptoFetcher,
+    udp::{UdpData, UdpDataParts},
+    PpaassConnectionRead, PpaassConnectionWrite, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher,
 };
 use pretty_hex::pretty_hex;
 use tokio::{
@@ -88,12 +87,9 @@ where
         let ppaass_connection_write = self
             .ppaass_connection_write
             .context("Agent message framed write not assigned for udp handler builder")?;
-        let ppaass_connection_read = self
-            .ppaass_connection_read
-            .context("Agent message framed read not assigned for udp handler builder")?;
+
         Ok(UdpHandler {
             handler_key,
-            ppaass_connection_read,
             ppaass_connection_write,
             user_token,
             configuration,
@@ -109,7 +105,6 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    ppaass_connection_read: PpaassConnectionRead<T, R, I>,
     ppaass_connection_write: PpaassConnectionWrite<T, R, I>,
     handler_key: String,
     user_token: String,
@@ -122,21 +117,11 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    pub(crate) async fn exec(self) -> Result<()> {
+    pub(crate) async fn exec(self, udp_data: UdpData) -> Result<()> {
         let mut ppaass_connection_write = self.ppaass_connection_write;
-        let mut ppaass_connection_read = self.ppaass_connection_read;
+
         let user_token = self.user_token;
         let handler_key = self.handler_key;
-        let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
-        let udp_init_success_message =
-            PpaassMessageGenerator::generate_udp_init_response(&handler_key, &user_token, payload_encryption_token, UdpInitResponseType::Success)?;
-        if let Err(e) = ppaass_connection_write.send(udp_init_success_message).await {
-            error!("Udp handler {handler_key} fail to send tcp initialize success message to agent because of error: {e:?}");
-            if let Err(e) = ppaass_connection_write.close().await {
-                error!("Udp handler {handler_key} fail to close tcp connection because of error: {e:?}");
-            }
-            return Err(anyhow!(e));
-        };
 
         let dst_udp_socket = match UdpSocket::bind("0.0.0.0:0").await {
             Ok(dst_udp_socket) => dst_udp_socket,
@@ -147,27 +132,12 @@ where
                 return Err(anyhow!(e));
             },
         };
-        let agent_message = match ppaass_connection_read.next().await {
-            Some(Ok(agent_message)) => agent_message,
-            Some(Err(e)) => {
-                error!("Udp handler {handler_key} fail to read agent message because of error: {e:?}");
-                if let Err(e) = ppaass_connection_write.close().await {
-                    error!("Udp handler {handler_key} fail to close tcp connection because of error: {e:?}");
-                }
-                return Err(anyhow!(e));
-            },
-            None => {
-                debug!("Udp handler {handler_key} complete to read agent message from TCP.");
-                return Ok(());
-            },
-        };
 
-        let PpaassMessageParts { payload, .. } = agent_message.split();
         let UdpDataParts {
             src_address,
             dst_address,
             raw_data,
-        } = TryInto::<UdpData>::try_into(payload)?.split();
+        } = udp_data.split();
 
         let dst_socket_addrs = match dst_address.to_socket_addrs() {
             Ok(v) => v,
@@ -184,8 +154,8 @@ where
             pretty_hex(&raw_data)
         );
         let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
-        // dst_udp_socket.connect(dst_socket_addrs.as_slice()).await?;
-        if let Err(e) = dst_udp_socket.send_to(&raw_data, dst_socket_addrs.as_slice()).await {
+        dst_udp_socket.connect(dst_socket_addrs.as_slice()).await?;
+        if let Err(e) = dst_udp_socket.send(&raw_data).await {
             error!("Udp handler {handler_key} fail to send data to udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
             if let Err(e) = ppaass_connection_write.close().await {
                 error!("Udp handler {handler_key} fail to close tcp connection because of error: {e:?}");
@@ -193,13 +163,13 @@ where
             return Err(anyhow!(e));
         };
         let mut dst_recv_buf = [0u8; 65535];
-        let (data_size, recv_from_address) = match timeout(
+        let data_size = match timeout(
             Duration::from_secs(self.configuration.get_dst_udp_recv_timeout()),
-            dst_udp_socket.recv_from(&mut dst_recv_buf),
+            dst_udp_socket.recv(&mut dst_recv_buf),
         )
         .await
         {
-            Ok(Ok((data_size, recv_from_address))) => (data_size, recv_from_address),
+            Ok(Ok(data_size)) => data_size,
             Ok(Err(e)) => {
                 error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
                 if let Err(e) = ppaass_connection_write.close().await {
@@ -217,7 +187,7 @@ where
         };
         let dst_recv_buf = &dst_recv_buf[..data_size];
         debug!(
-            "Udp handler {handler_key} receive data from destination: {recv_from_address}:\n{}\n",
+            "Udp handler {handler_key} receive data from destination: {dst_socket_addrs:?}:\n{}\n",
             pretty_hex(&dst_recv_buf)
         );
 

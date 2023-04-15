@@ -7,7 +7,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use tracing::{debug, error, info};
 
-use ppaass_common::tcp::TcpInitRequest;
+use ppaass_common::{tcp::TcpInitRequest, udp::UdpData};
 use ppaass_common::{
     PpaassConnection, PpaassMessageAgentPayload, PpaassMessageAgentPayloadParts, PpaassMessageAgentPayloadType, PpaassNetAddress, RsaCryptoFetcher,
 };
@@ -109,8 +109,15 @@ where
                 tcp_handler.exec().await?;
                 Ok(())
             },
-            PpaassMessageAgentPayloadType::UdpInit => {
+            PpaassMessageAgentPayloadType::UdpData => {
                 info!("Agent connection [{ppaass_connection_id}] receive udp loop init from agent.");
+                let udp_data: UdpData = match agent_message_payload_raw_data.try_into() {
+                    Ok(udp_data) => udp_data,
+                    Err(e) => {
+                        error!("Agent connection [{ppaass_connection_id}] fail to read tcp loop init request because of error: {e:?}");
+                        return Err(e);
+                    },
+                };
                 let udp_handler_builder = UdpHandlerBuilder::new()
                     .agent_address(agent_address)
                     .ppaass_connection_id(ppaass_connection_id.clone())
@@ -124,7 +131,7 @@ where
                         return Err(e);
                     },
                 };
-                udp_handler.exec().await?;
+                udp_handler.exec(udp_data).await?;
                 Ok(())
             },
         }
