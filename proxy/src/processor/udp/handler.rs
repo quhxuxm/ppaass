@@ -162,30 +162,41 @@ where
             }
             return Err(anyhow!(e));
         };
-        let mut dst_recv_buf = [0u8; 65535];
-        let data_size = match timeout(
-            Duration::from_secs(self.configuration.get_dst_udp_recv_timeout()),
-            dst_udp_socket.recv(&mut dst_recv_buf),
-        )
-        .await
-        {
-            Ok(Ok(data_size)) => data_size,
-            Ok(Err(e)) => {
-                error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
-                if let Err(e) = ppaass_connection_write.close().await {
-                    error!("Udp handler {handler_key} fail to close tcp connection because of error: {e:?}");
-                }
-                return Err(anyhow!(e));
-            },
-            Err(e) => {
-                error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of timeout");
-                if let Err(e) = ppaass_connection_write.close().await {
-                    error!("Udp handler {handler_key} fail to close tcp connection because of error: {e:?}");
-                }
-                return Err(anyhow!(e));
-            },
-        };
-        let dst_recv_buf = &dst_recv_buf[..data_size];
+        let mut dst_recv_buf = Vec::new();
+        loop {
+            let mut buf = [0u8; 65535];
+            let data_size = match timeout(
+                Duration::from_secs(self.configuration.get_dst_udp_recv_timeout()),
+                dst_udp_socket.recv(&mut buf),
+            )
+            .await
+            {
+                Ok(Ok(data_size)) => data_size,
+                Ok(Err(e)) => {
+                    error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
+                    if let Err(e) = ppaass_connection_write.close().await {
+                        error!("Udp handler {handler_key} fail to close tcp connection because of error: {e:?}");
+                    }
+                    return Err(anyhow!(e));
+                },
+                Err(e) => {
+                    error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of timeout");
+                    if let Err(e) = ppaass_connection_write.close().await {
+                        error!("Udp handler {handler_key} fail to close tcp connection because of error: {e:?}");
+                    }
+                    return Err(anyhow!(e));
+                },
+            };
+            if data_size == 0 {
+                break;
+            }
+            let buf = &buf[0..data_size];
+            dst_recv_buf.extend_from_slice(buf);
+        }
+        if dst_recv_buf.is_empty() {
+            debug!("Udp handler {handler_key} nothing received from destination: {dst_socket_addrs:?}");
+            return Ok(());
+        }
         debug!(
             "Udp handler {handler_key} receive data from destination: {dst_socket_addrs:?}:\n{}\n",
             pretty_hex(&dst_recv_buf)
