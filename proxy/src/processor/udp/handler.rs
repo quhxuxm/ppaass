@@ -187,11 +187,13 @@ where
                     return Err(anyhow!(e));
                 },
             };
-            if data_size == 0 {
+            if data_size > 0 {
+                let buf = &buf[0..data_size];
+                dst_recv_buf.extend_from_slice(buf);
+            }
+            if data_size < 65535 {
                 break;
             }
-            let buf = &buf[0..data_size];
-            dst_recv_buf.extend_from_slice(buf);
         }
         if dst_recv_buf.is_empty() {
             debug!("Udp handler {handler_key} nothing received from destination: {dst_socket_addrs:?}");
