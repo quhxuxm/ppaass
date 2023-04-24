@@ -4,10 +4,10 @@ use futures::{SinkExt, StreamExt};
 use ppaass_common::{
     tcp::{TcpInitResponse, TcpInitResponseType},
     PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload, PpaassMessageProxyPayloadParts,
-    PpaassMessageProxyPayloadType, PpaassNetAddress, RsaCryptoFetcher,
+    PpaassMessageProxyPayloadType, PpaassNetAddress,
 };
 
-use std::{fmt::Display, sync::Arc};
+use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, FramedParts};
 use tracing::{debug, error};
@@ -16,7 +16,6 @@ use self::message::Socks5InitCommandResultStatus;
 
 use crate::{
     config::AgentServerConfig,
-    crypto::AgentServerRsaCryptoFetcher,
     pool::ProxyConnectionPool,
     processor::{
         socks::{
@@ -49,13 +48,9 @@ impl Socks5ClientProcessor {
         }
     }
 
-    pub(crate) async fn exec<R, I>(
+    pub(crate) async fn exec(
         self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>, initial_buf: BytesMut,
-    ) -> Result<()>
-    where
-        R: RsaCryptoFetcher + Send + Sync + 'static,
-        I: AsRef<str> + Send + Sync + Clone + Display + 'static,
-    {
+    ) -> Result<()> {
         let client_tcp_stream = self.client_tcp_stream;
         let src_address = self.src_address;
         let mut auth_framed_parts = FramedParts::new(client_tcp_stream, Socks5AuthCommandContentCodec::default());
@@ -96,28 +91,17 @@ impl Socks5ClientProcessor {
             Socks5InitCommandType::Bind => todo!(),
             Socks5InitCommandType::UdpAssociate => todo!(),
             Socks5InitCommandType::Connect => {
-                Self::handle_connect_command::<AgentServerRsaCryptoFetcher, String>(
-                    src_address,
-                    dst_address.into(),
-                    proxy_connection_pool,
-                    init_framed,
-                    configuration,
-                )
-                .await?;
+                Self::handle_connect_command(src_address, dst_address.into(), proxy_connection_pool, init_framed, configuration).await?;
             },
         }
 
         Ok(())
     }
 
-    async fn handle_connect_command<R, I>(
+    async fn handle_connect_command(
         src_address: PpaassNetAddress, dst_address: PpaassNetAddress, proxy_connection_pool: Arc<ProxyConnectionPool>,
         mut init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>, configuration: Arc<AgentServerConfig>,
-    ) -> Result<(), anyhow::Error>
-    where
-        R: RsaCryptoFetcher + Send + Sync + 'static,
-        I: AsRef<str> + Send + Sync + Clone + Display + 'static,
-    {
+    ) -> Result<(), anyhow::Error> {
         let user_token = configuration
             .get_user_token()
             .as_ref()

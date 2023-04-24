@@ -28,7 +28,7 @@ use tokio::{
 use tokio_util::codec::{BytesCodec, Framed};
 use tracing::{error, trace};
 
-use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, pool::ProxyConnectionPool};
+use crate::{config::AgentServerConfig, pool::ProxyConnectionPool};
 
 use self::{http::HttpClientProcessor, socks::Socks5ClientProcessor};
 
@@ -67,11 +67,7 @@ pub(crate) enum ClientProcessor {
 }
 
 impl ClientProcessor {
-    pub(crate) async fn exec<R, I>(self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>) -> Result<()>
-    where
-        R: RsaCryptoFetcher + Send + Sync + 'static,
-        I: AsRef<str> + Send + Sync + Clone + Display + 'static,
-    {
+    pub(crate) async fn exec(self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>) -> Result<()> {
         match self {
             ClientProcessor::Http {
                 client_tcp_stream,
@@ -79,10 +75,7 @@ impl ClientProcessor {
                 initial_buf,
             } => {
                 let http_flow = HttpClientProcessor::new(client_tcp_stream, src_address.clone());
-                if let Err(e) = http_flow
-                    .exec::<AgentServerRsaCryptoFetcher, String>(proxy_connection_pool, configuration, initial_buf)
-                    .await
-                {
+                if let Err(e) = http_flow.exec(proxy_connection_pool, configuration, initial_buf).await {
                     error!("Client tcp connection [{src_address}] error happen on http flow for proxy connection: {e:?}");
                     return Err(e);
                 }
@@ -93,10 +86,7 @@ impl ClientProcessor {
                 initial_buf,
             } => {
                 let socks5_flow = Socks5ClientProcessor::new(client_tcp_stream, src_address.clone());
-                if let Err(e) = socks5_flow
-                    .exec::<AgentServerRsaCryptoFetcher, String>(proxy_connection_pool, configuration, initial_buf)
-                    .await
-                {
+                if let Err(e) = socks5_flow.exec(proxy_connection_pool, configuration, initial_buf).await {
                     error!("Client tcp connection [{src_address}] error happen on socks5 flow for proxy connection: {e:?}");
                     return Err(e);
                 };

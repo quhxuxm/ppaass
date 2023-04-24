@@ -1,6 +1,5 @@
 pub(crate) mod codec;
 
-use std::fmt::Display;
 use std::sync::Arc;
 
 use bytecodec::{bytes::BytesEncoder, EncodeExt};
@@ -12,7 +11,7 @@ use ppaass_common::{
     generate_uuid,
     tcp::{TcpInitResponse, TcpInitResponseType},
     PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload, PpaassMessageProxyPayloadParts,
-    PpaassMessageProxyPayloadType, PpaassNetAddress, RsaCryptoFetcher,
+    PpaassMessageProxyPayloadType, PpaassNetAddress,
 };
 use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, FramedParts};
@@ -48,13 +47,9 @@ impl HttpClientProcessor {
         }
     }
 
-    pub(crate) async fn exec<R, I>(
+    pub(crate) async fn exec(
         self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>, initial_buf: BytesMut,
-    ) -> Result<()>
-    where
-        R: RsaCryptoFetcher + Send + Sync + 'static,
-        I: AsRef<str> + Send + Sync + Clone + Display + 'static,
-    {
+    ) -> Result<()> {
         let client_tcp_stream = self.client_tcp_stream;
         let src_address = self.src_address;
         let mut framed_parts = FramedParts::new(client_tcp_stream, HttpCodec::default());
