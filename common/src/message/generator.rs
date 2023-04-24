@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use anyhow::Result;
 
 use crate::{
@@ -16,7 +14,6 @@ impl PpaassMessageGenerator {
         user_token: impl AsRef<str>, src_address: PpaassNetAddress, dst_address: PpaassNetAddress, payload_encryption: PpaassMessagePayloadEncryption,
     ) -> Result<PpaassMessage> {
         let tcp_init_request = TcpInitRequest { src_address, dst_address };
-        let tcp_init_request
         let message_payload = PpaassMessageAgentPayload::new(PpaassMessageAgentPayloadType::TcpInit, tcp_init_request.try_into()?);
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
         Ok(message)

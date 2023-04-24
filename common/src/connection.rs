@@ -17,34 +17,34 @@ use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::Framed;
 
-type PpaassMessageFramedRead<T, R> = SplitStream<Framed<T, PpaassMessageCodec<R>>>;
-type PpaassMessageFramedWrite<T, R> = SplitSink<Framed<T, PpaassMessageCodec<R>>, PpaassMessage>;
+type PpaassMessageFramedRead<'a, 'b, T, R> = SplitStream<Framed<T, PpaassMessageCodec<'a, 'b, R>>>;
+type PpaassMessageFramedWrite<'a, 'b, T, R> = SplitSink<Framed<T, PpaassMessageCodec<'a, 'b, R>>, PpaassMessage<'a, 'b>>;
 
-pub struct PpaassConnectionParts<T, R, I>
+pub struct PpaassConnectionParts<'a, 'b, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    pub read: PpaassConnectionRead<T, R, I>,
-    pub write: PpaassConnectionWrite<T, R, I>,
+    pub read: PpaassConnectionRead<'a, 'b, T, R, I>,
+    pub write: PpaassConnectionWrite<'a, 'b, T, R, I>,
     pub id: I,
 }
 
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct PpaassConnection<T, R, I>
+pub struct PpaassConnection<'a, 'b, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    framed_read: PpaassMessageFramedRead<T, R>,
-    framed_write: PpaassMessageFramedWrite<T, R>,
+    framed_read: PpaassMessageFramedRead<'a, 'b, T, R>,
+    framed_write: PpaassMessageFramedWrite<'a, 'b, T, R>,
     id: I,
 }
 
-impl<T, R, I> PpaassConnection<T, R, I>
+impl<'a, 'b, T, R, I> PpaassConnection<'a, 'b, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -57,7 +57,7 @@ where
         Self { framed_write, framed_read, id }
     }
 
-    pub fn split(self) -> PpaassConnectionParts<T, R, I> {
+    pub fn split<'c, 'd>(self) -> PpaassConnectionParts<'c, 'd, T, R, I> {
         let read = PpaassConnectionRead::new(self.id.clone(), self.framed_read);
         let write = PpaassConnectionWrite::new(self.id.clone(), self.framed_write);
         let id = self.id;
@@ -67,7 +67,7 @@ where
 
 #[pin_project]
 #[derive(Debug)]
-pub struct PpaassConnectionWrite<T, R, I>
+pub struct PpaassConnectionWrite<'a, 'b, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -75,21 +75,21 @@ where
 {
     connection_id: I,
     #[pin]
-    framed_write: PpaassMessageFramedWrite<T, R>,
+    framed_write: PpaassMessageFramedWrite<'a, 'b, T, R>,
 }
 
-impl<T, R, I> PpaassConnectionWrite<T, R, I>
+impl<'a, 'b, T, R, I> PpaassConnectionWrite<'a, 'b, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    fn new(connection_id: I, framed_write: PpaassMessageFramedWrite<T, R>) -> Self {
+    fn new<'c, 'd>(connection_id: I, framed_write: PpaassMessageFramedWrite<'c, 'd, T, R>) -> Self {
         Self { connection_id, framed_write }
     }
 }
 
-impl<T, R, I> Sink<PpaassMessage> for PpaassConnectionWrite<T, R, I>
+impl<'a, 'b, T, R, I> Sink<PpaassMessage<'a, 'b>> for PpaassConnectionWrite<'a, 'b, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -120,7 +120,7 @@ where
 
 #[pin_project]
 #[derive(Debug)]
-pub struct PpaassConnectionRead<T, R, I>
+pub struct PpaassConnectionRead<'a, 'b, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -128,10 +128,10 @@ where
 {
     connection_id: I,
     #[pin]
-    framed_read: PpaassMessageFramedRead<T, R>,
+    framed_read: PpaassMessageFramedRead<'a, 'b, T, R>,
 }
 
-impl<T, R, I> PpaassConnectionRead<T, R, I>
+impl<'a, 'b, T, R, I> PpaassConnectionRead<'a, 'b, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -142,13 +142,13 @@ where
     }
 }
 
-impl<T, R, I> Stream for PpaassConnectionRead<T, R, I>
+impl<'a, 'b, T, R, I> Stream for PpaassConnectionRead<'a, 'b, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    type Item = Result<PpaassMessage>;
+    type Item = Result<PpaassMessage<'a, 'b>>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();

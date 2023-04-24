@@ -1,6 +1,8 @@
 use std::{
+    borrow::Cow,
     fmt::{Debug, Formatter},
     io::{Read, Write},
+    marker::PhantomData,
     mem::size_of,
     sync::Arc,
 };
@@ -23,13 +25,15 @@ enum DecodeStatus {
     Data(bool, u64),
 }
 
-pub(crate) struct PpaassMessageCodec<T: RsaCryptoFetcher> {
+pub(crate) struct PpaassMessageCodec<'a, 'b, T: RsaCryptoFetcher> {
     rsa_crypto_fetcher: Arc<T>,
     compress: bool,
     status: DecodeStatus,
+    _mark1: &'a PhantomData<T>,
+    _mark2: &'b PhantomData<T>,
 }
 
-impl<T> Debug for PpaassMessageCodec<T>
+impl<'a, 'b, T> Debug for PpaassMessageCodec<'a, 'b, T>
 where
     T: RsaCryptoFetcher,
 {
@@ -38,7 +42,7 @@ where
     }
 }
 
-impl<T> PpaassMessageCodec<T>
+impl<'a, 'b, T> PpaassMessageCodec<'a, 'b, T>
 where
     T: RsaCryptoFetcher,
 {
@@ -47,16 +51,18 @@ where
             rsa_crypto_fetcher,
             compress,
             status: DecodeStatus::Head,
+            _mark1: &PhantomData,
+            _mark2: &PhantomData,
         }
     }
 }
 
 /// Decode the input bytes buffer to ppaass message
-impl<T> Decoder for PpaassMessageCodec<T>
+impl<'a, 'b, T> Decoder for PpaassMessageCodec<'a, 'b, T>
 where
     T: RsaCryptoFetcher,
 {
-    type Item = PpaassMessage;
+    type Item = PpaassMessage<'a, 'b>;
     type Error = anyhow::Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
@@ -109,9 +115,9 @@ where
                 "Decompressed bytes will convert to PpaassMessage:\n{}\n",
                 pretty_hex::pretty_hex(&decompressed_bytes)
             );
-            let decompressed_bytes = decompressed_bytes.to_vec();
+            let decompressed_bytes = Cow::<'_, [u8]>::Owned(decompressed_bytes);
             match decompressed_bytes.try_into() {
-                Ok(v) => v,
+                Ok(message) => message,
                 Err(e) => {
                     error!("Fail to convert decompressed bytes to PpaassMessage because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
@@ -119,8 +125,9 @@ where
             }
         } else {
             trace!("Raw bytes will convert to PpaassMessage:\n{}\n", pretty_hex::pretty_hex(&body_bytes));
-            match body_bytes.to_vec().try_into() {
-                Ok(v) => v,
+            let body_bytes = Cow::<'_, [u8]>::Owned(body_bytes.to_vec());
+            match body_bytes.try_into() {
+                Ok(message) => message,
                 Err(e) => {
                     error!("Fail to convert bytes to PpaassMessage because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
@@ -167,7 +174,7 @@ where
 }
 
 /// Encode the ppaass message to bytes buffer
-impl<T> Encoder<PpaassMessage> for PpaassMessageCodec<T>
+impl<'a, 'b, T> Encoder<PpaassMessage<'a, 'b>> for PpaassMessageCodec<'a, 'b, T>
 where
     T: RsaCryptoFetcher,
 {
@@ -218,7 +225,7 @@ where
             payload: encrypted_payload_bytes,
         };
         let message_to_encode: PpaassMessage = message_parts_to_encode.into();
-        let result_bytes: Vec<u8> = message_to_encode.try_into().context("Fail to encode message object to bytes")?;
+        let result_bytes: Cow<'_, [u8]> = message_to_encode.try_into().context("Fail to encode message object to bytes")?;
         let result_bytes = if self.compress {
             let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::fast());
             if let Err(e) = gzip_encoder.write_all(&result_bytes) {
@@ -226,7 +233,7 @@ where
                 return Err(anyhow::anyhow!(e));
             }
             match gzip_encoder.finish() {
-                Ok(v) => v,
+                Ok(v) => v.into(),
                 Err(e) => {
                     error!("Fail to do gzip compress because of error: {e:?}");
                     return Err(anyhow::anyhow!(e));
