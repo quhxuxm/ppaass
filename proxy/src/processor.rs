@@ -110,11 +110,11 @@ where
                 Ok(())
             },
             PpaassMessageAgentPayloadType::UdpData => {
-                info!("Agent connection [{ppaass_connection_id}] receive udp loop init from agent.");
+                info!("Agent connection [{ppaass_connection_id}] receive udp data from agent.");
                 let udp_data: UdpData = match agent_message_payload_raw_data.try_into() {
                     Ok(udp_data) => udp_data,
                     Err(e) => {
-                        error!("Agent connection [{ppaass_connection_id}] fail to read tcp loop init request because of error: {e:?}");
+                        error!("Agent connection [{ppaass_connection_id}] fail to read udp data from agent because of error: {e:?}");
                         return Err(e);
                     },
                 };
@@ -127,7 +127,7 @@ where
                 let udp_handler = match udp_handler_builder.build(configuration.clone()).await {
                     Ok(udp_handler) => udp_handler,
                     Err(e) => {
-                        error!("Agent connection [{ppaass_connection_id}] fail to build udp loop because of error: {e:?}");
+                        error!("Agent connection [{ppaass_connection_id}] fail to build udp handler because of error: {e:?}");
                         return Err(e);
                     },
                 };
