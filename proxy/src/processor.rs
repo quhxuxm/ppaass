@@ -7,14 +7,22 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use tracing::{debug, error, info};
 
-use ppaass_common::{tcp::TcpInitRequest, udp::UdpData};
+use ppaass_common::{
+    tcp::TcpInitRequest,
+    udp::{DnsLookupRequest, UdpData},
+};
 use ppaass_common::{
     PpaassConnection, PpaassMessageAgentPayload, PpaassMessageAgentPayloadParts, PpaassMessageAgentPayloadType, PpaassNetAddress, RsaCryptoFetcher,
 };
 use ppaass_common::{PpaassConnectionParts, PpaassMessageParts};
 
-use crate::{config::ProxyServerConfig, processor::tcp::TcpHandlerBuilder, processor::udp::UdpHandlerBuilder};
+use crate::{
+    config::ProxyServerConfig,
+    processor::udp::UdpHandlerBuilder,
+    processor::{dns::DnsLookupHandlerBuilder, tcp::TcpHandlerBuilder},
+};
 
+mod dns;
 mod tcp;
 mod udp;
 
@@ -132,6 +140,31 @@ where
                     },
                 };
                 udp_handler.exec(udp_data).await?;
+                Ok(())
+            },
+            PpaassMessageAgentPayloadType::DnsLookupRequest => {
+                info!("Agent connection [{ppaass_connection_id}] receive dns lookup request from agent.");
+                let dns_lookup_request: DnsLookupRequest = match agent_message_payload_raw_data.try_into() {
+                    Ok(dns_lookup_request) => dns_lookup_request,
+                    Err(e) => {
+                        error!("Agent connection [{ppaass_connection_id}] fail to read dns lookup request from agent because of error: {e:?}");
+                        return Err(e);
+                    },
+                };
+                let dns_lookup_handler_builder = DnsLookupHandlerBuilder::new()
+                    .agent_address(agent_address)
+                    .ppaass_connection_id(ppaass_connection_id.clone())
+                    .ppaass_connection_write(ppaass_connection_write)
+                    .ppaass_connection_read(ppaass_connection_read)
+                    .user_token(user_token);
+                let dns_lookup_handler = match dns_lookup_handler_builder.build(configuration.clone()).await {
+                    Ok(dns_lookup_handler) => dns_lookup_handler,
+                    Err(e) => {
+                        error!("Agent connection [{ppaass_connection_id}] fail to build dns lookup handler because of error: {e:?}");
+                        return Err(e);
+                    },
+                };
+                dns_lookup_handler.exec(dns_lookup_request).await?;
                 Ok(())
             },
         }
