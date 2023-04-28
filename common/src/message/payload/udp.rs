@@ -62,7 +62,7 @@ impl TryFrom<UdpData> for Vec<u8> {
 ///////////////////////////////
 
 pub struct DnsLookupRequestParts {
-    pub request_id: u32,
+    pub request_id: u16,
     pub domain_name: String,
 }
 
@@ -70,7 +70,7 @@ pub struct DnsLookupRequestParts {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct DnsLookupRequest {
-    request_id: u32,
+    request_id: u16,
     domain_name: String,
 }
 
@@ -113,7 +113,7 @@ impl TryFrom<DnsLookupRequest> for Vec<u8> {
 
 pub struct DnsLookupResponseParts {
     pub addresses: Vec<[u8; 4]>,
-    pub request_id: u32,
+    pub request_id: u16,
     pub domain_name: String,
 }
 
@@ -122,7 +122,7 @@ pub struct DnsLookupResponseParts {
 #[non_exhaustive]
 pub struct DnsLookupResponse {
     addresses: Vec<[u8; 4]>,
-    request_id: u32,
+    request_id: u16,
     domain_name: String,
 }
 

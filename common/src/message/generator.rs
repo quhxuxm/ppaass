@@ -64,7 +64,7 @@ impl PpaassMessageGenerator {
     }
 
     pub fn generate_dns_lookup_request(
-        user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption, request_id: u32, domain_name: &str,
+        user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption, request_id: u16, domain_name: &str,
     ) -> Result<PpaassMessage> {
         let dns_lookup_request_parts = DnsLookupRequestParts {
             request_id,
@@ -77,7 +77,7 @@ impl PpaassMessageGenerator {
     }
 
     pub fn generate_dns_lookup_response(
-        user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption, request_id: u32, domain_name: &str, addresses: Vec<[u8; 4]>,
+        user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption, request_id: u16, domain_name: &str, addresses: Vec<[u8; 4]>,
     ) -> Result<PpaassMessage> {
         let dns_lookup_response_parts = DnsLookupResponseParts {
             request_id,
