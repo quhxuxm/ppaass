@@ -121,7 +121,7 @@ where
             .iter()
             .map_while(|addr| match addr {
                 IpAddr::V4(ip_addr) => Some(ip_addr.octets()),
-                IpAddr::V6(_) => return None,
+                IpAddr::V6(_) => None,
             })
             .collect::<Vec<[u8; 4]>>();
 
