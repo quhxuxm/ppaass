@@ -140,7 +140,7 @@ where
         } = udp_data.split();
 
         let dst_socket_addrs = match dst_address.to_socket_addrs() {
-            Ok(v) => v,
+            Ok(dst_socket_addrs) => dst_socket_addrs,
             Err(e) => {
                 error!("Udp handler {handler_key} fail to convert destination address [{dst_address}] because of error: {e:?}");
                 if let Err(e) = ppaass_connection_write.close().await {
@@ -154,7 +154,24 @@ where
             pretty_hex(&raw_data)
         );
         let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
-        dst_udp_socket.connect(dst_socket_addrs.as_slice()).await?;
+        match timeout(
+            Duration::from_secs(self.configuration.get_dst_udp_connect_timeout()),
+            dst_udp_socket.connect(dst_socket_addrs.as_slice()),
+        )
+        .await
+        {
+            Ok(Ok(())) => {
+                debug!("Udp handler {handler_key} connect to destination udp socket success.")
+            },
+            Ok(Err(e)) => {
+                error!("Udp handler {handler_key} fail to connect destination udp socket because of error: {e:?}");
+                return Err(anyhow!(e));
+            },
+            Err(_) => {
+                error!("Udp handler {handler_key} fail to connect destination udp socket because of timeout.");
+                return Err(anyhow!("Udp handler {handler_key} fail to connect destination udp socket because of timeout."));
+            },
+        };
         if let Err(e) = dst_udp_socket.send(&raw_data).await {
             error!("Udp handler {handler_key} fail to send data to udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
             if let Err(e) = ppaass_connection_write.close().await {
@@ -171,6 +188,10 @@ where
             )
             .await
             {
+                Ok(Ok(0)) => {
+                    debug!("Complete read from destination udp socket.");
+                    break;
+                },
                 Ok(Ok(data_size)) => data_size,
                 Ok(Err(e)) => {
                     error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
@@ -187,11 +208,9 @@ where
                     return Err(anyhow!(e));
                 },
             };
-            if data_size > 0 {
-                let buf = &buf[0..data_size];
-                dst_recv_buf.extend_from_slice(buf);
-            }
-            if data_size < 65535 {
+            let buf = &buf[0..data_size];
+            dst_recv_buf.extend_from_slice(buf);
+            if data_size < 65535{
                 break;
             }
         }

@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use crate::{
     tcp::{TcpData, TcpDataParts, TcpInitRequest, TcpInitResponse, TcpInitResponseType},
-    udp::{UdpData, UdpDataParts},
+    udp::{DnsLookupRequestParts, DnsLookupResponse, DnsLookupResponseParts, UdpData, UdpDataParts},
     PpaassMessage, PpaassMessageAgentPayload, PpaassMessageAgentPayloadType, PpaassMessagePayloadEncryption, PpaassMessageProxyPayload,
     PpaassMessageProxyPayloadType, PpaassNetAddress,
 };
@@ -59,6 +59,20 @@ impl PpaassMessageGenerator {
         };
         let udp_data: UdpData = udp_data_parts.into();
         let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::UdpData, udp_data.try_into()?);
+        let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
+        Ok(message)
+    }
+
+    pub fn generate_dns_lookup_response(
+        user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption, request_id: u32, domain_name: &str, addresses: Vec<[u8; 4]>,
+    ) -> Result<PpaassMessage> {
+        let dns_lookup_response_parts = DnsLookupResponseParts {
+            request_id,
+            domain_name: domain_name.to_owned(),
+            addresses,
+        };
+        let dns_lookup_response: DnsLookupResponse = dns_lookup_response_parts.into();
+        let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::DnsLookupResponse, dns_lookup_response.try_into()?);
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
         Ok(message)
     }
