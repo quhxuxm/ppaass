@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use anyhow::anyhow;
 use serde_derive::{Deserialize, Serialize};
 
@@ -43,21 +41,19 @@ impl From<UdpDataParts> for UdpData {
         }
     }
 }
-impl TryFrom<Cow<'_, [u8]>> for UdpData {
+impl TryFrom<Vec<u8>> for UdpData {
     type Error = anyhow::Error;
 
-    fn try_from(value: Cow<'_, [u8]>) -> Result<Self, Self::Error> {
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
         serde_json::from_slice(&value).map_err(|e| anyhow!("Fail generate UdpData from input bytes because of error: {e:?}"))
     }
 }
 
-impl TryFrom<UdpData> for Cow<'_, [u8]> {
+impl TryFrom<UdpData> for Vec<u8> {
     type Error = anyhow::Error;
 
     fn try_from(value: UdpData) -> Result<Self, Self::Error> {
-        Ok(serde_json::to_vec(&value)
-            .map_err(|e| anyhow!("Fail generate bytes from UdpData because of error: {e:?}"))?
-            .into())
+        serde_json::to_vec(&value).map_err(|e| anyhow!("Fail generate bytes from UdpData because of error: {e:?}"))
     }
 }
 

@@ -14,7 +14,7 @@ pub fn encrypt_with_blowfish(encryption_token: &[u8], target: &[u8]) -> Vec<u8> 
     encryptor.encrypt_padded_vec_mut::<PaddingMode>(target)
 }
 
-pub fn decrypt_with_blowfish<'a, 'b>(encryption_token: &'a [u8], target: &'b [u8]) -> Result<Cow<'b, [u8]>> {
+pub fn decrypt_with_blowfish(encryption_token: &[u8], target: &[u8]) -> Result<Vec<u8>> {
     let decryptor = BlowfishDecryptor::new(encryption_token.into());
     decryptor
         .decrypt_padded_vec_mut::<PaddingMode>(target)

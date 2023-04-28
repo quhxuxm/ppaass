@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use anyhow::anyhow;
 use serde_derive::{Deserialize, Serialize};
 
@@ -27,39 +25,35 @@ pub struct TcpInitResponse {
     pub response_type: TcpInitResponseType,
 }
 
-impl TryFrom<Cow<'_, [u8]>> for TcpInitRequest {
+impl TryFrom<Vec<u8>> for TcpInitRequest {
     type Error = anyhow::Error;
 
-    fn try_from(value: Cow<'_, [u8]>) -> Result<Self, Self::Error> {
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
         serde_json::from_slice(&value).map_err(|e| anyhow!("Fail generate TcpInitRequest from input bytes because of error: {e:}"))
     }
 }
 
-impl TryFrom<TcpInitRequest> for Cow<'_, [u8]> {
+impl TryFrom<TcpInitRequest> for Vec<u8> {
     type Error = anyhow::Error;
 
     fn try_from(value: TcpInitRequest) -> Result<Self, Self::Error> {
-        Ok(serde_json::to_vec(&value)
-            .map_err(|e| anyhow!("Fail generate bytes from TcpInitRequest object because of error: {e:}"))?
-            .into())
+        serde_json::to_vec(&value).map_err(|e| anyhow!("Fail generate bytes from TcpInitRequest object because of error: {e:}"))
     }
 }
 
-impl TryFrom<Cow<'_, [u8]>> for TcpInitResponse {
+impl TryFrom<Vec<u8>> for TcpInitResponse {
     type Error = anyhow::Error;
 
-    fn try_from(value: Cow<'_, [u8]>) -> Result<Self, Self::Error> {
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
         serde_json::from_slice(&value).map_err(|e| anyhow!("Fail generate TcpInitResponse from input bytes because of error: {e:}"))
     }
 }
 
-impl TryFrom<TcpInitResponse> for Cow<'_, [u8]> {
+impl TryFrom<TcpInitResponse> for Vec<u8> {
     type Error = anyhow::Error;
 
     fn try_from(value: TcpInitResponse) -> Result<Self, Self::Error> {
-        Ok(serde_json::to_vec(&value)
-            .map_err(|e| anyhow!("Fail generate bytes from TcpInitResponse object because of error: {e:}"))?
-            .into())
+        serde_json::to_vec(&value).map_err(|e| anyhow!("Fail generate bytes from TcpInitResponse object because of error: {e:}"))
     }
 }
 
@@ -97,20 +91,18 @@ impl From<TcpDataParts> for TcpData {
         }
     }
 }
-impl TryFrom<Cow<'_, [u8]>> for TcpData {
+impl TryFrom<Vec<u8>> for TcpData {
     type Error = anyhow::Error;
 
-    fn try_from(value: Cow<'_, [u8]>) -> Result<Self, Self::Error> {
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
         serde_json::from_slice(&value).map_err(|e| anyhow!("Fail generate TcpData from input bytes because of error: {e:?}"))
     }
 }
 
-impl TryFrom<TcpData> for Cow<'_, [u8]> {
+impl TryFrom<TcpData> for Vec<u8> {
     type Error = anyhow::Error;
 
     fn try_from(value: TcpData) -> Result<Self, Self::Error> {
-        Ok(serde_json::to_vec(&value)
-            .map_err(|e| anyhow!("Fail generate bytes from TcpData because of error: {e:?}"))?
-            .into())
+        serde_json::to_vec(&value).map_err(|e| anyhow!("Fail generate bytes from TcpData because of error: {e:?}"))
     }
 }
