@@ -1,12 +1,12 @@
-use anyhow::{anyhow, Result};
-
+use anyhow::{Context, Result};
+use log::error;
 use rand::rngs::OsRng;
 use rsa::{
     pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding},
     Pkcs1v15Encrypt,
 };
 use rsa::{PublicKey, RsaPrivateKey, RsaPublicKey};
-use std::{borrow::Cow, fmt::Debug, path::Path};
+use std::{fmt::Debug, path::Path};
 use std::{fs, io::Read};
 
 const DEFAULT_AGENT_PRIVATE_KEY_PATH: &str = "AgentPrivateKey.pem";
@@ -41,32 +41,34 @@ impl RsaCrypto {
         let mut public_key_string = String::new();
         public_key_read
             .read_to_string(&mut public_key_string)
-            .map_err(|e| anyhow!("Fail to read public key into string because of error: {e:?}"))?;
-        let public_key =
-            RsaPublicKey::from_public_key_pem(&public_key_string).map_err(|e| anyhow!("Fail to parse public key from string because of error: {e:?}"))?;
+            .context("Fail to read public key into string")?;
+        let public_key = RsaPublicKey::from_public_key_pem(&public_key_string).context("Fail to parse public key from string")?;
         let mut private_key_string = String::new();
         private_key_read
             .read_to_string(&mut private_key_string)
-            .map_err(|e| anyhow!("Fail to read private key into string because of error: {e:?}"))?;
-        let private_key =
-            RsaPrivateKey::from_pkcs8_pem(&private_key_string).map_err(|e| anyhow!("Fail to parse private key from string because of error: {e:?}"))?;
+            .context("Fail to read private key into string")?;
+        let private_key = RsaPrivateKey::from_pkcs8_pem(&private_key_string).context("Fail to parse private key from string")?;
         Ok(Self { public_key, private_key })
     }
 
-    pub fn encrypt<'a>(&self, target: &'a [u8]) -> Result<Cow<'a, [u8]>> {
-        Ok(self
-            .public_key
-            .encrypt(&mut OsRng, Pkcs1v15Encrypt, target.as_ref())
-            .map_err(|e| anyhow!("Fail to do rsa encrypt because of error: {e:?}"))?
-            .into())
+    pub fn encrypt(&self, target: &[u8]) -> Result<Vec<u8>> {
+        match self.public_key.encrypt(&mut OsRng, Pkcs1v15Encrypt, target.as_ref()) {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                error!("Fail to do rsa encrypt because of error: {e:?}");
+                Err(anyhow::anyhow!(e))
+            },
+        }
     }
 
-    pub fn decrypt<'a>(&self, target: &'a [u8]) -> Result<Cow<'a, [u8]>> {
-        Ok(self
-            .private_key
-            .decrypt(Pkcs1v15Encrypt, target.as_ref())
-            .map_err(|e| anyhow!("Fail to do rsa decrypt because of error: {e:?}"))?
-            .into())
+    pub fn decrypt(&self, target: &[u8]) -> Result<Vec<u8>> {
+        match self.private_key.decrypt(Pkcs1v15Encrypt, target.as_ref()) {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                error!("Fail to do rsa decrypt because of error: {e:?}");
+                Err(anyhow::anyhow!(e))
+            },
+        }
     }
 }
 
@@ -94,29 +96,29 @@ fn generate_rsa_key_pairs(private_key_path: &Path, public_key_path: &Path) -> Re
     match private_key_path.parent() {
         None => {
             println!("Write private key: {:?}", private_key_path.to_str());
-            fs::write(private_key_path, private_key_pem.as_bytes()).map_err(|e| anyhow!("Fail to write private key file because of error: {e:?}"))?;
+            fs::write(private_key_path, private_key_pem.as_bytes()).context("Fail to write private key file")?;
         },
         Some(parent) => {
             if !parent.exists() {
                 println!("Create parent directory :{:?}", parent.to_str());
-                fs::create_dir_all(parent).map_err(|e| anyhow!("Fail to create parent directory to write private key file because of error: {e:?}"))?;
+                fs::create_dir_all(parent).context("Fail to create parent directory to write private key file")?;
             }
             println!("Write private key: {:?}", private_key_path.to_str());
-            fs::write(private_key_path, private_key_pem.as_bytes()).map_err(|e| anyhow!("Fail to write private key file because of error: {e:?}"))?;
+            fs::write(private_key_path, private_key_pem.as_bytes()).context("Fail to write private key file")?;
         },
     };
     match public_key_path.parent() {
         None => {
             println!("Write public key: {:?}", public_key_path.to_str());
-            fs::write(public_key_path, public_key_pem.as_bytes()).map_err(|e| anyhow!("Fail to write public key file because of error: {e:?}"))?;
+            fs::write(public_key_path, public_key_pem.as_bytes()).context("Fail to write public key file")?;
         },
         Some(parent) => {
             if !parent.exists() {
                 println!("Create parent directory :{:?}", parent.to_str());
-                fs::create_dir_all(parent).map_err(|e| anyhow!("Fail to create parent directory to write public key file because of error: {e:?}"))?;
+                fs::create_dir_all(parent).context("Fail to create parent directory to write public key file")?;
             }
             println!("Write public key: {:?}", public_key_path.to_str());
-            fs::write(public_key_path, public_key_pem.as_bytes()).map_err(|e| anyhow!("Fail to write public key file because of error: {e:?}"))?;
+            fs::write(public_key_path, public_key_pem.as_bytes()).context("Fail to write public key file")?;
         },
     };
     Ok(())
