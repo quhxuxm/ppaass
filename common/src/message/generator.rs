@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 
 use crate::{
@@ -64,12 +66,9 @@ impl PpaassMessageGenerator {
     }
 
     pub fn generate_dns_lookup_request(
-        user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption, request_id: u16, domain_name: &str,
+        user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption, request_id: u16, domain_names: Vec<String>,
     ) -> Result<PpaassMessage> {
-        let dns_lookup_request_parts = DnsLookupRequestParts {
-            request_id,
-            domain_name: domain_name.to_owned(),
-        };
+        let dns_lookup_request_parts = DnsLookupRequestParts { request_id, domain_names };
         let dns_lookup_request: DnsLookupRequest = dns_lookup_request_parts.into();
         let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::DnsLookupResponse, dns_lookup_request.try_into()?);
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
@@ -77,13 +76,9 @@ impl PpaassMessageGenerator {
     }
 
     pub fn generate_dns_lookup_response(
-        user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption, request_id: u16, domain_name: &str, addresses: Vec<[u8; 4]>,
+        user_token: impl AsRef<str>, payload_encryption: PpaassMessagePayloadEncryption, request_id: u16, addresses: HashMap<String, Option<Vec<[u8; 4]>>>,
     ) -> Result<PpaassMessage> {
-        let dns_lookup_response_parts = DnsLookupResponseParts {
-            request_id,
-            domain_name: domain_name.to_owned(),
-            addresses,
-        };
+        let dns_lookup_response_parts = DnsLookupResponseParts { request_id, addresses };
         let dns_lookup_response: DnsLookupResponse = dns_lookup_response_parts.into();
         let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::DnsLookupResponse, dns_lookup_response.try_into()?);
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);

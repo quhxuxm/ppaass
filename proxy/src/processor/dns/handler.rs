@@ -6,7 +6,7 @@ use ppaass_common::{
     udp::{DnsLookupRequest, DnsLookupRequestParts},
     PpaassConnectionRead, PpaassConnectionWrite, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher,
 };
-use std::{fmt::Debug, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 use std::{fmt::Display, net::IpAddr};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::{error, info};
@@ -113,41 +113,53 @@ where
         let user_token = self.user_token;
         let handler_key = self.handler_key;
 
-        let DnsLookupRequestParts { domain_name, request_id } = dns_lookup_request.split();
+        let DnsLookupRequestParts { domain_names, request_id } = dns_lookup_request.split();
 
-        info!("Dns lookup handler {handler_key} receive agent request for domain [{domain_name}] with request id [{request_id}]");
+        info!("Dns lookup handler {handler_key} receive agent request for domains [{domain_names:?}] with request id [{request_id}]");
 
-        let addresses = dns_lookup::lookup_host(&domain_name)?
+        let addresses = domain_names
             .iter()
-            .map_while(|addr| match addr {
-                IpAddr::V4(ip_addr) => Some(ip_addr.octets()),
-                IpAddr::V6(_) => None,
+            .map(|domain_name| {
+                let addresses_of_current_domain = dns_lookup::lookup_host(domain_name);
+                match addresses_of_current_domain {
+                    Err(e) => (domain_name.to_owned(), None),
+                    Ok(addresses_of_current_domain) => {
+                        let addresses_of_current_domain = addresses_of_current_domain
+                            .iter()
+                            .map_while(|addr| match addr {
+                                IpAddr::V4(ip_addr) => Some(ip_addr.octets()),
+                                IpAddr::V6(_) => None,
+                            })
+                            .collect::<Vec<[u8; 4]>>();
+                        (domain_name.to_owned(), Some(addresses_of_current_domain))
+                    },
+                }
             })
-            .collect::<Vec<[u8; 4]>>();
+            .collect::<HashMap<String, Option<Vec<[u8; 4]>>>>();
 
         let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
 
-        let dns_lookup_request_message =
-            match PpaassMessageGenerator::generate_dns_lookup_response(user_token.clone(), payload_encryption, request_id, &domain_name, addresses) {
+        let dns_lookup_response_message =
+            match PpaassMessageGenerator::generate_dns_lookup_response(user_token.clone(), payload_encryption, request_id, addresses) {
                 Ok(data_message) => data_message,
                 Err(e) => {
-                    error!("Dns lookup handler {handler_key} fail to generate response for domain name [{domain_name}] because of error: {e:?}");
+                    error!("Dns lookup handler {handler_key} fail to generate response for dns lookup [{request_id}] because of error: {e:?}");
                     if let Err(e) = ppaass_connection_write.close().await {
                         error!("Dns lookup handler {handler_key} fail to close tcp connection because of error: {e:?}");
                     }
                     return Err(anyhow!(
-                        "Dns lookup handler {handler_key} fail to generate response for domain name [{domain_name}] because of error: {e:?}"
+                        "Dns lookup handler {handler_key} fail to generate response for dns lookup [{request_id}] because of error: {e:?}"
                     ));
                 },
             };
 
-        if let Err(e) = ppaass_connection_write.send(dns_lookup_request_message).await {
-            error!("Dns lookup handler {handler_key} fail to send response for domain name [{domain_name}] to agent because of error: {e:?}");
+        if let Err(e) = ppaass_connection_write.send(dns_lookup_response_message).await {
+            error!("Dns lookup handler {handler_key} fail to send response for dns lookup [{request_id}] to agent because of error: {e:?}");
             if let Err(e) = ppaass_connection_write.close().await {
                 error!("Dns lookup handler {handler_key} fail to close tcp connection because of error: {e:?}");
             }
             return Err(anyhow!(
-                "Dns lookup handler {handler_key} fail to send response for domain name [{domain_name}] to agent because of error: {e:?}"
+                "Dns lookup handler {handler_key} fail to send response for dns lookup [{request_id}] to agent because of error: {e:?}"
             ));
         };
         if let Err(e) = ppaass_connection_write.close().await {

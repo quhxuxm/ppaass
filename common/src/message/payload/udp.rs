@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::anyhow;
 use serde_derive::{Deserialize, Serialize};
 
@@ -63,7 +65,7 @@ impl TryFrom<UdpData> for Vec<u8> {
 
 pub struct DnsLookupRequestParts {
     pub request_id: u16,
-    pub domain_name: String,
+    pub domain_names: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -71,13 +73,13 @@ pub struct DnsLookupRequestParts {
 #[non_exhaustive]
 pub struct DnsLookupRequest {
     request_id: u16,
-    domain_name: String,
+    domain_names: Vec<String>,
 }
 
 impl DnsLookupRequest {
     pub fn split(self) -> DnsLookupRequestParts {
         DnsLookupRequestParts {
-            domain_name: self.domain_name,
+            domain_names: self.domain_names,
             request_id: self.request_id,
         }
     }
@@ -86,7 +88,7 @@ impl DnsLookupRequest {
 impl From<DnsLookupRequestParts> for DnsLookupRequest {
     fn from(value: DnsLookupRequestParts) -> Self {
         Self {
-            domain_name: value.domain_name,
+            domain_names: value.domain_names,
             request_id: value.request_id,
         }
     }
@@ -112,24 +114,21 @@ impl TryFrom<DnsLookupRequest> for Vec<u8> {
 ///////////////////////////////
 
 pub struct DnsLookupResponseParts {
-    pub addresses: Vec<[u8; 4]>,
+    pub addresses: HashMap<String, Option<Vec<[u8; 4]>>>,
     pub request_id: u16,
-    pub domain_name: String,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct DnsLookupResponse {
-    addresses: Vec<[u8; 4]>,
+    addresses: HashMap<String, Option<Vec<[u8; 4]>>>,
     request_id: u16,
-    domain_name: String,
 }
 
 impl DnsLookupResponse {
     pub fn split(self) -> DnsLookupResponseParts {
         DnsLookupResponseParts {
-            domain_name: self.domain_name,
             request_id: self.request_id,
             addresses: self.addresses,
         }
@@ -139,7 +138,6 @@ impl DnsLookupResponse {
 impl From<DnsLookupResponseParts> for DnsLookupResponse {
     fn from(value: DnsLookupResponseParts) -> Self {
         Self {
-            domain_name: value.domain_name,
             request_id: value.request_id,
             addresses: value.addresses,
         }
