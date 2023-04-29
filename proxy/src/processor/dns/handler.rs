@@ -119,21 +119,25 @@ where
 
         let addresses = domain_names
             .iter()
-            .map(|domain_name| {
-                let addresses_of_current_domain = dns_lookup::lookup_host(domain_name);
-                match addresses_of_current_domain {
-                    Err(e) => (domain_name.to_owned(), None),
-                    Ok(addresses_of_current_domain) => {
-                        let addresses_of_current_domain = addresses_of_current_domain
-                            .iter()
-                            .map_while(|addr| match addr {
-                                IpAddr::V4(ip_addr) => Some(ip_addr.octets()),
-                                IpAddr::V6(_) => None,
-                            })
-                            .collect::<Vec<[u8; 4]>>();
+            .map(|domain_name| match dns_lookup::lookup_host(domain_name) {
+                Err(e) => {
+                    error!("Dns lookup handler fail to lookup domain name: [{domain_name}] because of error: {e:?}");
+                    (domain_name.to_owned(), None)
+                },
+                Ok(addresses_of_current_domain) => {
+                    let addresses_of_current_domain = addresses_of_current_domain
+                        .iter()
+                        .map_while(|addr| match addr {
+                            IpAddr::V4(ip_addr) => Some(ip_addr.octets()),
+                            IpAddr::V6(_) => None,
+                        })
+                        .collect::<Vec<[u8; 4]>>();
+                    if addresses_of_current_domain.is_empty() {
+                        (domain_name.to_owned(), None)
+                    } else {
                         (domain_name.to_owned(), Some(addresses_of_current_domain))
-                    },
-                }
+                    }
+                },
             })
             .collect::<HashMap<String, Option<Vec<[u8; 4]>>>>();
 

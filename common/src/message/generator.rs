@@ -70,7 +70,7 @@ impl PpaassMessageGenerator {
     ) -> Result<PpaassMessage> {
         let dns_lookup_request_parts = DnsLookupRequestParts { request_id, domain_names };
         let dns_lookup_request: DnsLookupRequest = dns_lookup_request_parts.into();
-        let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::DnsLookupResponse, dns_lookup_request.try_into()?);
+        let message_payload = PpaassMessageAgentPayload::new(PpaassMessageAgentPayloadType::DnsLookupRequest, dns_lookup_request.try_into()?);
         let message = PpaassMessage::new(user_token.as_ref(), payload_encryption, message_payload.try_into()?);
         Ok(message)
     }
