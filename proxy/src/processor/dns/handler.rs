@@ -125,10 +125,10 @@ where
                     (domain_name.to_owned(), None)
                 },
                 Ok(addresses_of_current_domain) => {
-                    info!("Dns lookup handler success lookup domain name [{domain_name}] ( before ipv4 filter): {addresses_of_current_domain:?}");
+                    info!("Dns lookup handler success lookup domain name [{domain_name}] (before ipv4 filter): {addresses_of_current_domain:?}");
                     let addresses_of_current_domain = addresses_of_current_domain
                         .iter()
-                        .map_while(|addr| match addr {
+                        .filter_map(|addr| match addr {
                             IpAddr::V4(ip_addr) => Some(ip_addr.octets()),
                             IpAddr::V6(_) => None,
                         })
