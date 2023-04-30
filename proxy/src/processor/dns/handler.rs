@@ -125,6 +125,7 @@ where
                     (domain_name.to_owned(), None)
                 },
                 Ok(addresses_of_current_domain) => {
+                    info!("Dns lookup handler success lookup domain name [{domain_name}] ( before ipv4 filter): {addresses_of_current_domain:?}");
                     let addresses_of_current_domain = addresses_of_current_domain
                         .iter()
                         .map_while(|addr| match addr {
@@ -132,6 +133,7 @@ where
                             IpAddr::V6(_) => None,
                         })
                         .collect::<Vec<[u8; 4]>>();
+                    info!("Dns lookup handler success lookup domain name [{domain_name}] (ipv4 only): {addresses_of_current_domain:?}");
                     if addresses_of_current_domain.is_empty() {
                         (domain_name.to_owned(), None)
                     } else {

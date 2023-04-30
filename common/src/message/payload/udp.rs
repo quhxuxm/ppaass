@@ -68,7 +68,7 @@ pub struct DnsLookupRequestParts {
     pub domain_names: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct DnsLookupRequest {
@@ -118,7 +118,7 @@ pub struct DnsLookupResponseParts {
     pub request_id: u16,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct DnsLookupResponse {
