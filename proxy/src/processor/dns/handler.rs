@@ -1,4 +1,4 @@
-use crate::{common::ProxyServerPayloadEncryptionSelector, config::ProxyServerConfig};
+use crate::common::ProxyServerPayloadEncryptionSelector;
 use anyhow::{anyhow, Context, Result};
 use futures::SinkExt;
 use ppaass_common::{
@@ -6,7 +6,7 @@ use ppaass_common::{
     udp::{DnsLookupRequest, DnsLookupRequestParts},
     PpaassConnectionRead, PpaassConnectionWrite, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher,
 };
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use std::{collections::HashMap, fmt::Debug};
 use std::{fmt::Display, net::IpAddr};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::{error, info};
@@ -67,7 +67,7 @@ where
     fn generate_handler_key(user_token: &str, agent_address: &PpaassNetAddress, ppaass_connection_id: &str) -> String {
         format!("[{ppaass_connection_id}]#[{user_token}]@DNSLOOKUP::[{agent_address}]")
     }
-    pub(crate) async fn build(self, configuration: Arc<ProxyServerConfig>) -> Result<DnsLookupHandler<T, R, I>> {
+    pub(crate) async fn build(self) -> Result<DnsLookupHandler<T, R, I>> {
         let ppaass_connection_id = self
             .ppaass_connection_id
             .context("Agent connection id not assigned for dns lookup handler builder")?;
@@ -82,7 +82,6 @@ where
             handler_key,
             ppaass_connection_write,
             user_token,
-            configuration,
         })
     }
 }
@@ -98,7 +97,6 @@ where
     ppaass_connection_write: PpaassConnectionWrite<T, R, I>,
     handler_key: String,
     user_token: String,
-    configuration: Arc<ProxyServerConfig>,
 }
 
 impl<T, R, I> DnsLookupHandler<T, R, I>

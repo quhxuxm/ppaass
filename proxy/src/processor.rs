@@ -157,7 +157,7 @@ where
                     .ppaass_connection_write(ppaass_connection_write)
                     .ppaass_connection_read(ppaass_connection_read)
                     .user_token(user_token);
-                let dns_lookup_handler = match dns_lookup_handler_builder.build(configuration.clone()).await {
+                let dns_lookup_handler = match dns_lookup_handler_builder.build().await {
                     Ok(dns_lookup_handler) => dns_lookup_handler,
                     Err(e) => {
                         error!("Agent connection [{ppaass_connection_id}] fail to build dns lookup handler because of error: {e:?}");
