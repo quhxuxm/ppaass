@@ -8,15 +8,15 @@ use manager::ProxyServerManager;
 use anyhow::{Context, Result};
 use tracing::{metadata::LevelFilter, subscriber};
 use tracing_subscriber::{fmt::Layer, prelude::__tracing_subscriber_SubscriberExt, Registry};
+
 mod arguments;
 mod common;
 mod config;
 mod constant;
 mod crypto;
-
-mod processor;
-
+mod error;
 mod manager;
+mod processor;
 mod server;
 
 #[tokio::main]

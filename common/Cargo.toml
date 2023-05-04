@@ -28,3 +28,4 @@ tokio-util = {workspace = true, features = ["codec"]}
 uuid = {workspace = true}
 pin-project = {workspace = true}
 log = {workspace = true}
+thiserror = {workspace = true}

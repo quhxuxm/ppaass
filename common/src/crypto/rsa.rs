@@ -5,7 +5,7 @@ use rsa::{
     pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding},
     Pkcs1v15Encrypt,
 };
-use rsa::{PublicKey, RsaPrivateKey, RsaPublicKey};
+use rsa::{RsaPrivateKey, RsaPublicKey};
 use std::{fmt::Debug, path::Path};
 use std::{fs, io::Read};
 

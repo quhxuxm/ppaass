@@ -24,3 +24,4 @@ tokio-util = {workspace = true, features = ["codec"]}
 toml = {workspace = true}
 tracing = {workspace = true}
 url = {workspace = true}
+thiserror = {workspace = true}
