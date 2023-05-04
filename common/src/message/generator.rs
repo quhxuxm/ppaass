@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use anyhow::Result;
 
 use crate::{
+    dns::{DnsLookupRequest, DnsLookupRequestParts, DnsLookupResponse, DnsLookupResponseParts},
     tcp::{TcpData, TcpDataParts, TcpInitRequest, TcpInitResponse, TcpInitResponseType},
-    udp::{DnsLookupRequest, DnsLookupRequestParts, DnsLookupResponse, DnsLookupResponseParts, UdpData, UdpDataParts},
+    udp::{UdpData, UdpDataParts},
     PpaassMessage, PpaassMessageAgentPayload, PpaassMessageAgentPayloadType, PpaassMessagePayloadEncryption, PpaassMessageProxyPayload,
     PpaassMessageProxyPayloadType, PpaassNetAddress,
 };

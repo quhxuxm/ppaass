@@ -2,9 +2,9 @@ use crate::common::ProxyServerPayloadEncryptionSelector;
 use anyhow::{anyhow, Context, Result};
 use futures::SinkExt;
 use ppaass_common::{
-    generate_uuid,
-    udp::{DnsLookupRequest, DnsLookupRequestParts},
-    PpaassConnectionRead, PpaassConnectionWrite, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher,
+    dns::{DnsLookupRequest, DnsLookupRequestParts},
+    generate_uuid, PpaassConnectionRead, PpaassConnectionWrite, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress,
+    RsaCryptoFetcher,
 };
 use std::{collections::HashMap, fmt::Debug};
 use std::{fmt::Display, net::IpAddr};

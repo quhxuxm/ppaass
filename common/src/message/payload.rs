@@ -3,6 +3,7 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::{serializer::vec_u8_to_base64, PpaassMessageAgentPayloadType, PpaassMessageProxyPayloadType};
 
+pub mod dns;
 pub mod tcp;
 pub mod udp;
 

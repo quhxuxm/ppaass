@@ -7,10 +7,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use tracing::{debug, error, info};
 
-use ppaass_common::{
-    tcp::TcpInitRequest,
-    udp::{DnsLookupRequest, UdpData},
-};
+use ppaass_common::{dns::DnsLookupRequest, tcp::TcpInitRequest, udp::UdpData};
 use ppaass_common::{
     PpaassConnection, PpaassMessageAgentPayload, PpaassMessageAgentPayloadParts, PpaassMessageAgentPayloadType, PpaassNetAddress, RsaCryptoFetcher,
 };
