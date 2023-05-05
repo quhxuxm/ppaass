@@ -16,9 +16,12 @@ use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::{BytesCodec, Framed};
 
+use crate::error::ProxyError;
+
 type DstBytesFramedRead<T> = SplitStream<Framed<T, BytesCodec>>;
 type DstBytesFramedWrite<T> = SplitSink<Framed<T, BytesCodec>, BytesMut>;
 
+/// The parts of the destination connection
 pub(crate) struct DstConnectionParts<T, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
@@ -28,6 +31,8 @@ where
     pub write: DstConnectionWrite<T, I>,
     pub id: I,
 }
+
+/// The destination connection framed with BytesCodec
 pub(crate) struct DstConnection<T, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
@@ -83,26 +88,26 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    type Error = anyhow::Error;
+    type Error = ProxyError;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        this.framed_write.poll_ready(cx).map_err(|e| anyhow!(e))
+        this.framed_write.poll_ready(cx).map_err(|e| e.into())
     }
 
     fn start_send(self: Pin<&mut Self>, item: BytesMut) -> Result<(), Self::Error> {
         let this = self.project();
-        this.framed_write.start_send(item).map_err(|e| anyhow!(e))
+        this.framed_write.start_send(item).map_err(|e| e.into())
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        this.framed_write.poll_flush(cx).map_err(|e| anyhow!(e))
+        this.framed_write.poll_flush(cx).map_err(|e| e.into())
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        this.framed_write.poll_close(cx).map_err(|e| anyhow!(e))
+        this.framed_write.poll_close(cx).map_err(|e| e.into())
     }
 }
 
@@ -132,10 +137,10 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    type Item = Result<BytesMut, anyhow::Error>;
+    type Item = Result<BytesMut, ProxyError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        this.framed_read.poll_next(cx).map_err(|e| anyhow!(e))
+        this.framed_read.poll_next(cx).map_err(|e| e.into())
     }
 }

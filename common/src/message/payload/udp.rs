@@ -1,5 +1,4 @@
-use crate::PpaassNetAddress;
-use anyhow::anyhow;
+use crate::{CommonError, DeserializeError, PpaassNetAddress, SerializeError};
 use serde_derive::{Deserialize, Serialize};
 
 ////////////////////////////////
@@ -41,17 +40,17 @@ impl From<UdpDataParts> for UdpData {
     }
 }
 impl TryFrom<Vec<u8>> for UdpData {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        serde_json::from_slice(&value).map_err(|e| anyhow!("Fail generate UdpData from input bytes because of error: {e:?}"))
+        serde_json::from_slice(&value).map_err(|e| CommonError::Decoder(DeserializeError::UdpData(e).into()))
     }
 }
 
 impl TryFrom<UdpData> for Vec<u8> {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: UdpData) -> Result<Self, Self::Error> {
-        serde_json::to_vec(&value).map_err(|e| anyhow!("Fail generate bytes from UdpData because of error: {e:?}"))
+        serde_json::to_vec(&value).map_err(|e| CommonError::Encoder(SerializeError::UdpData(e).into()))
     }
 }

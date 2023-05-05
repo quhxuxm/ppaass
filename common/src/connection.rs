@@ -5,9 +5,8 @@ use std::{
     task::{Context, Poll},
 };
 
-use crate::{codec::PpaassMessageCodec, PpaassMessage, RsaCryptoFetcher};
+use crate::{codec::PpaassMessageCodec, CommonError, PpaassMessage, RsaCryptoFetcher};
 
-use anyhow::Result;
 use futures::{
     stream::{SplitSink, SplitStream},
     Sink, Stream, StreamExt,
@@ -95,7 +94,7 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
@@ -148,7 +147,7 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    type Item = Result<PpaassMessage>;
+    type Item = Result<PpaassMessage, CommonError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();

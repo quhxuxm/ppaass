@@ -1,7 +1,6 @@
-use anyhow::anyhow;
 use serde_derive::{Deserialize, Serialize};
 
-use crate::PpaassNetAddress;
+use crate::{CommonError, DeserializeError, PpaassNetAddress, SerializeError};
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -26,34 +25,34 @@ pub struct TcpInitResponse {
 }
 
 impl TryFrom<Vec<u8>> for TcpInitRequest {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        serde_json::from_slice(&value).map_err(|e| anyhow!("Fail generate TcpInitRequest from input bytes because of error: {e:}"))
+        serde_json::from_slice(&value).map_err(|e| CommonError::Decoder(DeserializeError::TcpInitRequest(e).into()))
     }
 }
 
 impl TryFrom<TcpInitRequest> for Vec<u8> {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: TcpInitRequest) -> Result<Self, Self::Error> {
-        serde_json::to_vec(&value).map_err(|e| anyhow!("Fail generate bytes from TcpInitRequest object because of error: {e:}"))
+        serde_json::to_vec(&value).map_err(|e| CommonError::Encoder(SerializeError::TcpInitRequest(e).into()))
     }
 }
 
 impl TryFrom<Vec<u8>> for TcpInitResponse {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        serde_json::from_slice(&value).map_err(|e| anyhow!("Fail generate TcpInitResponse from input bytes because of error: {e:}"))
+        serde_json::from_slice(&value).map_err(|e| CommonError::Decoder(DeserializeError::TcpInitResponse(e).into()))
     }
 }
 
 impl TryFrom<TcpInitResponse> for Vec<u8> {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: TcpInitResponse) -> Result<Self, Self::Error> {
-        serde_json::to_vec(&value).map_err(|e| anyhow!("Fail generate bytes from TcpInitResponse object because of error: {e:}"))
+        serde_json::to_vec(&value).map_err(|e| CommonError::Encoder(SerializeError::TcpInitResponse(e).into()))
     }
 }
 
@@ -92,17 +91,17 @@ impl From<TcpDataParts> for TcpData {
     }
 }
 impl TryFrom<Vec<u8>> for TcpData {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        serde_json::from_slice(&value).map_err(|e| anyhow!("Fail generate TcpData from input bytes because of error: {e:?}"))
+        serde_json::from_slice(&value).map_err(|e| CommonError::Decoder(DeserializeError::TcpData(e).into()))
     }
 }
 
 impl TryFrom<TcpData> for Vec<u8> {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: TcpData) -> Result<Self, Self::Error> {
-        serde_json::to_vec(&value).map_err(|e| anyhow!("Fail generate bytes from TcpData because of error: {e:?}"))
+        serde_json::to_vec(&value).map_err(|e| CommonError::Encoder(SerializeError::TcpData(e).into()))
     }
 }

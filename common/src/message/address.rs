@@ -1,8 +1,8 @@
-use crate::serializer::array_u8_l16_to_base64;
 use crate::serializer::array_u8_l4_to_base64;
+use crate::{serializer::array_u8_l16_to_base64, CommonError};
 
 use bytes::Buf;
-use log::error;
+
 use serde_derive::{Deserialize, Serialize};
 
 use std::fmt::{Display, Formatter};
@@ -62,7 +62,7 @@ impl ToSocketAddrs for PpaassNetAddress {
 }
 
 impl TryFrom<&PpaassNetAddress> for Vec<SocketAddr> {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: &PpaassNetAddress) -> Result<Self, Self::Error> {
         match value {
@@ -91,13 +91,7 @@ impl TryFrom<&PpaassNetAddress> for Vec<SocketAddr> {
             },
             PpaassNetAddress::Domain { host, port } => {
                 let address_string = format!("{host}:{port}");
-                let addresses = match address_string.to_socket_addrs() {
-                    Ok(v) => v,
-                    Err(e) => {
-                        error!("Fail to parse domain name \"{host}:{port}\" because of error: {e:?}");
-                        return Err(anyhow::anyhow!(e));
-                    },
-                };
+                let addresses = address_string.to_socket_addrs()?;
                 let addresses = addresses.collect::<Vec<_>>();
                 Ok(addresses)
             },
@@ -106,7 +100,7 @@ impl TryFrom<&PpaassNetAddress> for Vec<SocketAddr> {
 }
 
 impl TryFrom<PpaassNetAddress> for Vec<SocketAddr> {
-    type Error = anyhow::Error;
+    type Error = CommonError;
     fn try_from(value: PpaassNetAddress) -> Result<Self, Self::Error> {
         (&value).try_into()
     }

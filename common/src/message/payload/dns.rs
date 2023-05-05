@@ -1,6 +1,7 @@
-use anyhow::anyhow;
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use crate::{CommonError, DeserializeError, SerializeError};
 
 ////////////////////////////////
 /// Dns lookup request
@@ -36,18 +37,18 @@ impl From<DnsLookupRequestParts> for DnsLookupRequest {
     }
 }
 impl TryFrom<Vec<u8>> for DnsLookupRequest {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        serde_json::from_slice(&value).map_err(|e| anyhow!("Fail generate UdpData from input bytes because of error: {e:?}"))
+        serde_json::from_slice(&value).map_err(|e| CommonError::Decoder(DeserializeError::DnsLookupRequest(e).into()))
     }
 }
 
 impl TryFrom<DnsLookupRequest> for Vec<u8> {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: DnsLookupRequest) -> Result<Self, Self::Error> {
-        serde_json::to_vec(&value).map_err(|e| anyhow!("Fail generate bytes from UdpData because of error: {e:?}"))
+        serde_json::to_vec(&value).map_err(|e| CommonError::Encoder(SerializeError::DnsLookupRequest(e).into()))
     }
 }
 
@@ -86,17 +87,17 @@ impl From<DnsLookupResponseParts> for DnsLookupResponse {
     }
 }
 impl TryFrom<Vec<u8>> for DnsLookupResponse {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        serde_json::from_slice(&value).map_err(|e| anyhow!("Fail generate UdpData from input bytes because of error: {e:?}"))
+        serde_json::from_slice(&value).map_err(|e| CommonError::Decoder(DeserializeError::DnsLookupResponse(e).into()))
     }
 }
 
 impl TryFrom<DnsLookupResponse> for Vec<u8> {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: DnsLookupResponse) -> Result<Self, Self::Error> {
-        serde_json::to_vec(&value).map_err(|e| anyhow!("Fail generate bytes from UdpData because of error: {e:?}"))
+        serde_json::to_vec(&value).map_err(|e| CommonError::Encoder(SerializeError::DnsLookupResponse(e).into()))
     }
 }
