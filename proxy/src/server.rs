@@ -23,9 +23,9 @@ impl ProxyServer {
     }
 
     async fn accept_agent_connection(tcp_listener: &TcpListener) -> Result<(TcpStream, SocketAddr), ProxyError> {
-        let (agent_tcp_stream, agent_socket_address) = tcp_listener.accept().await.map_err(NetworkError::AgentAcceptFail)?;
-        agent_tcp_stream.set_linger(None).map_err(NetworkError::AgentAcceptFail)?;
-        agent_tcp_stream.set_nodelay(true).map_err(NetworkError::AgentAcceptFail)?;
+        let (agent_tcp_stream, agent_socket_address) = tcp_listener.accept().await.map_err(NetworkError::AgentAccept)?;
+        agent_tcp_stream.set_linger(None).map_err(NetworkError::AgentAccept)?;
+        agent_tcp_stream.set_nodelay(true).map_err(NetworkError::AgentAccept)?;
         Ok((agent_tcp_stream, agent_socket_address))
     }
 
@@ -39,7 +39,7 @@ impl ProxyServer {
         };
         let rsa_crypto_fetcher = Arc::new(ProxyServerRsaCryptoFetcher::new(self.configuration.clone()).map_err(|e| CommonError::Crypto(CryptoError::Rsa(e)))?);
         info!("Proxy server start to serve request on address: {server_bind_addr}.");
-        let tcp_listener = TcpListener::bind(&server_bind_addr).await.map_err(NetworkError::PortBindingFail)?;
+        let tcp_listener = TcpListener::bind(&server_bind_addr).await.map_err(NetworkError::PortBinding)?;
         loop {
             let (agent_tcp_stream, agent_socket_address) = match Self::accept_agent_connection(&tcp_listener).await {
                 Ok(accept_result) => accept_result,

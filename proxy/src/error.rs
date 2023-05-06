@@ -1,5 +1,5 @@
 use anyhow::Error as AnyhowError;
-use ppaass_common::CommonError;
+use ppaass_common::{CommonError, DecoderError};
 use std::io::Error as StdIoError;
 use thiserror::Error;
 #[derive(Debug, Error)]
@@ -19,29 +19,29 @@ pub(crate) enum ProxyError {
 #[derive(Debug, Error)]
 pub(crate) enum NetworkError {
     #[error("Connect destination fail because of error: {0:?}")]
-    DestinationConnectFail(#[source] StdIoError),
+    DestinationConnect(#[source] StdIoError),
     #[error("Read data from destination fail because of error: {0:?}")]
-    DestinationReadFail(#[source] StdIoError),
+    DestinationRead(#[source] StdIoError),
     #[error("Write data to destination fail because of error: {0:?}")]
-    DestinationWriteFail(#[source] StdIoError),
+    DestinationWrite(#[source] StdIoError),
     #[error("Accept agent fail because of error: {0:?}")]
-    AgentAcceptFail(#[source] StdIoError),
+    AgentAccept(#[source] StdIoError),
     #[error("Read data from agent fail because of error: {0:?}")]
-    AgentReadFail(#[source] StdIoError),
+    AgentRead(#[source] CommonError),
     #[error("Write data to agent fail because of error: {0:?}")]
-    AgentWriteFail(#[source] StdIoError),
+    AgentWrite(#[source] CommonError),
     #[error("Bind port fail because of error: {0:?}")]
-    PortBindingFail(#[source] StdIoError),
+    PortBinding(#[source] StdIoError),
 }
 
 #[derive(Debug, Error)]
 pub(crate) enum ConnectionStateError {
     #[error("Connection should receive tcp init")]
-    NotTcpInit,
+    TcpInit(#[source] DecoderError),
     #[error("Connection should receive tcp data")]
-    NotTcpData,
+    TcpData(#[source] DecoderError),
     #[error("Connection should receive udp data")]
-    NotUdpData,
+    UdpData(#[source] DecoderError),
     #[error("Connection should receive dns lookup request")]
-    NotDnsLookupRequest,
+    DnsLookupRequest(#[source] DecoderError),
 }

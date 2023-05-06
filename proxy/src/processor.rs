@@ -5,9 +5,9 @@ use futures::StreamExt;
 
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
-use ppaass_common::{dns::DnsLookupRequest, tcp::TcpInitRequest, udp::UdpData, CommonError};
+use ppaass_common::{dns::DnsLookupRequest, tcp::TcpInitRequest, udp::UdpData};
 use ppaass_common::{
     PpaassConnection, PpaassMessageAgentPayload, PpaassMessageAgentPayloadParts, PpaassMessageAgentPayloadType, PpaassNetAddress, RsaCryptoFetcher,
 };
@@ -19,7 +19,7 @@ use crate::{
     processor::{dns::DnsLookupHandler, udp::UdpHandler},
 };
 
-use self::tcp::TcpHandler;
+use self::tcp::{TcpHandler, TcpHandlerKey};
 
 mod dns;
 mod tcp;
@@ -87,35 +87,20 @@ where
                 let tcp_init_request: TcpInitRequest = agent_message_payload.try_into()?;
                 let src_address = tcp_init_request.src_address;
                 let dst_address = tcp_init_request.dst_address;
-                let tcp_handler = TcpHandler::new(
+                let tcp_handler_key = TcpHandlerKey {
                     connection_id,
                     user_token,
-                    agent_connection_read,
-                    agent_connection_write,
                     agent_address,
                     src_address,
                     dst_address,
-                    configuration,
-                );
+                };
+                let tcp_handler = TcpHandler::new(tcp_handler_key, agent_connection_read, agent_connection_write, configuration);
                 tcp_handler.exec().await?;
                 Ok(())
             },
             PpaassMessageAgentPayloadType::UdpData => {
                 info!("Agent connection {connection_id} receive udp data from agent.");
                 let udp_data: UdpData = agent_message_payload.try_into()?;
-                // let udp_handler_builder = UdpHandlerBuilder::new()
-                //     .agent_address(agent_address)
-                //     .ppaass_connection_id(connection_id.clone())
-                //     .ppaass_connection_write(agent_connection_write)
-                //     .ppaass_connection_read(agent_connection_read)
-                //     .user_token(user_token);
-                // let udp_handler = match udp_handler_builder.build(configuration.clone()).await {
-                //     Ok(udp_handler) => udp_handler,
-                //     Err(e) => {
-                //         error!("Agent connection {connection_id} fail to build udp handler because of error: {e:?}");
-                //         return Err(e);
-                //     },
-                // };
                 let udp_handler = UdpHandler::new(connection_id, user_token, agent_address, agent_connection_write, configuration);
                 udp_handler.exec(udp_data).await?;
                 Ok(())
