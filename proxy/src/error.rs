@@ -32,16 +32,12 @@ pub(crate) enum NetworkError {
     AgentWrite(#[source] CommonError),
     #[error("Bind port fail because of error: {0:?}")]
     PortBinding(#[source] StdIoError),
+    #[error("Timeout in {0} seconds")]
+    Timeout(u64),
 }
 
 #[derive(Debug, Error)]
 pub(crate) enum ConnectionStateError {
-    #[error("Connection should receive tcp init")]
-    TcpInit(#[source] DecoderError),
     #[error("Connection should receive tcp data")]
     TcpData(#[source] DecoderError),
-    #[error("Connection should receive udp data")]
-    UdpData(#[source] DecoderError),
-    #[error("Connection should receive dns lookup request")]
-    DnsLookupRequest(#[source] DecoderError),
 }
