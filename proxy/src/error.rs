@@ -34,6 +34,8 @@ pub(crate) enum NetworkError {
     PortBinding(#[source] StdIoError),
     #[error("Timeout in {0} seconds")]
     Timeout(u64),
+    #[error(transparent)]
+    Other(AnyhowError),
 }
 
 #[derive(Debug, Error)]

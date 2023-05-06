@@ -13,6 +13,8 @@ pub enum CommonError {
     Io(#[from] StdIoError),
     #[error("Crypto error happen: {0:?}")]
     Crypto(#[from] CryptoError),
+    #[error(transparent)]
+    Other(AnyhowError),
 }
 
 #[derive(Debug, Error)]
