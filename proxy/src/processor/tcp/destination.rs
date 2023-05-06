@@ -4,7 +4,6 @@ use std::{
     pin::Pin,
 };
 
-use anyhow::{anyhow, Result};
 use bytes::BytesMut;
 use futures::{
     stream::{SplitSink, SplitStream},

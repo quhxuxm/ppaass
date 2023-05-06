@@ -7,21 +7,17 @@ use std::{
 };
 
 use anyhow::anyhow;
-use bytes::{Buf, BufMut, Bytes, BytesMut};
+use bytes::BytesMut;
 use futures::StreamExt;
 use futures_util::SinkExt;
 
-use pretty_hex::pretty_hex;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpStream,
-    sync::{
-        mpsc::{Receiver, Sender},
-        Mutex,
-    },
+    sync::mpsc::{Receiver, Sender},
 };
 use tokio::{sync::mpsc::channel, time::timeout};
-use tracing::{debug, error, trace};
+use tracing::{debug, error};
 
 use ppaass_common::{
     generate_uuid,
@@ -185,12 +181,8 @@ where
                 },
             };
             let PpaassMessageParts { payload: agent_message, .. } = agent_message.split();
-            let TcpData {
-                src_address,
-                dst_address,
-                raw_data,
-                ..
-            } = agent_message.try_into()?;
+            let tcp_data: TcpData = agent_message.try_into()?;
+            let TcpDataParts { raw_data, .. } = tcp_data.split();
             let raw_data = BytesMut::from_iter(raw_data);
             agent_to_dst_sender.send(raw_data).await.map_err(|e| ProxyError::Other(anyhow!(e)))?;
         }
@@ -202,9 +194,9 @@ where
         let dst_address = self.dst_address;
         let user_token = self.user_token;
         let mut agent_connection_write = self.agent_connection_write;
-        let mut agent_connection_read = self.agent_connection_read;
+        let agent_connection_read = self.agent_connection_read;
 
-        let (dst_tcp_read, dst_tcp_write) = match Self::init_dst_connection(handler_key, &dst_address, self.configuration).await {
+        let (dst_tcp_read, dst_tcp_write) = match Self::init_dst_connection(handler_key.clone(), &dst_address, self.configuration).await {
             Ok(dst_read_and_write) => dst_read_and_write,
             Err(e) => {
                 let payload_encryption_token = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(generate_uuid().into_bytes()));
@@ -226,7 +218,7 @@ where
             &user_token,
             src_address.clone(),
             dst_address.clone(),
-            payload_encryption_token,
+            payload_encryption_token.clone(),
             TcpInitResponseType::Success,
         )?;
         agent_connection_write.send(tcp_init_success_message).await?;
@@ -235,8 +227,24 @@ where
         let (dst_to_agent_sender, dst_to_agent_receiver) = channel(1024);
         tokio::spawn(Self::read_agent_data(handler_key.clone(), agent_connection_read, agent_to_dst_sender));
         tokio::spawn(Self::read_dst_data(handler_key.clone(), dst_tcp_read, dst_to_agent_sender));
-        tokio::spawn(Self::write_agent_data_to_dst(handler_key.clone(), agent_connection_read, agent_to_dst_sender));
-        tokio::spawn(Self::read_dst_data(handler_key.clone(), dst_tcp_read, dst_to_agent_sender));
+        tokio::spawn(Self::write_agent_data_to_dst(
+            handler_key.clone(),
+            user_token.clone(),
+            src_address.clone(),
+            dst_address.clone(),
+            payload_encryption_token.clone(),
+            dst_tcp_write,
+            agent_to_dst_receiver,
+        ));
+        tokio::spawn(Self::write_dst_data_to_agent(
+            handler_key.clone(),
+            user_token.clone(),
+            src_address.clone(),
+            dst_address.clone(),
+            payload_encryption_token.clone(),
+            agent_connection_write,
+            dst_to_agent_receiver,
+        ));
         Ok(())
     }
 }

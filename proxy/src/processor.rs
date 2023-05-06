@@ -16,8 +16,7 @@ use ppaass_common::{PpaassConnectionParts, PpaassMessageParts};
 use crate::{
     config::ProxyServerConfig,
     error::ProxyError,
-    processor::udp::UdpHandlerBuilder,
-    processor::{dns::DnsLookupHandlerBuilder, tcp::TcpHandlerBuilder},
+    processor::{dns::DnsLookupHandler, udp::UdpHandler},
 };
 
 use self::tcp::TcpHandler;
@@ -102,52 +101,29 @@ where
                 Ok(())
             },
             PpaassMessageAgentPayloadType::UdpData => {
-                info!("Agent connection [{ppaass_connection_id}] receive udp data from agent.");
-                let udp_data: UdpData = match agent_message_payload_raw_data.try_into() {
-                    Ok(udp_data) => udp_data,
-                    Err(e) => {
-                        error!("Agent connection [{ppaass_connection_id}] fail to read udp data from agent because of error: {e:?}");
-                        return Err(e);
-                    },
-                };
-                let udp_handler_builder = UdpHandlerBuilder::new()
-                    .agent_address(agent_address)
-                    .ppaass_connection_id(connection_id.clone())
-                    .ppaass_connection_write(agent_connection_write)
-                    .ppaass_connection_read(agent_connection_read)
-                    .user_token(user_token);
-                let udp_handler = match udp_handler_builder.build(configuration.clone()).await {
-                    Ok(udp_handler) => udp_handler,
-                    Err(e) => {
-                        error!("Agent connection [{ppaass_connection_id}] fail to build udp handler because of error: {e:?}");
-                        return Err(e);
-                    },
-                };
+                info!("Agent connection {connection_id} receive udp data from agent.");
+                let udp_data: UdpData = agent_message_payload.try_into()?;
+                // let udp_handler_builder = UdpHandlerBuilder::new()
+                //     .agent_address(agent_address)
+                //     .ppaass_connection_id(connection_id.clone())
+                //     .ppaass_connection_write(agent_connection_write)
+                //     .ppaass_connection_read(agent_connection_read)
+                //     .user_token(user_token);
+                // let udp_handler = match udp_handler_builder.build(configuration.clone()).await {
+                //     Ok(udp_handler) => udp_handler,
+                //     Err(e) => {
+                //         error!("Agent connection {connection_id} fail to build udp handler because of error: {e:?}");
+                //         return Err(e);
+                //     },
+                // };
+                let udp_handler = UdpHandler::new(connection_id, user_token, agent_address, agent_connection_write, configuration);
                 udp_handler.exec(udp_data).await?;
                 Ok(())
             },
             PpaassMessageAgentPayloadType::DnsLookupRequest => {
-                info!("Agent connection [{ppaass_connection_id}] receive dns lookup request from agent.");
-                let dns_lookup_request: DnsLookupRequest = match agent_message_payload_raw_data.try_into() {
-                    Ok(dns_lookup_request) => dns_lookup_request,
-                    Err(e) => {
-                        error!("Agent connection [{ppaass_connection_id}] fail to read dns lookup request from agent because of error: {e:?}");
-                        return Err(e);
-                    },
-                };
-                let dns_lookup_handler_builder = DnsLookupHandlerBuilder::new()
-                    .agent_address(agent_address)
-                    .ppaass_connection_id(connection_id.clone())
-                    .ppaass_connection_write(agent_connection_write)
-                    .ppaass_connection_read(agent_connection_read)
-                    .user_token(user_token);
-                let dns_lookup_handler = match dns_lookup_handler_builder.build().await {
-                    Ok(dns_lookup_handler) => dns_lookup_handler,
-                    Err(e) => {
-                        error!("Agent connection [{ppaass_connection_id}] fail to build dns lookup handler because of error: {e:?}");
-                        return Err(e);
-                    },
-                };
+                info!("Agent connection {connection_id} receive dns lookup request from agent.");
+                let dns_lookup_request: DnsLookupRequest = agent_message_payload.try_into()?;
+                let dns_lookup_handler = DnsLookupHandler::new(connection_id.clone(), agent_address.clone(), user_token, agent_connection_write);
                 dns_lookup_handler.exec(dns_lookup_request).await?;
                 Ok(())
             },

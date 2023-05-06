@@ -1,2 +1,2 @@
 mod handler;
-pub(crate) use handler::UdpHandlerBuilder;
+pub(crate) use handler::UdpHandler;

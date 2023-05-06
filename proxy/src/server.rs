@@ -56,7 +56,7 @@ impl ProxyServer {
                     AgentConnectionProcessor::new(agent_tcp_stream, agent_socket_address.into(), configuration, rsa_crypto_fetcher);
                 agent_connection_processor.exec().await?;
                 debug!("Complete execute agent connection [{agent_socket_address}].");
-                Ok(())
+                Ok::<_, ProxyError>(())
             });
         }
     }
