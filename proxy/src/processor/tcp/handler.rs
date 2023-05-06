@@ -22,7 +22,7 @@ use tracing::{debug, error};
 use ppaass_common::{
     generate_uuid,
     tcp::{TcpData, TcpDataParts, TcpInitResponseType},
-    CommonError, PpaassConnectionRead, PpaassConnectionWrite, PpaassMessageParts, RsaCryptoFetcher,
+    CommonError, PpaassConnectionRead, PpaassConnectionWrite, PpaassMessage, PpaassMessageParts, RsaCryptoFetcher,
 };
 use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
 
@@ -123,6 +123,13 @@ where
         Ok((dst_tcp_read, dst_tcp_write))
     }
 
+    fn unwrap_to_raw_tcp_data(message: PpaassMessage) -> Result<Vec<u8>, CommonError> {
+        let PpaassMessageParts { payload: message, .. } = message.split();
+        let tcp_data: TcpData = message.try_into()?;
+        let TcpDataParts { raw_data, .. } = tcp_data.split();
+        Ok(raw_data)
+    }
+
     pub(crate) async fn exec(self) -> Result<(), ProxyError> {
         let handler_key = self.handler_key;
         let mut agent_connection_write = self.agent_connection_write;
@@ -161,9 +168,7 @@ where
                 if let Err(e) = agent_connection_read
                     .map(|agent_message| {
                         let agent_message = agent_message.map_err(|e| NetworkError::Other(anyhow!(e)))?;
-                        let PpaassMessageParts { payload: agent_message, .. } = agent_message.split();
-                        let tcp_data: TcpData = agent_message.try_into().map_err(|e: CommonError| NetworkError::Other(anyhow!(e)))?;
-                        let TcpDataParts { raw_data, .. } = tcp_data.split();
+                        let raw_data = Self::unwrap_to_raw_tcp_data(agent_message).map_err(|e: CommonError| NetworkError::Other(anyhow!(e)))?;
                         Ok(BytesMut::from_iter(raw_data))
                     })
                     .forward(dst_connection_write)
