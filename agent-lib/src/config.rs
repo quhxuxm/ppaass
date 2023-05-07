@@ -78,14 +78,14 @@ impl AgentServerConfig {
     }
 
     pub fn get_proxy_send_buffer_size(&self) -> usize {
-        self.proxy_send_buffer_size.unwrap_or(1024 * 256)
+        self.proxy_send_buffer_size.unwrap_or(1024 * 512)
     }
 
     pub fn get_connect_to_proxy_timeout(&self) -> u64 {
         self.connect_to_proxy_timeout.unwrap_or(20)
     }
     pub fn get_client_receive_buffer_size(&self) -> usize {
-        self.client_receive_buffer_size.unwrap_or(1024 * 256)
+        self.client_receive_buffer_size.unwrap_or(1024 * 512)
     }
 }
 

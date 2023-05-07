@@ -54,7 +54,7 @@ where
             agent_tcp_stream,
             rsa_crypto_fetcher,
             configuration.get_compress(),
-            configuration.get_message_framed_buffer_size(),
+            configuration.get_agent_recive_buffer_size(),
         );
         Self {
             agent_connection,
