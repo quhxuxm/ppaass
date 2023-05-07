@@ -53,7 +53,7 @@ where
     init_data: Option<Vec<u8>>,
 }
 
-pub(crate) enum ClientProcessor {
+pub(crate) enum ClientProtocolProcessor {
     Http {
         client_tcp_stream: TcpStream,
         src_address: PpaassNetAddress,
@@ -66,30 +66,24 @@ pub(crate) enum ClientProcessor {
     },
 }
 
-impl ClientProcessor {
+impl ClientProtocolProcessor {
     pub(crate) async fn exec(self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>) -> Result<()> {
         match self {
-            ClientProcessor::Http {
+            ClientProtocolProcessor::Http {
                 client_tcp_stream,
                 src_address,
                 initial_buf,
             } => {
                 let http_flow = HttpClientProcessor::new(client_tcp_stream, src_address.clone());
-                if let Err(e) = http_flow.exec(proxy_connection_pool, configuration, initial_buf).await {
-                    error!("Client tcp connection [{src_address}] error happen on http flow for proxy connection: {e:?}");
-                    return Err(e);
-                }
+                http_flow.exec(proxy_connection_pool, configuration, initial_buf).await?;
             },
-            ClientProcessor::Socks5 {
+            ClientProtocolProcessor::Socks5 {
                 client_tcp_stream,
                 src_address,
                 initial_buf,
             } => {
                 let socks5_flow = Socks5ClientProcessor::new(client_tcp_stream, src_address.clone());
-                if let Err(e) = socks5_flow.exec(proxy_connection_pool, configuration, initial_buf).await {
-                    error!("Client tcp connection [{src_address}] error happen on socks5 flow for proxy connection: {e:?}");
-                    return Err(e);
-                };
+                socks5_flow.exec(proxy_connection_pool, configuration, initial_buf).await?;
             },
         }
         Ok(())
@@ -109,7 +103,7 @@ impl ClientProcessor {
         let mut proxy_connection_write = info.proxy_connection_write;
         let user_token = info.user_token;
         let mut proxy_connection_read = info.proxy_connection_read;
-        let client_io_framed = Framed::with_capacity(client_tcp_stream, BytesCodec::new(), configuration.get_client_io_buffer_size());
+        let client_io_framed = Framed::with_capacity(client_tcp_stream, BytesCodec::new(), configuration.get_client_receive_buffer_size());
         let (client_io_write, client_io_read) = client_io_framed.split::<BytesMut>();
         let (mut client_io_write, mut client_io_read) = (
             ClientConnectionWrite::new(src_address.clone(), client_io_write),

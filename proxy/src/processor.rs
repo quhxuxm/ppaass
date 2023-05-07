@@ -67,8 +67,8 @@ where
         let agent_address = self.agent_address;
         let configuration = self.configuration;
         let PpaassConnectionParts {
-            read: mut agent_connection_read,
-            write: agent_connection_write,
+            read_part: mut agent_connection_read,
+            write_part: agent_connection_write,
             id: connection_id,
         } = self.agent_connection.split();
 

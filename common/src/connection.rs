@@ -25,8 +25,8 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    pub read: PpaassConnectionRead<T, R, I>,
-    pub write: PpaassConnectionWrite<T, R, I>,
+    pub read_part: PpaassConnectionRead<T, R, I>,
+    pub write_part: PpaassConnectionWrite<T, R, I>,
     pub id: I,
 }
 
@@ -60,7 +60,11 @@ where
         let read = PpaassConnectionRead::new(self.id.clone(), self.framed_read);
         let write = PpaassConnectionWrite::new(self.id.clone(), self.framed_write);
         let id = self.id;
-        PpaassConnectionParts { read, write, id }
+        PpaassConnectionParts {
+            read_part: read,
+            write_part: write,
+            id,
+        }
     }
 }
 

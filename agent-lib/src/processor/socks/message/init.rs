@@ -1,3 +1,5 @@
+use crate::error::Socks5DecodeError;
+
 use super::Socks5Address;
 
 #[derive(Debug)]
@@ -8,14 +10,14 @@ pub(crate) enum Socks5InitCommandType {
 }
 
 impl TryFrom<u8> for Socks5InitCommandType {
-    type Error = anyhow::Error;
+    type Error = Socks5DecodeError;
 
     fn try_from(v: u8) -> Result<Self, Self::Error> {
         match v {
             1 => Ok(Socks5InitCommandType::Connect),
             2 => Ok(Socks5InitCommandType::Bind),
             3 => Ok(Socks5InitCommandType::UdpAssociate),
-            unknown_type => Err(anyhow::anyhow!(format!("unknown init command type: {unknown_type}"))),
+            unknown_type => Err(Socks5DecodeError::InvalidInitCommandType(unknown_type)),
         }
     }
 }
@@ -35,7 +37,8 @@ pub(crate) enum Socks5InitCommandResultStatus {
 }
 
 impl TryFrom<u8> for Socks5InitCommandResultStatus {
-    type Error = anyhow::Error;
+    type Error = Socks5DecodeError;
+
     fn try_from(v: u8) -> Result<Self, Self::Error> {
         match v {
             0 => Ok(Socks5InitCommandResultStatus::Succeeded),
@@ -48,7 +51,7 @@ impl TryFrom<u8> for Socks5InitCommandResultStatus {
             7 => Ok(Socks5InitCommandResultStatus::CommandNotSupported),
             8 => Ok(Socks5InitCommandResultStatus::AddressTypeNotSupported),
             9 => Ok(Socks5InitCommandResultStatus::Unassigned),
-            unknown_status => Err(anyhow::anyhow!(format!("unknown init command status: {unknown_status}"))),
+            unknown_status => Err(Socks5DecodeError::InvalidInitCommandResultStatus(unknown_status)),
         }
     }
 }

@@ -1,3 +1,5 @@
+use crate::error::Socks5DecodeError;
+
 use super::Socks5Address;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use std::mem::size_of;
@@ -11,19 +13,20 @@ pub(crate) struct Socks5UdpDataPacket {
 }
 
 impl TryFrom<Bytes> for Socks5UdpDataPacket {
-    type Error = anyhow::Error;
+    type Error = Socks5DecodeError;
+
     fn try_from(mut src: Bytes) -> Result<Self, Self::Error> {
         // Check the buffer
         if !src.has_remaining() {
-            return Err(anyhow::anyhow!("incoming bytes has no remaining"));
+            return Err(Socks5DecodeError::NoRemaining("No remaining to convert socks5 udp packet".to_string()));
         }
         // Check and skip the revision
         if src.remaining() < size_of::<u16>() {
-            return Err(anyhow::anyhow!(format!("incoming bytes remaing < {}", size_of::<u16>())));
+            return Err(Socks5DecodeError::NoRemaining("No remaining to convert socks5 udp packet".to_string()));
         }
         src.get_u16();
         if src.remaining() < size_of::<u8>() {
-            return Err(anyhow::anyhow!(format!("incoming bytes remaing < {}", size_of::<u8>())));
+            return Err(Socks5DecodeError::NoRemaining("No remaining to convert socks5 udp packet".to_string()));
         }
         let frag = src.get_u8();
         let address: Socks5Address = (&mut src).try_into()?;
