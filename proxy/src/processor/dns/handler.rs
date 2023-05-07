@@ -3,6 +3,7 @@ use crate::{
     error::{NetworkError, ProxyError},
 };
 
+use derive_more::{Constructor, Display};
 use futures::SinkExt;
 use ppaass_common::{
     dns::{DnsLookupRequest, DnsLookupRequestParts},
@@ -13,18 +14,15 @@ use std::{fmt::Display, net::IpAddr};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::{error, info};
 
+#[derive(Debug, Clone, Constructor, Display)]
+#[display(fmt = "[{}]#[{}]@DNS::[{}]", connection_id, user_token, agent_address)]
 pub(crate) struct DnsLookupHandlerKey {
-    pub connection_id: String,
-    pub user_token: String,
-    pub agent_address: PpaassNetAddress,
+    connection_id: String,
+    user_token: String,
+    agent_address: PpaassNetAddress,
 }
 
-impl Display for DnsLookupHandlerKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}]#[{}]@DNS::[{}]", self.connection_id, self.user_token, self.agent_address)
-    }
-}
-
+#[derive(Constructor)]
 #[non_exhaustive]
 pub(crate) struct DnsLookupHandler<T, R, I>
 where
@@ -32,8 +30,8 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    agent_connection_write: PpaassConnectionWrite<T, R, I>,
     handler_key: DnsLookupHandlerKey,
+    agent_connection_write: PpaassConnectionWrite<T, R, I>,
 }
 
 impl<T, R, I> DnsLookupHandler<T, R, I>
@@ -42,13 +40,6 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    pub(crate) fn new(handler_key: DnsLookupHandlerKey, agent_connection_write: PpaassConnectionWrite<T, R, I>) -> Self {
-        Self {
-            agent_connection_write,
-            handler_key,
-        }
-    }
-
     pub(crate) async fn exec(self, dns_lookup_request: DnsLookupRequest) -> Result<(), ProxyError> {
         let mut agent_connection_write = self.agent_connection_write;
         let handler_key = self.handler_key;

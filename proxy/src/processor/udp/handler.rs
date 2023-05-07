@@ -5,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use derive_more::{Constructor, Display};
 use futures::SinkExt;
 use ppaass_common::{generate_uuid, PpaassConnectionWrite, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher};
 use pretty_hex::pretty_hex;
@@ -21,26 +22,17 @@ use crate::{
     error::{NetworkError, ProxyError},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Constructor, Display)]
+#[display(fmt = "[{}]#[{}]@UDP::[{}]::[{}=>{}]", connection_id, user_token, agent_address, src_address, dst_address)]
 pub(crate) struct UdpHandlerKey {
-    pub connection_id: String,
-    pub user_token: String,
-    pub agent_address: PpaassNetAddress,
-    pub src_address: PpaassNetAddress,
-    pub dst_address: PpaassNetAddress,
+    connection_id: String,
+    user_token: String,
+    agent_address: PpaassNetAddress,
+    src_address: PpaassNetAddress,
+    dst_address: PpaassNetAddress,
 }
 
-impl Display for UdpHandlerKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "[{}]#[{}]@UDP::[{}]::[{}=>{}]",
-            self.connection_id, self.user_token, self.agent_address, self.src_address, self.dst_address
-        )
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Constructor)]
 #[non_exhaustive]
 pub(crate) struct UdpHandler<T, R, I>
 where
@@ -48,8 +40,8 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    agent_connection_write: PpaassConnectionWrite<T, R, I>,
     handler_key: UdpHandlerKey,
+    agent_connection_write: PpaassConnectionWrite<T, R, I>,
     configuration: Arc<ProxyServerConfig>,
 }
 
@@ -59,13 +51,6 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    pub(crate) fn new(handler_key: UdpHandlerKey, agent_connection_write: PpaassConnectionWrite<T, R, I>, configuration: Arc<ProxyServerConfig>) -> Self {
-        Self {
-            agent_connection_write,
-            handler_key,
-            configuration,
-        }
-    }
     pub(crate) async fn exec(self, udp_data: Vec<u8>) -> Result<(), ProxyError> {
         let mut agent_connection_write = self.agent_connection_write;
         let handler_key = self.handler_key;
