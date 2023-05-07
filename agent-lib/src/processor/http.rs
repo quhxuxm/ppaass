@@ -151,7 +151,6 @@ impl HttpClientProcessor {
             client_tcp_stream,
             src_address,
             dst_address,
-            tcp_loop_key,
             user_token,
             payload_encryption,
             proxy_connection_read,

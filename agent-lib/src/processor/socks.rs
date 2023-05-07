@@ -145,7 +145,6 @@ impl Socks5ClientProcessor {
             client_tcp_stream,
             src_address: src_address.clone(),
             dst_address,
-            tcp_loop_key: tcp_loop_key.clone(),
             user_token,
             payload_encryption,
             proxy_connection_read,
