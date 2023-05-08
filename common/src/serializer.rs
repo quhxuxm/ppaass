@@ -14,9 +14,9 @@ fn deserialize_byte_array<'de, D: Deserializer<'de>, const N: usize>(d: D) -> Re
     if decode_result.len() != N {
         return Err(SerdeError::custom(format!("The length of the result is not equale to {}.", N)));
     }
-    let mut result = [0u8; N];
-    result.copy_from_slice(&decode_result);
-    Ok(result)
+    decode_result
+        .try_into()
+        .map_err(|_| SerdeError::custom(format!("Fail to convert vec to const array [u8;{}]", N)))
 }
 
 fn deserialize_byte_vec<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
