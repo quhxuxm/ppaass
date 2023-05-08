@@ -11,9 +11,6 @@ fn serialize_byte_array<S: Serializer>(v: &[u8], s: S) -> Result<S::Ok, S::Error
 fn deserialize_byte_array<'de, D: Deserializer<'de>, const N: usize>(d: D) -> Result<[u8; N], D::Error> {
     let base64 = String::deserialize(d)?;
     let decode_result = general_purpose::STANDARD.decode(base64.as_bytes()).map_err(SerdeError::custom)?;
-    if decode_result.len() != N {
-        return Err(SerdeError::custom(format!("The length of the result is not equale to {}.", N)));
-    }
     decode_result
         .try_into()
         .map_err(|_| SerdeError::custom(format!("Fail to convert vec to const array [u8;{}]", N)))
