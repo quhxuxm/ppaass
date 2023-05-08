@@ -1,4 +1,5 @@
 use base64::{engine::general_purpose, Engine};
+use serde::de::Error as SerdeError;
 use serde::{Deserialize, Serialize};
 use serde::{Deserializer, Serializer};
 
@@ -9,9 +10,9 @@ fn serialize_byte_array<S: Serializer>(v: &[u8], s: S) -> Result<S::Ok, S::Error
 
 fn deserialize_byte_array<'de, D: Deserializer<'de>, const N: usize>(d: D) -> Result<[u8; N], D::Error> {
     let base64 = String::deserialize(d)?;
-    let decode_result = general_purpose::STANDARD.decode(base64.as_bytes()).map_err(serde::de::Error::custom)?;
+    let decode_result = general_purpose::STANDARD.decode(base64.as_bytes()).map_err(SerdeError::custom)?;
     if decode_result.len() != N {
-        return Err(serde::de::Error::custom(format!("The length of the result is not equale to {}.", N)));
+        return Err(SerdeError::custom(format!("The length of the result is not equale to {}.", N)));
     }
     let mut result = [0u8; N];
     result.copy_from_slice(&decode_result);
