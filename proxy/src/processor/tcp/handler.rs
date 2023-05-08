@@ -147,8 +147,8 @@ where
             tokio::spawn(async move {
                 if let Err(e) = agent_connection_read
                     .map(|agent_message| {
-                        let agent_message = agent_message.map_err(|e| NetworkError::Other(anyhow!(e)))?;
-                        let raw_data = Self::unwrap_to_raw_tcp_data(agent_message).map_err(|e: CommonError| NetworkError::Other(anyhow!(e)))?;
+                        let agent_message = agent_message.map_err(NetworkError::AgentRead)?;
+                        let raw_data = Self::unwrap_to_raw_tcp_data(agent_message).map_err(NetworkError::AgentRead)?;
                         Ok(BytesMut::from_iter(raw_data))
                     })
                     .forward(dst_connection_write)
