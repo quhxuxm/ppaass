@@ -1,13 +1,11 @@
 use anyhow::Error as AnyhowError;
-use ppaass_common::{CommonError, DecoderError};
+use ppaass_common::CommonError;
 use std::io::Error as StdIoError;
 use thiserror::Error;
 #[derive(Debug, Error)]
 pub(crate) enum ProxyError {
     #[error("Network error happen: {0:?}")]
     Network(#[from] NetworkError),
-    #[error("Connection state error happen: {0:?}")]
-    ConnectionState(#[from] ConnectionStateError),
     #[error(transparent)]
     Common(#[from] CommonError),
     #[error(transparent)]
@@ -34,12 +32,4 @@ pub(crate) enum NetworkError {
     PortBinding(#[source] StdIoError),
     #[error("Timeout in {0} seconds")]
     Timeout(u64),
-    #[error(transparent)]
-    Other(AnyhowError),
-}
-
-#[derive(Debug, Error)]
-pub(crate) enum ConnectionStateError {
-    #[error("Connection should receive tcp data")]
-    TcpData(#[source] DecoderError),
 }
