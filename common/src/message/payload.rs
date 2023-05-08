@@ -1,7 +1,6 @@
-use anyhow::{Context, Result};
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{serializer::vec_u8_to_base64, PpaassMessageAgentPayloadType, PpaassMessageProxyPayloadType};
+use crate::{serializer::vec_u8_to_base64, CommonError, DeserializeError, PpaassMessageAgentPayloadType, PpaassMessageProxyPayloadType, SerializeError};
 
 pub mod dns;
 pub mod tcp;
@@ -43,20 +42,18 @@ impl From<PpaassMessageAgentPayloadParts> for PpaassMessageAgentPayload {
 }
 
 impl TryFrom<PpaassMessageAgentPayload> for Vec<u8> {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: PpaassMessageAgentPayload) -> Result<Self, Self::Error> {
-        let result = serde_json::to_vec(&value).context("Fail to serialize PpaassMessageAgentPayload object to bytes")?;
-        Ok(result)
+        serde_json::to_vec(&value).map_err(|e| CommonError::Encoder(SerializeError::PpaassMessageAgentPayload(e).into()))
     }
 }
 
 impl TryFrom<Vec<u8>> for PpaassMessageAgentPayload {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        let result = serde_json::from_slice(value.as_ref()).context("Fail to deserialize bytes to PpaassMessageAgentPayload object")?;
-        Ok(result)
+        serde_json::from_slice(value.as_ref()).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessageAgentPayload(e).into()))
     }
 }
 
@@ -96,19 +93,17 @@ impl From<PpaassMessageProxyPayloadParts> for PpaassMessageProxyPayload {
 }
 
 impl TryFrom<PpaassMessageProxyPayload> for Vec<u8> {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: PpaassMessageProxyPayload) -> Result<Self, Self::Error> {
-        let result = serde_json::to_vec(&value).context("Fail to serialize PpaassMessageProxyPayload object to bytes")?;
-        Ok(result)
+        serde_json::to_vec(&value).map_err(|e| CommonError::Encoder(SerializeError::PpaassMessageProxyPayload(e).into()))
     }
 }
 
 impl TryFrom<Vec<u8>> for PpaassMessageProxyPayload {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        let result = serde_json::from_slice(value.as_ref()).context("Fail to deserialize bytes to PpaassMessageProxyPayload object")?;
-        Ok(result)
+        serde_json::from_slice(value.as_ref()).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessageProxyPayload(e).into()))
     }
 }

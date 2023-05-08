@@ -1,5 +1,5 @@
-use crate::generate_uuid;
-use anyhow::anyhow;
+use crate::{generate_uuid, CommonError, DeserializeError, SerializeError};
+
 use serde_derive::{Deserialize, Serialize};
 
 use crate::serializer::vec_u8_to_base64;
@@ -46,18 +46,6 @@ impl PpaassMessage {
         }
     }
 
-    pub fn get_id(&self) -> &str {
-        &self.id
-    }
-
-    pub fn get_user_token(&self) -> &str {
-        &self.user_token
-    }
-
-    pub fn get_payload_encryption(&self) -> &PpaassMessagePayloadEncryption {
-        &self.payload_encryption
-    }
-
     pub fn split(self) -> PpaassMessageParts {
         PpaassMessageParts {
             id: self.id,
@@ -80,19 +68,17 @@ impl From<PpaassMessageParts> for PpaassMessage {
 }
 
 impl TryFrom<Vec<u8>> for PpaassMessage {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        let result = serde_json::from_slice(&value).map_err(|e| anyhow!("Fail to deserialize bytes to PpaassMessage object because of error: {e:?}"))?;
-        Ok(result)
+        serde_json::from_slice(&value).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessage(e).into()))
     }
 }
 
 impl TryFrom<PpaassMessage> for Vec<u8> {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: PpaassMessage) -> Result<Self, Self::Error> {
-        let result = serde_json::to_vec(&value).map_err(|e| anyhow!("Fail to serialize PpaassMessage object to bytes because of error: {e:?}"))?;
-        Ok(result)
+        serde_json::to_vec(&value).map_err(|e| CommonError::Encoder(SerializeError::PpaassMessage(e).into()))
     }
 }

@@ -1,2 +1,3 @@
 mod handler;
-pub(crate) use handler::DnsLookupHandlerBuilder;
+pub(in crate::processor) use handler::DnsLookupHandler;
+pub(in crate::processor) use handler::DnsLookupHandlerKey;

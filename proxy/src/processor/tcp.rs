@@ -1,3 +1,4 @@
 mod destination;
 mod handler;
-pub(crate) use handler::TcpHandlerBuilder;
+pub(in crate::processor) use handler::TcpHandler;
+pub(in crate::processor) use handler::TcpHandlerKey;

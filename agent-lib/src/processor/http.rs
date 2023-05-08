@@ -10,8 +10,8 @@ use httpcodec::{BodyEncoder, HttpVersion, ReasonPhrase, RequestEncoder, Response
 use ppaass_common::{
     generate_uuid,
     tcp::{TcpInitResponse, TcpInitResponseType},
-    PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload, PpaassMessageProxyPayloadParts,
-    PpaassMessageProxyPayloadType, PpaassNetAddress,
+    PpaassConnectionParts, PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload,
+    PpaassMessageProxyPayloadParts, PpaassMessageProxyPayloadType, PpaassNetAddress,
 };
 use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, FramedParts};
@@ -20,11 +20,11 @@ use url::Url;
 
 use crate::{
     config::AgentServerConfig,
+    error::{AgentError, ConversionError, DecoderError, EncoderError, NetworkError},
     pool::ProxyConnectionPool,
-    processor::{http::codec::HttpCodec, ClientDataRelayInfo, ClientProcessor},
+    processor::{http::codec::HttpCodec, ClientDataRelayInfo, ClientProtocolProcessor},
     AgentServerPayloadEncryptionTypeSelector,
 };
-use anyhow::{Context, Result};
 
 const HTTPS_SCHEMA: &str = "https";
 const SCHEMA_SEP: &str = "://";
@@ -49,41 +49,26 @@ impl HttpClientProcessor {
 
     pub(crate) async fn exec(
         self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>, initial_buf: BytesMut,
-    ) -> Result<()> {
+    ) -> Result<(), AgentError> {
         let client_tcp_stream = self.client_tcp_stream;
         let src_address = self.src_address;
         let mut framed_parts = FramedParts::new(client_tcp_stream, HttpCodec::default());
         framed_parts.read_buf = initial_buf;
         let mut http_framed = Framed::from_parts(framed_parts);
-        let http_message = http_framed
-            .next()
-            .await
-            .context(format!(
-                "Client tcp connection [{src_address}] nothing to read from http client data in init phase"
-            ))?
-            .context(format!(
-                "Client tcp connection [{src_address}] error happen when read http client data in init phase"
-            ))?;
+        let http_message = http_framed.next().await.ok_or(NetworkError::ConnectionExhausted)?.map_err(DecoderError::Http)?;
         let http_method = http_message.method().to_string().to_lowercase();
         let (request_url, init_data) = if http_method == CONNECT_METHOD {
             (format!("{}{}{}", HTTPS_SCHEMA, SCHEMA_SEP, http_message.request_target()), None)
         } else {
             let request_url = http_message.request_target().to_string();
             let mut http_data_encoder = RequestEncoder::<BodyEncoder<BytesEncoder>>::default();
-            let encode_result = match http_data_encoder.encode_into_bytes(http_message) {
-                Err(e) => {
-                    error!("Fail to encode http data because of error: {:#?} ", e);
-                    return Err(anyhow::anyhow!(e));
-                },
-                Ok(v) => v,
-            };
+            let encode_result = http_data_encoder
+                .encode_into_bytes(http_message)
+                .map_err(|e| AgentError::Encode(EncoderError::Http(e.into())))?;
             (request_url, Some(encode_result))
         };
 
-        let parsed_request_url = Url::parse(request_url.as_str()).map_err(|e| {
-            error!("Fail to parse request url because of error: {:#?}", e);
-            e
-        })?;
+        let parsed_request_url = Url::parse(request_url.as_str()).map_err(ConversionError::UrlFormat)?;
         let target_port = match parsed_request_url.port() {
             None => match parsed_request_url.scheme() {
                 HTTPS_SCHEMA => HTTPS_DEFAULT_PORT,
@@ -91,12 +76,10 @@ impl HttpClientProcessor {
             },
             Some(v) => v,
         };
-        let target_host = match parsed_request_url.host() {
-            None => {
-                return Err(anyhow::anyhow!("Fail to parse target host from request url"));
-            },
-            Some(v) => v.to_string(),
-        };
+        let target_host = parsed_request_url
+            .host()
+            .ok_or(ConversionError::NoHost(parsed_request_url.to_string()))?
+            .to_string();
         let dst_address = PpaassNetAddress::Domain {
             host: target_host,
             port: target_port,
@@ -104,39 +87,24 @@ impl HttpClientProcessor {
 
         let user_token = configuration
             .get_user_token()
-            .as_ref()
-            .context(format!("Client tcp connection [{src_address}] can not get user token form configuration file"))?
-            .clone();
+            .clone()
+            .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
 
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(&user_token, Some(generate_uuid().into_bytes()));
         let tcp_init_request =
             PpaassMessageGenerator::generate_tcp_init_request(&user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
 
-        let proxy_connection = proxy_connection_pool.take_connection().await.context(format!(
-            "Client tcp connection [{src_address}] fail to take proxy connection from connection poool because of error"
-        ))?;
-
-        let proxy_connection_id = proxy_connection.connection_id.clone();
-        let (mut proxy_connection_read, mut proxy_connection_write) = proxy_connection.split()?;
+        let proxy_connection = proxy_connection_pool.take_connection().await?;
+        let PpaassConnectionParts {
+            read_part: mut proxy_connection_read,
+            write_part: mut proxy_connection_write,
+            id: proxy_connection_id,
+        } = proxy_connection.split();
 
         debug!("Client tcp connection [{src_address}] take proxy connectopn [{proxy_connection_id}] to do proxy");
+        proxy_connection_write.send(tcp_init_request).await?;
 
-        if let Err(e) = proxy_connection_write.send(tcp_init_request).await {
-            error!("Client tcp connection [{src_address}] fail to send tcp loop init to proxy because of error: {e:?}");
-            return Err(anyhow::anyhow!(format!(
-                "Client tcp connection [{src_address}] fail to send tcp loop init request to proxy because of error: {e:?}"
-            )));
-        };
-
-        let proxy_message = proxy_connection_read
-            .next()
-            .await
-            .context(format!(
-                "Client tcp connection [{src_address}] nothing to read from proxy for init tcp loop response"
-            ))?
-            .context(format!(
-                "Client tcp connection [{src_address}] error happen when read proxy message for init tcp loop response"
-            ))?;
+        let proxy_message = proxy_connection_read.next().await.ok_or(NetworkError::ConnectionExhausted)??;
 
         let PpaassMessageParts {
             payload: proxy_message_payload_bytes,
@@ -148,9 +116,7 @@ impl HttpClientProcessor {
             PpaassMessageProxyPayloadType::TcpInit => TryInto::<TcpInitResponse>::try_into(data)?,
             _ => {
                 error!("Client tcp connection [{src_address}] receive invalid message from proxy, payload type: {payload_type:?}");
-                return Err(anyhow::anyhow!(format!(
-                    "Client tcp connection [{src_address}] receive invalid message from proxy, payload type: {payload_type:?}"
-                )));
+                return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
             },
         };
 
@@ -166,9 +132,7 @@ impl HttpClientProcessor {
             },
             TcpInitResponseType::Fail => {
                 error!("Client tcp connection [{src_address}] fail to do tcp loop init, tcp loop key: [{tcp_loop_key}]");
-                return Err(anyhow::anyhow!(format!(
-                    "Client tcp connection [{src_address}] fail to do tcp loop init, tcp loop key: [{tcp_loop_key}]"
-                )));
+                return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
             },
         }
         if init_data.is_none() {
@@ -179,15 +143,14 @@ impl HttpClientProcessor {
                 ReasonPhrase::new(CONNECTION_ESTABLISHED).unwrap(),
                 vec![],
             );
-            http_framed.send(http_connect_success_response).await?;
+            http_framed.send(http_connect_success_response).await.map_err(EncoderError::Http)?;
         }
 
         let FramedParts { io: client_tcp_stream, .. } = http_framed.into_parts();
-        ClientProcessor::relay(ClientDataRelayInfo {
+        ClientProtocolProcessor::relay(ClientDataRelayInfo {
             client_tcp_stream,
             src_address,
             dst_address,
-            tcp_loop_key,
             user_token,
             payload_encryption,
             proxy_connection_read,

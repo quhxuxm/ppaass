@@ -1,10 +1,14 @@
-use std::{sync::Arc, time::Duration};
+use std::{net::SocketAddr, sync::Arc};
 
-use crate::{config::ProxyServerConfig, crypto::ProxyServerRsaCryptoFetcher, processor::AgentConnectionProcessor};
+use crate::{
+    config::ProxyServerConfig,
+    crypto::ProxyServerRsaCryptoFetcher,
+    error::{NetworkError, ProxyError},
+    processor::AgentConnectionProcessor,
+};
 
-use anyhow::{Context, Result};
-
-use tokio::net::TcpListener;
+use ppaass_common::{CommonError, CryptoError};
+use tokio::net::{TcpListener, TcpStream};
 use tracing::{debug, error, info};
 
 /// The ppaass proxy server.
@@ -18,47 +22,41 @@ impl ProxyServer {
         Self { configuration }
     }
 
+    async fn accept_agent_connection(tcp_listener: &TcpListener) -> Result<(TcpStream, SocketAddr), ProxyError> {
+        let (agent_tcp_stream, agent_socket_address) = tcp_listener.accept().await.map_err(NetworkError::AgentAccept)?;
+        agent_tcp_stream.set_linger(None).map_err(NetworkError::AgentAccept)?;
+        agent_tcp_stream.set_nodelay(true).map_err(NetworkError::AgentAccept)?;
+        Ok((agent_tcp_stream, agent_socket_address))
+    }
+
     /// Start the proxy server instance.
-    pub(crate) async fn start(&mut self) -> Result<()> {
+    pub(crate) async fn start(&mut self) -> Result<(), ProxyError> {
         let port = self.configuration.get_port();
         let server_bind_addr = if self.configuration.get_ipv6() {
             format!("::1:{port}")
         } else {
             format!("0.0.0.0:{port}")
         };
-        let rsa_crypto_fetcher = Arc::new(ProxyServerRsaCryptoFetcher::new(self.configuration.clone())?);
+        let rsa_crypto_fetcher = Arc::new(ProxyServerRsaCryptoFetcher::new(self.configuration.clone()).map_err(|e| CommonError::Crypto(CryptoError::Rsa(e)))?);
         info!("Proxy server start to serve request on address: {server_bind_addr}.");
-        let tcp_listener = TcpListener::bind(&server_bind_addr)
-            .await
-            .context(format!("Fail to bind tcp listener for proxy server: {server_bind_addr}"))?;
+        let tcp_listener = TcpListener::bind(&server_bind_addr).await.map_err(NetworkError::PortBinding)?;
         loop {
-            let (agent_tcp_stream, agent_socket_address) = match tcp_listener.accept().await {
+            let (agent_tcp_stream, agent_socket_address) = match Self::accept_agent_connection(&tcp_listener).await {
+                Ok(accept_result) => accept_result,
                 Err(e) => {
-                    error!("Fail to accept agent tcp connection because of error: {e:?}");
+                    error!("Proxy server fail to accept agent connection because of error: {e:?}");
                     continue;
                 },
-                Ok(v) => v,
             };
-            if let Err(e) = agent_tcp_stream.set_linger(Some(Duration::from_secs(20))) {
-                error!("Fail to set so linger on agent tcp connection because of error: {e:?}");
-                continue;
-            }
-            if let Err(e) = agent_tcp_stream.set_nodelay(true) {
-                error!("Fail to set no delay on agent tcp connection because of error: {e:?}");
-                continue;
-            };
-            debug!("Accept agent tcp connection on address: {}", agent_socket_address);
-            let proxy_server_rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
+            debug!("Proxy server success accept agent connection on address: {}", agent_socket_address);
+            let rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
             let configuration = self.configuration.clone();
             tokio::spawn(async move {
                 let agent_connection_processor =
-                    AgentConnectionProcessor::new(agent_tcp_stream, agent_socket_address.into(), configuration, proxy_server_rsa_crypto_fetcher);
-                if let Err(e) = agent_connection_processor.exec().await {
-                    error!("Fail to execute agent connection [{agent_socket_address}] because of error: {e:?}");
-                    return Err(anyhow::anyhow!(e));
-                };
+                    AgentConnectionProcessor::new(agent_tcp_stream, agent_socket_address.into(), configuration, rsa_crypto_fetcher);
+                agent_connection_processor.exec().await?;
                 debug!("Complete execute agent connection [{agent_socket_address}].");
-                Ok(())
+                Ok::<_, ProxyError>(())
             });
         }
     }

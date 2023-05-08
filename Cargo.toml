@@ -40,3 +40,4 @@ url = "2.3"
 uuid = {version = "1.3", features = ["v4"]}
 log = "0.4"
 thiserror="1.0"
+derive_more="0.99"

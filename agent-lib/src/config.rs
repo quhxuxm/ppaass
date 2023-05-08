@@ -17,9 +17,9 @@ pub struct AgentServerConfig {
     compress: Option<bool>,
     /// The proxy addresses
     proxy_addresses: Option<Vec<String>>,
-    message_framed_buffer_size: Option<usize>,
+    client_receive_buffer_size: Option<usize>,
+    proxy_send_buffer_size: Option<usize>,
     connect_to_proxy_timeout: Option<u64>,
-    client_io_buffer_size: Option<usize>,
 }
 
 impl AgentServerConfig {
@@ -49,8 +49,8 @@ impl AgentServerConfig {
         self.port = Some(port)
     }
 
-    pub fn get_port(&self) -> &Option<u16> {
-        &self.port
+    pub fn get_port(&self) -> u16 {
+        self.port.unwrap_or(80)
     }
 
     pub fn set_rsa_dir(&mut self, rsa_dir: &str) {
@@ -77,16 +77,15 @@ impl AgentServerConfig {
         self.compress.unwrap_or(false)
     }
 
-    pub fn get_message_framed_buffer_size(&self) -> usize {
-        self.message_framed_buffer_size.unwrap_or(65536)
-    }
-
-    pub fn get_client_io_buffer_size(&self) -> usize {
-        self.client_io_buffer_size.unwrap_or(1024 * 64)
+    pub fn get_proxy_send_buffer_size(&self) -> usize {
+        self.proxy_send_buffer_size.unwrap_or(1024 * 512)
     }
 
     pub fn get_connect_to_proxy_timeout(&self) -> u64 {
         self.connect_to_proxy_timeout.unwrap_or(20)
+    }
+    pub fn get_client_receive_buffer_size(&self) -> usize {
+        self.client_receive_buffer_size.unwrap_or(1024 * 512)
     }
 }
 

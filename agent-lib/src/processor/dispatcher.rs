@@ -1,16 +1,18 @@
 use std::{mem::size_of, net::SocketAddr};
 
-use anyhow::{anyhow, Result};
-
 use bytes::BytesMut;
 use futures::StreamExt;
 use tokio::net::TcpStream;
 use tokio_util::codec::{Decoder, Framed, FramedParts};
 use tracing::{debug, error};
 
-use crate::{SOCKS_V4, SOCKS_V5};
+use crate::{
+    config::AgentServerConfig,
+    error::{AgentError, DecoderError},
+    SOCKS_V4, SOCKS_V5,
+};
 
-use super::ClientProcessor;
+use super::ClientProtocolProcessor;
 
 pub(crate) enum ClientProtocol {
     /// The client side choose to use HTTP proxy
@@ -25,7 +27,7 @@ pub(crate) struct SwitchClientProtocolDecoder;
 impl Decoder for SwitchClientProtocolDecoder {
     type Item = ClientProtocol;
 
-    type Error = anyhow::Error;
+    type Error = DecoderError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         // Use the first byte to decide what protocol the client side is using.
@@ -41,20 +43,22 @@ impl Decoder for SwitchClientProtocolDecoder {
     }
 }
 
-pub(crate) struct ClientConnectionProcessorDispatcher;
+pub(crate) struct ClientProtocolDispatcher;
 
-impl ClientConnectionProcessorDispatcher {
-    pub(crate) async fn dispatch(client_tcp_stream: TcpStream, client_socket_address: SocketAddr) -> Result<ClientProcessor> {
-        let mut client_message_framed = Framed::with_capacity(client_tcp_stream, SwitchClientProtocolDecoder, 1024 * 64);
+impl ClientProtocolDispatcher {
+    pub(crate) async fn dispatch(
+        client_tcp_stream: TcpStream, client_socket_address: SocketAddr, agent_config: &AgentServerConfig,
+    ) -> Result<ClientProtocolProcessor, AgentError> {
+        let mut client_message_framed = Framed::with_capacity(client_tcp_stream, SwitchClientProtocolDecoder, agent_config.get_client_receive_buffer_size());
         let client_protocol = match client_message_framed.next().await {
             Some(Ok(client_protocol)) => client_protocol,
             Some(Err(e)) => {
                 error!("Fail to read protocol from client io because of error: {e:?}");
-                return Err(anyhow!("Fail to read protocol from client io because of nothing to read."));
+                return Err(e.into());
             },
             None => {
                 error!("Fail to read protocol from client io because of nothing to read.");
-                return Err(anyhow!("Fail to read protocol from client io because of nothing to read."));
+                return Err(DecoderError::UnknownProtocol.into());
             },
         };
 
@@ -67,7 +71,7 @@ impl ClientConnectionProcessorDispatcher {
                     ..
                 } = client_message_framed.into_parts();
                 debug!("Client tcp connection [{client_socket_address}] begin to serve socks 5 protocol");
-                Ok(ClientProcessor::Socks5 {
+                Ok(ClientProtocolProcessor::Socks5 {
                     client_tcp_stream,
                     src_address: client_socket_address.into(),
                     initial_buf,
@@ -76,7 +80,7 @@ impl ClientConnectionProcessorDispatcher {
             ClientProtocol::Socks4 => {
                 // For socks4 protocol
                 error!("Client tcp connection [{client_socket_address}] do not support socks v4 protocol");
-                Err(anyhow!("Client tcp connection [{client_socket_address}] do not support socks v4 protocol"))
+                Err(DecoderError::UnsupportProtocol.into())
             },
             ClientProtocol::Http => {
                 // For http protocol
@@ -86,7 +90,7 @@ impl ClientConnectionProcessorDispatcher {
                     ..
                 } = client_message_framed.into_parts();
                 debug!("Client tcp connection [{client_socket_address}] begin to serve http protocol");
-                Ok(ClientProcessor::Http {
+                Ok(ClientProtocolProcessor::Http {
                     client_tcp_stream,
                     src_address: client_socket_address.into(),
                     initial_buf,
