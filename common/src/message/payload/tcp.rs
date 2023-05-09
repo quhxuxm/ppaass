@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use derive_more::Constructor;
 use serde_derive::{Deserialize, Serialize};
 
@@ -25,10 +27,10 @@ pub struct TcpInitResponse {
     pub response_type: TcpInitResponseType,
 }
 
-impl TryFrom<Vec<u8>> for TcpInitRequest {
+impl TryFrom<Cow<'_, [u8]>> for TcpInitRequest {
     type Error = CommonError;
 
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+    fn try_from(value: Cow<'_, [u8]>) -> Result<Self, Self::Error> {
         bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::TcpInitRequest(e).into()))
     }
 }
@@ -41,10 +43,10 @@ impl TryFrom<TcpInitRequest> for Vec<u8> {
     }
 }
 
-impl TryFrom<Vec<u8>> for TcpInitResponse {
+impl TryFrom<Cow<'_, [u8]>> for TcpInitResponse {
     type Error = CommonError;
 
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+    fn try_from(value: Cow<'_, [u8]>) -> Result<Self, Self::Error> {
         bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::TcpInitResponse(e).into()))
     }
 }
@@ -65,10 +67,10 @@ pub struct TcpData {
     pub data: Vec<u8>,
 }
 
-impl TryFrom<Vec<u8>> for TcpData {
+impl TryFrom<Cow<'_, [u8]>> for TcpData {
     type Error = CommonError;
 
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+    fn try_from(value: Cow<'_, [u8]>) -> Result<Self, Self::Error> {
         bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::TcpData(e).into()))
     }
 }

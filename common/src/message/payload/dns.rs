@@ -1,6 +1,6 @@
 use derive_more::Constructor;
 use serde_derive::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 
 use crate::{CommonError, DeserializeError, SerializeError};
 
@@ -15,10 +15,10 @@ pub struct DnsLookupRequest {
     pub domain_names: Vec<String>,
 }
 
-impl TryFrom<Vec<u8>> for DnsLookupRequest {
+impl TryFrom<Cow<'_, [u8]>> for DnsLookupRequest {
     type Error = CommonError;
 
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+    fn try_from(value: Cow<'_, [u8]>) -> Result<Self, Self::Error> {
         bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::DnsLookupRequest(e).into()))
     }
 }
@@ -42,10 +42,10 @@ pub struct DnsLookupResponse {
     pub addresses: HashMap<String, Option<Vec<[u8; 4]>>>,
 }
 
-impl TryFrom<Vec<u8>> for DnsLookupResponse {
+impl TryFrom<Cow<'_, [u8]>> for DnsLookupResponse {
     type Error = CommonError;
 
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+    fn try_from(value: Cow<'_, [u8]>) -> Result<Self, Self::Error> {
         bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::DnsLookupResponse(e).into()))
     }
 }

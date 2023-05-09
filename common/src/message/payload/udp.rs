@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::{CommonError, DeserializeError, PpaassNetAddress, SerializeError};
 use derive_more::Constructor;
 use serde_derive::{Deserialize, Serialize};
@@ -14,10 +16,10 @@ pub struct UdpData {
     pub data: Vec<u8>,
 }
 
-impl TryFrom<Vec<u8>> for UdpData {
+impl TryFrom<Cow<'_, [u8]>> for UdpData {
     type Error = CommonError;
 
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+    fn try_from(value: Cow<'_, [u8]>) -> Result<Self, Self::Error> {
         bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::UdpData(e).into()))
     }
 }

@@ -40,7 +40,7 @@ mod socks;
 struct ClientDataRelayInfo<R, I>
 where
     R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+    I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
     client_tcp_stream: TcpStream,
     src_address: PpaassNetAddress,
@@ -92,7 +92,7 @@ impl ClientProtocolProcessor {
     async fn relay<R, I>(info: ClientDataRelayInfo<R, I>) -> Result<(), AgentError>
     where
         R: RsaCryptoFetcher + Send + Sync + 'static,
-        I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+        I: ToString + Send + Sync + Clone + Display + Debug + 'static,
     {
         let client_tcp_stream = info.client_tcp_stream;
 

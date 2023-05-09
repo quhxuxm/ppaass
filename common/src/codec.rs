@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     fmt::{Debug, Formatter},
     io::{Read, Write},
     mem::size_of,
@@ -58,7 +59,7 @@ impl<T> Decoder for PpaassMessageCodec<T>
 where
     T: RsaCryptoFetcher,
 {
-    type Item = PpaassMessage;
+    type Item = PpaassMessage<'static>;
     type Error = CommonError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
@@ -109,10 +110,11 @@ where
                 "Decompressed bytes will convert to PpaassMessage:\n{}\n",
                 pretty_hex::pretty_hex(&decompressed_bytes)
             );
-            decompressed_bytes.as_slice().try_into()?
+            let encrypted_message: PpaassMessage = Cow::Owned(decompressed_bytes).try_into()?;
+            encrypted_message
         } else {
             trace!("Raw bytes will convert to PpaassMessage:\n{}\n", pretty_hex::pretty_hex(&body_bytes));
-            body_bytes.as_ref().try_into()?
+            Cow::Borrowed(body_bytes.as_ref()).try_into()?
         };
 
         let PpaassMessage {
@@ -131,11 +133,11 @@ where
             PpaassMessagePayloadEncryption::Plain => payload,
             PpaassMessagePayloadEncryption::Aes(ref encryption_token) => {
                 let original_encryption_token = rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?;
-                decrypt_with_aes(&original_encryption_token, &payload).map_err(CryptoError::Aes)?
+                Cow::Owned(decrypt_with_aes(&original_encryption_token, &payload).map_err(CryptoError::Aes)?)
             },
             PpaassMessagePayloadEncryption::Blowfish(ref encryption_token) => {
                 let original_encryption_token = rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?;
-                decrypt_with_blowfish(&original_encryption_token, &payload).map_err(CryptoError::Blowfish)?
+                Cow::Owned(decrypt_with_blowfish(&original_encryption_token, &payload).map_err(CryptoError::Blowfish)?)
             },
         };
         self.status = DecodeStatus::Head;
@@ -146,7 +148,7 @@ where
 }
 
 /// Encode the ppaass message to bytes buffer
-impl<T> Encoder<PpaassMessage> for PpaassMessageCodec<T>
+impl<'a, T> Encoder<PpaassMessage<'a>> for PpaassMessageCodec<T>
 where
     T: RsaCryptoFetcher,
 {
@@ -178,13 +180,16 @@ where
             PpaassMessagePayloadEncryption::Aes(ref original_token) => {
                 let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token).map_err(CryptoError::Rsa)?;
                 let encrypted_payload_bytes = encrypt_with_aes(original_token, &payload);
-                (encrypted_payload_bytes, PpaassMessagePayloadEncryption::Aes(encrypted_payload_encryption_token))
+                (
+                    Cow::Owned(encrypted_payload_bytes),
+                    PpaassMessagePayloadEncryption::Aes(encrypted_payload_encryption_token),
+                )
             },
             PpaassMessagePayloadEncryption::Blowfish(ref original_token) => {
                 let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token).map_err(CryptoError::Rsa)?;
                 let encrypted_payload_bytes = encrypt_with_blowfish(original_token, &payload);
                 (
-                    encrypted_payload_bytes,
+                    Cow::Owned(encrypted_payload_bytes),
                     PpaassMessagePayloadEncryption::Blowfish(encrypted_payload_encryption_token),
                 )
             },
