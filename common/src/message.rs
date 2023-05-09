@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use crate::{CommonError, DeserializeError, SerializeError};
 
 use derive_more::Constructor;
@@ -21,27 +19,34 @@ pub use types::*;
 
 #[derive(Serialize, Deserialize, Debug, Constructor)]
 #[non_exhaustive]
-pub struct PpaassMessage<'a> {
+pub struct PpaassMessage<T>
+where
+    T: ToOwned<Owned = Vec<u8>>,
+{
     pub id: String,
     pub user_token: String,
     pub payload_encryption: PpaassMessagePayloadEncryption,
-    pub payload: Cow<'a, [u8]>,
+    pub payload: T,
 }
 
-unsafe impl Send for PpaassMessage<'static> {}
-
-impl<'a> TryFrom<Cow<'a, [u8]>> for PpaassMessage<'a> {
+impl<T> TryFrom<&[u8]> for PpaassMessage<T>
+where
+    T: ToOwned<Owned = Vec<u8>>,
+{
     type Error = CommonError;
 
-    fn try_from(value: Cow<'a, [u8]>) -> Result<Self, Self::Error> {
-        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessage(e).into()))
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        bincode::deserialize(value).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessage(e).into()))
     }
 }
 
-impl TryFrom<PpaassMessage<'_>> for Vec<u8> {
+impl<T> TryFrom<PpaassMessage<T>> for Vec<u8>
+where
+    T: ToOwned<Owned = Vec<u8>>,
+{
     type Error = CommonError;
 
-    fn try_from(value: PpaassMessage) -> Result<Self, Self::Error> {
+    fn try_from(value: PpaassMessage<T>) -> Result<Self, Self::Error> {
         bincode::serialize(&value).map_err(|e| CommonError::Encoder(SerializeError::PpaassMessage(e).into()))
     }
 }

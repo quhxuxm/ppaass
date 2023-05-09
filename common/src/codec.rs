@@ -2,6 +2,7 @@ use std::{
     borrow::Cow,
     fmt::{Debug, Formatter},
     io::{Read, Write},
+    marker::PhantomData,
     mem::size_of,
     sync::Arc,
 };
@@ -26,40 +27,49 @@ enum DecodeStatus {
     Data(bool, u64),
 }
 
-pub(crate) struct PpaassMessageCodec<T: RsaCryptoFetcher> {
+pub(crate) struct PpaassMessageCodec<T, P>
+where
+    T: RsaCryptoFetcher + 'static,
+    P: ToOwned<Owned = Vec<u8>> + 'static,
+{
     rsa_crypto_fetcher: Arc<T>,
     compress: bool,
     status: DecodeStatus,
+    _marker: PhantomData<P>,
 }
 
-impl<T> Debug for PpaassMessageCodec<T>
+impl<T, P> Debug for PpaassMessageCodec<T, P>
 where
-    T: RsaCryptoFetcher,
+    T: RsaCryptoFetcher + 'static,
+    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "PpaassMessageCodec: compress={}", self.compress)
     }
 }
 
-impl<T> PpaassMessageCodec<T>
+impl<T, P> PpaassMessageCodec<T, P>
 where
-    T: RsaCryptoFetcher,
+    T: RsaCryptoFetcher + 'static,
+    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
     pub fn new(compress: bool, rsa_crypto_fetcher: Arc<T>) -> Self {
         Self {
             rsa_crypto_fetcher,
             compress,
             status: DecodeStatus::Head,
+            _marker: PhantomData,
         }
     }
 }
 
 /// Decode the input bytes buffer to ppaass message
-impl<T> Decoder for PpaassMessageCodec<T>
+impl<T, P> Decoder for PpaassMessageCodec<T, P>
 where
-    T: RsaCryptoFetcher,
+    T: RsaCryptoFetcher + 'static,
+    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
-    type Item = PpaassMessage<'static>;
+    type Item = PpaassMessage<P>;
     type Error = CommonError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
@@ -148,13 +158,14 @@ where
 }
 
 /// Encode the ppaass message to bytes buffer
-impl<'a, T> Encoder<PpaassMessage<'a>> for PpaassMessageCodec<T>
+impl<T, P> Encoder<PpaassMessage<P>> for PpaassMessageCodec<T, P>
 where
-    T: RsaCryptoFetcher,
+    T: RsaCryptoFetcher + 'static,
+    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
     type Error = CommonError;
 
-    fn encode(&mut self, original_message: PpaassMessage, dst: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, original_message: PpaassMessage<P>, dst: &mut BytesMut) -> Result<(), Self::Error> {
         trace!("Encode message to output(decrypted): {:?}", original_message);
         dst.put(PPAASS_FLAG);
         if self.compress {

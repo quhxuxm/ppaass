@@ -16,38 +16,41 @@ use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::Framed;
 
-type PpaassMessageFramedRead<T, R> = SplitStream<Framed<T, PpaassMessageCodec<R>>>;
-type PpaassMessageFramedWrite<T, R> = SplitSink<Framed<T, PpaassMessageCodec<R>>, PpaassMessage<'static>>;
+type PpaassMessageFramedRead<T, R, P> = SplitStream<Framed<T, PpaassMessageCodec<R, P>>>;
+type PpaassMessageFramedWrite<T, R, P> = SplitSink<Framed<T, PpaassMessageCodec<R, P>>, PpaassMessage<P>>;
 
-pub struct PpaassConnectionParts<T, R, I>
+pub struct PpaassConnectionParts<T, R, I, P>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: ToString + Send + Sync + Clone + Display + Debug + 'static,
+    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
-    pub read_part: PpaassConnectionRead<T, R, I>,
-    pub write_part: PpaassConnectionWrite<T, R, I>,
+    pub read_part: PpaassConnectionRead<T, R, I, P>,
+    pub write_part: PpaassConnectionWrite<T, R, I, P>,
     pub id: I,
 }
 
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct PpaassConnection<T, R, I>
+pub struct PpaassConnection<T, R, I, P>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: ToString + Send + Sync + Clone + Display + Debug + 'static,
+    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
-    framed_read: PpaassMessageFramedRead<T, R>,
-    framed_write: PpaassMessageFramedWrite<T, R>,
+    framed_read: PpaassMessageFramedRead<T, R, P>,
+    framed_write: PpaassMessageFramedWrite<T, R, P>,
     id: I,
 }
 
-impl<T, R, I> PpaassConnection<T, R, I>
+impl<T, R, I, P> PpaassConnection<T, R, I, P>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: ToString + Send + Sync + Clone + Display + Debug + 'static,
+    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
     pub fn new(id: I, stream: T, rsa_crypto_fetcher: Arc<R>, compress: bool, buffer_size: usize) -> Self {
         let ppaass_message_codec = PpaassMessageCodec::new(compress, rsa_crypto_fetcher);
@@ -56,7 +59,7 @@ where
         Self { framed_write, framed_read, id }
     }
 
-    pub fn split(self) -> PpaassConnectionParts<T, R, I> {
+    pub fn split(self) -> PpaassConnectionParts<T, R, I, P> {
         let read = PpaassConnectionRead::new(self.id.clone(), self.framed_read);
         let write = PpaassConnectionWrite::new(self.id.clone(), self.framed_write);
         let id = self.id;
@@ -70,33 +73,36 @@ where
 
 #[pin_project]
 #[derive(Debug)]
-pub struct PpaassConnectionWrite<T, R, I>
+pub struct PpaassConnectionWrite<T, R, I, P>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: ToString + Send + Sync + Clone + Display + Debug + 'static,
+    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
     connection_id: I,
     #[pin]
-    framed_write: PpaassMessageFramedWrite<T, R>,
+    framed_write: PpaassMessageFramedWrite<T, R, P>,
 }
 
-impl<T, R, I> PpaassConnectionWrite<T, R, I>
+impl<T, R, I, P> PpaassConnectionWrite<T, R, I, P>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: ToString + Send + Sync + Clone + Display + Debug + 'static,
+    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
-    fn new(connection_id: I, framed_write: PpaassMessageFramedWrite<T, R>) -> Self {
+    fn new(connection_id: I, framed_write: PpaassMessageFramedWrite<T, R, P>) -> Self {
         Self { connection_id, framed_write }
     }
 }
 
-impl<T, R, I> Sink<PpaassMessage<'static>> for PpaassConnectionWrite<T, R, I>
+impl<T, R, I, P> Sink<PpaassMessage<P>> for PpaassConnectionWrite<T, R, I, P>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: ToString + Send + Sync + Clone + Display + Debug + 'static,
+    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
     type Error = CommonError;
 
@@ -105,7 +111,7 @@ where
         this.framed_write.poll_ready(cx)
     }
 
-    fn start_send(self: Pin<&mut Self>, item: PpaassMessage<'static>) -> Result<(), Self::Error> {
+    fn start_send(self: Pin<&mut Self>, item: PpaassMessage<P>) -> Result<(), Self::Error> {
         let this = self.project();
         this.framed_write.start_send(item)
     }
@@ -123,35 +129,38 @@ where
 
 #[pin_project]
 #[derive(Debug)]
-pub struct PpaassConnectionRead<T, R, I>
+pub struct PpaassConnectionRead<T, R, I, P>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: ToString + Send + Sync + Clone + Display + Debug + 'static,
+    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
     connection_id: I,
     #[pin]
-    framed_read: PpaassMessageFramedRead<T, R>,
+    framed_read: PpaassMessageFramedRead<T, R, P>,
 }
 
-impl<T, R, I> PpaassConnectionRead<T, R, I>
+impl<T, R, I, P> PpaassConnectionRead<T, R, I, P>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: ToString + Send + Sync + Clone + Display + Debug + 'static,
+    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
-    fn new(connection_id: I, framed_read: PpaassMessageFramedRead<T, R>) -> Self {
+    fn new(connection_id: I, framed_read: PpaassMessageFramedRead<T, R, P>) -> Self {
         Self { connection_id, framed_read }
     }
 }
 
-impl<T, R, I> Stream for PpaassConnectionRead<T, R, I>
+impl<T, R, I, P> Stream for PpaassConnectionRead<T, R, I, P>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: ToString + Send + Sync + Clone + Display + Debug + 'static,
+    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
-    type Item = Result<PpaassMessage<'static>, CommonError>;
+    type Item = Result<PpaassMessage<P>, CommonError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
