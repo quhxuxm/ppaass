@@ -18,7 +18,7 @@ fn deserialize_byte_array<'de, D: Deserializer<'de>, const N: usize>(d: D) -> Re
 
 fn deserialize_byte_vec<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
     let base64 = String::deserialize(d)?;
-    let result = general_purpose::STANDARD.decode(base64.as_bytes()).map_err(serde::de::Error::custom)?;
+    let result = general_purpose::STANDARD.decode(base64.as_bytes()).map_err(SerdeError::custom)?;
     Ok(result)
 }
 
