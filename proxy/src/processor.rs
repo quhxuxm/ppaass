@@ -7,15 +7,9 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use tracing::{error, info};
 
-use ppaass_common::{
-    dns::DnsLookupRequest,
-    tcp::TcpInitRequest,
-    udp::{UdpData, UdpDataParts},
-};
-use ppaass_common::{
-    PpaassConnection, PpaassMessageAgentPayload, PpaassMessageAgentPayloadParts, PpaassMessageAgentPayloadType, PpaassNetAddress, RsaCryptoFetcher,
-};
-use ppaass_common::{PpaassConnectionParts, PpaassMessageParts};
+use ppaass_common::{dns::DnsLookupRequest, tcp::TcpInitRequest, udp::UdpData};
+use ppaass_common::{PpaassConnection, PpaassMessageAgentPayload, PpaassMessageAgentPayloadType, PpaassNetAddress, RsaCryptoFetcher};
+use ppaass_common::{PpaassConnectionParts, PpaassMessage};
 
 use crate::{
     config::ProxyServerConfig,
@@ -79,19 +73,12 @@ where
                 return Ok(());
             },
         };
-        let PpaassMessageParts {
-            user_token,
-            payload: agent_message_payload,
-            ..
-        } = agent_message.split();
-        let PpaassMessageAgentPayloadParts {
-            payload_type,
-            data: agent_message_payload,
-        } = TryInto::<PpaassMessageAgentPayload>::try_into(agent_message_payload)?.split();
+        let PpaassMessage { user_token, payload, .. } = agent_message;
+        let PpaassMessageAgentPayload { payload_type, data } = TryInto::<PpaassMessageAgentPayload>::try_into(payload)?;
 
         match payload_type {
             PpaassMessageAgentPayloadType::TcpInit => {
-                let tcp_init_request: TcpInitRequest = agent_message_payload.try_into()?;
+                let tcp_init_request: TcpInitRequest = data.try_into()?;
                 let src_address = tcp_init_request.src_address;
                 let dst_address = tcp_init_request.dst_address;
                 let tcp_handler_key = TcpHandlerKey::new(connection_id, user_token, agent_address, src_address, dst_address);
@@ -101,20 +88,20 @@ where
             },
             PpaassMessageAgentPayloadType::UdpData => {
                 info!("Agent connection {connection_id} receive udp data from agent.");
-                let udp_data: UdpData = agent_message_payload.try_into()?;
-                let UdpDataParts {
+                let UdpData {
                     src_address,
                     dst_address,
-                    raw_data,
-                } = udp_data.split();
+                    data: udp_raw_data,
+                    ..
+                } = data.try_into()?;
                 let udp_handler_key = UdpHandlerKey::new(connection_id, user_token, agent_address, src_address, dst_address);
                 let udp_handler = UdpHandler::new(udp_handler_key, agent_connection_write, configuration);
-                udp_handler.exec(raw_data).await?;
+                udp_handler.exec(udp_raw_data).await?;
                 Ok(())
             },
             PpaassMessageAgentPayloadType::DnsLookupRequest => {
                 info!("Agent connection {connection_id} receive dns lookup request from agent.");
-                let dns_lookup_request: DnsLookupRequest = agent_message_payload.try_into()?;
+                let dns_lookup_request: DnsLookupRequest = data.try_into()?;
                 let dns_lookup_handler_key = DnsLookupHandlerKey::new(connection_id, user_token, agent_address);
                 let dns_lookup_handler = DnsLookupHandler::new(dns_lookup_handler_key, agent_connection_write);
                 dns_lookup_handler.exec(dns_lookup_request).await?;

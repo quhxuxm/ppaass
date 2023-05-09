@@ -1,11 +1,10 @@
 use serde_derive::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "type", content = "token")]
 pub enum PpaassMessagePayloadEncryption {
     Plain,
-    Aes(#[serde(with = "serde_bytes")] Vec<u8>),
-    Blowfish(#[serde(with = "serde_bytes")] Vec<u8>),
+    Aes(Vec<u8>),
+    Blowfish(Vec<u8>),
 }
 
 pub trait PpaassMessagePayloadEncryptionSelector {

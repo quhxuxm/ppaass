@@ -8,7 +8,7 @@ use std::{
 use crate::{
     decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_with_blowfish, CommonError, CryptoError, DecoderError, RsaCryptoFetcher, RsaError,
 };
-use crate::{PpaassMessage, PpaassMessageParts, PpaassMessagePayloadEncryption};
+use crate::{PpaassMessage, PpaassMessagePayloadEncryption};
 use anyhow::anyhow;
 use bytes::{Buf, BufMut, BytesMut};
 
@@ -116,12 +116,12 @@ where
             body_bytes.to_vec().try_into()?
         };
 
-        let PpaassMessageParts {
+        let PpaassMessage {
             id,
             user_token,
             payload_encryption,
-            payload: payload_bytes,
-        } = encrypted_message.split();
+            payload,
+        } = encrypted_message;
 
         let rsa_crypto = self
             .rsa_crypto_fetcher
@@ -129,25 +129,20 @@ where
             .map_err(CryptoError::Rsa)?
             .ok_or(CryptoError::Rsa(RsaError::NotFound(user_token.clone())))?;
         let decrypt_payload_bytes = match payload_encryption {
-            PpaassMessagePayloadEncryption::Plain => payload_bytes,
+            PpaassMessagePayloadEncryption::Plain => payload,
             PpaassMessagePayloadEncryption::Aes(ref encryption_token) => {
                 let original_encryption_token = rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?;
-                decrypt_with_aes(&original_encryption_token, &payload_bytes).map_err(CryptoError::Aes)?
+                decrypt_with_aes(&original_encryption_token, &payload).map_err(CryptoError::Aes)?
             },
             PpaassMessagePayloadEncryption::Blowfish(ref encryption_token) => {
                 let original_encryption_token = rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?;
-                decrypt_with_blowfish(&original_encryption_token, &payload_bytes).map_err(CryptoError::Blowfish)?
+                decrypt_with_blowfish(&original_encryption_token, &payload).map_err(CryptoError::Blowfish)?
             },
         };
         self.status = DecodeStatus::Head;
         src.reserve(header_length);
-        let new_message_parts = PpaassMessageParts {
-            id,
-            user_token,
-            payload_encryption,
-            payload: decrypt_payload_bytes,
-        };
-        Ok(Some(new_message_parts.into()))
+        let new_message = PpaassMessage::new(id, user_token, payload_encryption, decrypt_payload_bytes);
+        Ok(Some(new_message))
     }
 }
 
@@ -166,12 +161,12 @@ where
         } else {
             dst.put_u8(0);
         }
-        let PpaassMessageParts {
+        let PpaassMessage {
             id,
             user_token,
             payload_encryption,
-            payload: payload_bytes,
-        } = original_message.split();
+            payload,
+        } = original_message;
 
         let rsa_crypto = self
             .rsa_crypto_fetcher
@@ -180,28 +175,23 @@ where
             .ok_or(CryptoError::Rsa(RsaError::NotFound(user_token.clone())))?;
 
         let (encrypted_payload_bytes, encrypted_payload_encryption_type) = match payload_encryption {
-            PpaassMessagePayloadEncryption::Plain => (payload_bytes, PpaassMessagePayloadEncryption::Plain),
+            PpaassMessagePayloadEncryption::Plain => (payload, PpaassMessagePayloadEncryption::Plain),
             PpaassMessagePayloadEncryption::Aes(ref original_token) => {
                 let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token).map_err(CryptoError::Rsa)?;
-                let encrypted_payload_bytes = encrypt_with_aes(original_token, &payload_bytes);
+                let encrypted_payload_bytes = encrypt_with_aes(original_token, &payload);
                 (encrypted_payload_bytes, PpaassMessagePayloadEncryption::Aes(encrypted_payload_encryption_token))
             },
             PpaassMessagePayloadEncryption::Blowfish(ref original_token) => {
                 let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token).map_err(CryptoError::Rsa)?;
-                let encrypted_payload_bytes = encrypt_with_blowfish(original_token, &payload_bytes);
+                let encrypted_payload_bytes = encrypt_with_blowfish(original_token, &payload);
                 (
                     encrypted_payload_bytes,
                     PpaassMessagePayloadEncryption::Blowfish(encrypted_payload_encryption_token),
                 )
             },
         };
-        let message_parts_to_encode = PpaassMessageParts {
-            id,
-            user_token,
-            payload_encryption: encrypted_payload_encryption_type,
-            payload: encrypted_payload_bytes,
-        };
-        let message_to_encode: PpaassMessage = message_parts_to_encode.into();
+
+        let message_to_encode = PpaassMessage::new(id, user_token, encrypted_payload_encryption_type, encrypted_payload_bytes);
         let result_bytes: Vec<u8> = message_to_encode.try_into()?;
         let result_bytes = if self.compress {
             let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::fast());

@@ -7,8 +7,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use anyhow::{anyhow, Result};
-
+use anyhow::anyhow;
 use bytes::BytesMut;
 use futures::{
     stream::{SplitSink, SplitStream},
@@ -16,15 +15,13 @@ use futures::{
 };
 use pin_project::pin_project;
 use ppaass_common::{
-    tcp::{TcpData, TcpDataParts},
-    CommonError, PpaassConnectionRead, PpaassConnectionWrite, PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryption, PpaassNetAddress,
-    RsaCryptoFetcher,
+    tcp::TcpData, CommonError, PpaassConnectionRead, PpaassConnectionWrite, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryption,
+    PpaassNetAddress, RsaCryptoFetcher,
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpStream,
 };
-
 use tokio_util::codec::{BytesCodec, Framed};
 use tracing::error;
 
@@ -70,7 +67,7 @@ pub(crate) enum ClientProtocolProcessor {
 }
 
 impl ClientProtocolProcessor {
-    pub(crate) async fn exec(self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>) -> Result<()> {
+    pub(crate) async fn exec(self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>) -> Result<(), AgentError> {
         match self {
             ClientProtocolProcessor::Http {
                 client_tcp_stream,
@@ -92,7 +89,7 @@ impl ClientProtocolProcessor {
         Ok(())
     }
 
-    async fn relay<R, I>(info: ClientDataRelayInfo<R, I>) -> Result<()>
+    async fn relay<R, I>(info: ClientDataRelayInfo<R, I>) -> Result<(), AgentError>
     where
         R: RsaCryptoFetcher + Send + Sync + 'static,
         I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
@@ -144,11 +141,9 @@ impl ClientProtocolProcessor {
         tokio::spawn(async move {
             if let Err(e) = proxy_connection_read
                 .map(|proxy_message| {
-                    let proxy_message = proxy_message?;
-                    let PpaassMessageParts { payload, .. } = proxy_message.split();
-                    let tcp_data: TcpData = payload.try_into()?;
-                    let TcpDataParts { raw_data, .. } = tcp_data.split();
-                    Ok(BytesMut::from_iter(raw_data))
+                    let PpaassMessage { payload, .. } = proxy_message?;
+                    let TcpData { data, .. } = payload.try_into()?;
+                    Ok(BytesMut::from_iter(data))
                 })
                 .forward(client_io_write)
                 .await

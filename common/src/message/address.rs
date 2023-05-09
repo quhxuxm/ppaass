@@ -14,17 +14,9 @@ use std::{
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, Display)]
 pub enum PpaassNetAddress {
     #[display(fmt = "{:?}:{}", ip, port)]
-    IpV4 {
-        #[serde(with = "serde_bytes")]
-        ip: Vec<u8>,
-        port: u16,
-    },
+    IpV4 { ip: [u8; 4], port: u16 },
     #[display(fmt = "{:?}:{}", ip, port)]
-    IpV6 {
-        #[serde(with = "serde_bytes")]
-        ip: Vec<u8>,
-        port: u16,
-    },
+    IpV6 { ip: [u8; 16], port: u16 },
     #[display(fmt = "{}:{}", host, port)]
     Domain { host: String, port: u16 },
 }
@@ -109,11 +101,11 @@ impl From<&SocketAddr> for PpaassNetAddress {
         let ip_address = value.ip();
         match ip_address {
             IpAddr::V4(addr) => Self::IpV4 {
-                ip: addr.octets().to_vec(),
+                ip: addr.octets(),
                 port: value.port(),
             },
             IpAddr::V6(addr) => Self::IpV6 {
-                ip: addr.octets().to_vec(),
+                ip: addr.octets(),
                 port: value.port(),
             },
         }

@@ -22,8 +22,8 @@ use tracing::{debug, error};
 
 use ppaass_common::{
     generate_uuid,
-    tcp::{TcpData, TcpDataParts, TcpInitResponseType},
-    CommonError, PpaassConnectionRead, PpaassConnectionWrite, PpaassMessage, PpaassMessageParts, RsaCryptoFetcher,
+    tcp::{TcpData, TcpInitResponseType},
+    CommonError, PpaassConnectionRead, PpaassConnectionWrite, PpaassMessage, RsaCryptoFetcher,
 };
 use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
 
@@ -104,10 +104,9 @@ where
     }
 
     fn unwrap_to_raw_tcp_data(message: PpaassMessage) -> Result<Vec<u8>, CommonError> {
-        let PpaassMessageParts { payload: message, .. } = message.split();
-        let tcp_data: TcpData = message.try_into()?;
-        let TcpDataParts { raw_data, .. } = tcp_data.split();
-        Ok(raw_data)
+        let PpaassMessage { payload, .. } = message;
+        let TcpData { data, .. } = payload.try_into()?;
+        Ok(data)
     }
 
     pub(crate) async fn exec(self) -> Result<(), ProxyError> {

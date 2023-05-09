@@ -1,5 +1,5 @@
 use anyhow::Error as AnyhowError;
-use serde_json::Error as SerdeJsonError;
+use bincode::Error as BincodeError;
 use std::io::Error as StdIoError;
 use thiserror::Error;
 
@@ -62,23 +62,23 @@ pub enum EncoderError {
 #[derive(Debug, Error)]
 pub enum SerializeError {
     #[error("Dns lookup request serialize fail because of error: {0:?}")]
-    DnsLookupRequest(#[source] SerdeJsonError),
+    DnsLookupRequest(#[source] BincodeError),
     #[error("Dns lookup response serialize fail because of error: {0:?}")]
-    DnsLookupResponse(#[source] SerdeJsonError),
+    DnsLookupResponse(#[source] BincodeError),
     #[error("Tcp init request serialize fail because of error: {0:?}")]
-    TcpInitRequest(#[source] SerdeJsonError),
+    TcpInitRequest(#[source] BincodeError),
     #[error("Tcp init response serialize fail because of error: {0:?}")]
-    TcpInitResponse(#[source] SerdeJsonError),
+    TcpInitResponse(#[source] BincodeError),
     #[error("Tcp data serialize fail because of error: {0:?}")]
-    TcpData(#[source] SerdeJsonError),
+    TcpData(#[source] BincodeError),
     #[error("Udp data serialize fail because of error: {0:?}")]
-    UdpData(#[source] SerdeJsonError),
+    UdpData(#[source] BincodeError),
     #[error("Ppaass message serialize fail because of error: {0:?}")]
-    PpaassMessage(#[source] SerdeJsonError),
+    PpaassMessage(#[source] BincodeError),
     #[error("Ppaass message agent payload serialize fail because of error: {0:?}")]
-    PpaassMessageAgentPayload(#[source] SerdeJsonError),
+    PpaassMessageAgentPayload(#[source] BincodeError),
     #[error("Ppaass message proxy payload serialize fail because of error: {0:?}")]
-    PpaassMessageProxyPayload(#[source] SerdeJsonError),
+    PpaassMessageProxyPayload(#[source] BincodeError),
 }
 
 #[derive(Debug, Error)]
@@ -96,21 +96,21 @@ pub enum DecoderError {
 #[derive(Debug, Error)]
 pub enum DeserializeError {
     #[error("Dns lookup request deserialize fail because of error: {0:?}")]
-    DnsLookupRequest(#[source] SerdeJsonError),
+    DnsLookupRequest(#[source] BincodeError),
     #[error("Dns lookup response deserialize fail because of error: {0:?}")]
-    DnsLookupResponse(#[source] SerdeJsonError),
+    DnsLookupResponse(#[source] BincodeError),
     #[error("Tcp init request deserialize fail because of error: {0:?}")]
-    TcpInitRequest(#[source] SerdeJsonError),
+    TcpInitRequest(#[source] BincodeError),
     #[error("Tcp init response deserialize fail because of error: {0:?}")]
-    TcpInitResponse(#[source] SerdeJsonError),
+    TcpInitResponse(#[source] BincodeError),
     #[error("Tcp data deserialize fail because of error: {0:?}")]
-    TcpData(#[source] SerdeJsonError),
+    TcpData(#[source] BincodeError),
     #[error("Udp data deserialize fail because of error: {0:?}")]
-    UdpData(#[source] SerdeJsonError),
+    UdpData(#[source] BincodeError),
     #[error("Ppaass message deserialize fail because of error: {0:?}")]
-    PpaassMessage(#[source] SerdeJsonError),
+    PpaassMessage(#[source] BincodeError),
     #[error("Ppaass message agent payload deserialize fail because of error: {0:?}")]
-    PpaassMessageAgentPayload(#[source] SerdeJsonError),
+    PpaassMessageAgentPayload(#[source] BincodeError),
     #[error("Ppaass message proxy payload deserialize fail because of error: {0:?}")]
-    PpaassMessageProxyPayload(#[source] SerdeJsonError),
+    PpaassMessageProxyPayload(#[source] BincodeError),
 }
