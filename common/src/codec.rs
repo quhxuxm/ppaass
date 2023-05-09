@@ -110,11 +110,11 @@ where
                 "Decompressed bytes will convert to PpaassMessage:\n{}\n",
                 pretty_hex::pretty_hex(&decompressed_bytes)
             );
-            let encrypted_message: PpaassMessage = Cow::Owned(decompressed_bytes).try_into()?;
+            let encrypted_message: PpaassMessage = Cow::<'_, [u8]>::Owned(decompressed_bytes).try_into()?;
             encrypted_message
         } else {
             trace!("Raw bytes will convert to PpaassMessage:\n{}\n", pretty_hex::pretty_hex(&body_bytes));
-            Cow::Borrowed(body_bytes.as_ref()).try_into()?
+            Cow::<'_, [u8]>::Owned(body_bytes.to_vec()).try_into()?
         };
 
         let PpaassMessage {

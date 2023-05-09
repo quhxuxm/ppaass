@@ -15,10 +15,10 @@ pub struct DnsLookupRequest {
     pub domain_names: Vec<String>,
 }
 
-impl TryFrom<Cow<'_, [u8]>> for DnsLookupRequest {
+impl<'a> TryFrom<Cow<'a, [u8]>> for DnsLookupRequest {
     type Error = CommonError;
 
-    fn try_from(value: Cow<'_, [u8]>) -> Result<Self, Self::Error> {
+    fn try_from(value: Cow<'a, [u8]>) -> Result<Self, Self::Error> {
         bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::DnsLookupRequest(e).into()))
     }
 }
@@ -42,10 +42,10 @@ pub struct DnsLookupResponse {
     pub addresses: HashMap<String, Option<Vec<[u8; 4]>>>,
 }
 
-impl TryFrom<Cow<'_, [u8]>> for DnsLookupResponse {
+impl<'a> TryFrom<Cow<'a, [u8]>> for DnsLookupResponse {
     type Error = CommonError;
 
-    fn try_from(value: Cow<'_, [u8]>) -> Result<Self, Self::Error> {
+    fn try_from(value: Cow<'a, [u8]>) -> Result<Self, Self::Error> {
         bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::DnsLookupResponse(e).into()))
     }
 }

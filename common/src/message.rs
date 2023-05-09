@@ -30,10 +30,10 @@ pub struct PpaassMessage<'a> {
 
 unsafe impl Send for PpaassMessage<'static> {}
 
-impl TryFrom<Cow<'_, [u8]>> for PpaassMessage<'_> {
+impl<'a> TryFrom<Cow<'a, [u8]>> for PpaassMessage<'a> {
     type Error = CommonError;
 
-    fn try_from(value: Cow<'_, [u8]>) -> Result<Self, Self::Error> {
+    fn try_from(value: Cow<'a, [u8]>) -> Result<Self, Self::Error> {
         bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessage(e).into()))
     }
 }

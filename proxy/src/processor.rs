@@ -74,7 +74,6 @@ where
             },
         };
         let PpaassMessage { user_token, payload, .. } = agent_message;
-        let payload: &[u8] = &payload;
         let PpaassMessageAgentPayload { payload_type, data } = TryInto::<PpaassMessageAgentPayload>::try_into(payload)?;
 
         match payload_type {

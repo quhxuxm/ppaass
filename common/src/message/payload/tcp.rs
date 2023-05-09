@@ -67,10 +67,10 @@ pub struct TcpData {
     pub data: Vec<u8>,
 }
 
-impl TryFrom<Cow<'_, [u8]>> for TcpData {
+impl<'a> TryFrom<Cow<'a, [u8]>> for TcpData {
     type Error = CommonError;
 
-    fn try_from(value: Cow<'_, [u8]>) -> Result<Self, Self::Error> {
+    fn try_from(value: Cow<'a, [u8]>) -> Result<Self, Self::Error> {
         bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::TcpData(e).into()))
     }
 }

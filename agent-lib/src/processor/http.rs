@@ -107,7 +107,7 @@ impl HttpClientProcessor {
         let proxy_message = proxy_connection_read.next().await.ok_or(NetworkError::ConnectionExhausted)??;
 
         let PpaassMessage { payload, user_token, .. } = proxy_message;
-        let PpaassMessageProxyPayload { payload_type, data } = TryInto::<PpaassMessageProxyPayload>::try_into(&payload)?;
+        let PpaassMessageProxyPayload { payload_type, data } = TryInto::<PpaassMessageProxyPayload>::try_into(payload)?;
         let tcp_init_response = match payload_type {
             PpaassMessageProxyPayloadType::TcpInit => TryInto::<TcpInitResponse>::try_into(data)?,
             _ => {
