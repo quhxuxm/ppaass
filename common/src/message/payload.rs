@@ -21,11 +21,11 @@ impl TryFrom<PpaassMessageAgentPayload> for Vec<u8> {
     }
 }
 
-impl TryFrom<Vec<u8>> for PpaassMessageAgentPayload {
+impl TryFrom<&[u8]> for PpaassMessageAgentPayload {
     type Error = CommonError;
 
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessageAgentPayload(e).into()))
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        bincode::deserialize(value).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessageAgentPayload(e).into()))
     }
 }
 
@@ -43,10 +43,10 @@ impl TryFrom<PpaassMessageProxyPayload> for Vec<u8> {
     }
 }
 
-impl TryFrom<Vec<u8>> for PpaassMessageProxyPayload {
+impl TryFrom<&[u8]> for PpaassMessageProxyPayload {
     type Error = CommonError;
 
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessageProxyPayload(e).into()))
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        bincode::deserialize(value).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessageProxyPayload(e).into()))
     }
 }

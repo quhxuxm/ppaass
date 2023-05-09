@@ -109,11 +109,10 @@ where
                 "Decompressed bytes will convert to PpaassMessage:\n{}\n",
                 pretty_hex::pretty_hex(&decompressed_bytes)
             );
-            let decompressed_bytes = decompressed_bytes.to_vec();
-            decompressed_bytes.try_into()?
+            decompressed_bytes.as_slice().try_into()?
         } else {
             trace!("Raw bytes will convert to PpaassMessage:\n{}\n", pretty_hex::pretty_hex(&body_bytes));
-            body_bytes.to_vec().try_into()?
+            body_bytes.as_ref().try_into()?
         };
 
         let PpaassMessage {

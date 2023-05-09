@@ -74,7 +74,7 @@ where
             },
         };
         let PpaassMessage { user_token, payload, .. } = agent_message;
-        let PpaassMessageAgentPayload { payload_type, data } = TryInto::<PpaassMessageAgentPayload>::try_into(payload)?;
+        let PpaassMessageAgentPayload { payload_type, data } = TryInto::<PpaassMessageAgentPayload>::try_into(payload.as_slice())?;
 
         match payload_type {
             PpaassMessageAgentPayloadType::TcpInit => {
