@@ -17,6 +17,7 @@ pub struct UdpDataParts {
 pub struct UdpData {
     src_address: PpaassNetAddress,
     dst_address: PpaassNetAddress,
+    #[serde(with = "serde_bytes")]
     raw_data: Vec<u8>,
 }
 

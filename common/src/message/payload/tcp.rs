@@ -68,6 +68,7 @@ pub struct TcpDataParts {
 pub struct TcpData {
     src_address: PpaassNetAddress,
     dst_address: PpaassNetAddress,
+    #[serde(with = "serde_bytes")]
     raw_data: Vec<u8>,
 }
 

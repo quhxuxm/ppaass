@@ -1,6 +1,6 @@
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{serializer::vec_u8_to_base64, CommonError, DeserializeError, PpaassMessageAgentPayloadType, PpaassMessageProxyPayloadType, SerializeError};
+use crate::{CommonError, DeserializeError, PpaassMessageAgentPayloadType, PpaassMessageProxyPayloadType, SerializeError};
 
 pub mod dns;
 pub mod tcp;
@@ -10,7 +10,7 @@ pub mod udp;
 #[serde(rename_all = "camelCase")]
 pub struct PpaassMessageAgentPayload {
     payload_type: PpaassMessageAgentPayloadType,
-    #[serde(with = "vec_u8_to_base64")]
+    #[serde(with = "serde_bytes")]
     data: Vec<u8>,
 }
 
@@ -61,7 +61,7 @@ impl TryFrom<Vec<u8>> for PpaassMessageAgentPayload {
 #[serde(rename_all = "camelCase")]
 pub struct PpaassMessageProxyPayload {
     payload_type: PpaassMessageProxyPayloadType,
-    #[serde(with = "vec_u8_to_base64")]
+    #[serde(with = "serde_bytes")]
     data: Vec<u8>,
 }
 

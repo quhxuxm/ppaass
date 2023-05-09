@@ -7,7 +7,6 @@ pub mod codec;
 mod connection;
 mod error;
 mod message;
-mod serializer;
 
 pub use connection::*;
 pub use error::*;

@@ -29,3 +29,5 @@ uuid = {workspace = true}
 pin-project = {workspace = true}
 log = {workspace = true}
 thiserror = {workspace = true}
+serde_bytes = {workspace = true}
+derive_more = {workspace = true}

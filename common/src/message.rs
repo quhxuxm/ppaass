@@ -2,8 +2,6 @@ use crate::{generate_uuid, CommonError, DeserializeError, SerializeError};
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::serializer::vec_u8_to_base64;
-
 use anyhow::Result;
 
 mod address;
@@ -25,7 +23,7 @@ pub struct PpaassMessage {
     id: String,
     user_token: String,
     payload_encryption: PpaassMessagePayloadEncryption,
-    #[serde(with = "vec_u8_to_base64")]
+    #[serde(with = "serde_bytes")]
     payload: Vec<u8>,
 }
 

@@ -203,19 +203,30 @@ impl From<Socks5Address> for Bytes {
 impl From<Socks5Address> for PpaassNetAddress {
     fn from(value: Socks5Address) -> Self {
         match value {
-            Socks5Address::IpV4(host, port) => PpaassNetAddress::IpV4 { ip: host, port },
-            Socks5Address::IpV6(host, port) => PpaassNetAddress::IpV6 { ip: host, port },
+            Socks5Address::IpV4(host, port) => PpaassNetAddress::IpV4 { ip: host.to_vec(), port },
+            Socks5Address::IpV6(host, port) => PpaassNetAddress::IpV6 { ip: host.to_vec(), port },
             Socks5Address::Domain(host, port) => PpaassNetAddress::Domain { host, port },
         }
     }
 }
 
-impl From<PpaassNetAddress> for Socks5Address {
-    fn from(net_addr: PpaassNetAddress) -> Self {
+impl TryFrom<PpaassNetAddress> for Socks5Address {
+    type Error = ConversionError;
+    fn try_from(net_addr: PpaassNetAddress) -> Result<Self, Self::Error> {
         match net_addr {
-            PpaassNetAddress::IpV4 { ip, port } => Socks5Address::IpV4(ip, port),
-            PpaassNetAddress::IpV6 { ip, port } => Socks5Address::IpV6(ip, port),
-            PpaassNetAddress::Domain { host, port } => Socks5Address::Domain(host, port),
+            PpaassNetAddress::IpV4 { ip, port } => {
+                let ip: [u8; 4] = ip
+                    .try_into()
+                    .map_err(|e| ConversionError::Format(format!("Can not parse {:?} to ip v4 address.", e)))?;
+                Ok(Socks5Address::IpV4(ip, port))
+            },
+            PpaassNetAddress::IpV6 { ip, port } => {
+                let ip: [u8; 16] = ip
+                    .try_into()
+                    .map_err(|e| ConversionError::Format(format!("Can not parse {:?} to ip v6 address.", e)))?;
+                Ok(Socks5Address::IpV6(ip, port))
+            },
+            PpaassNetAddress::Domain { host, port } => Ok(Socks5Address::Domain(host, port)),
         }
     }
 }
