@@ -25,6 +25,14 @@ pub struct TcpInitResponse {
     pub response_type: TcpInitResponseType,
 }
 
+impl TryFrom<Vec<u8>> for TcpInitRequest {
+    type Error = CommonError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::TcpInitRequest(e).into()))
+    }
+}
+
 impl TryFrom<&[u8]> for TcpInitRequest {
     type Error = CommonError;
 
@@ -38,6 +46,14 @@ impl TryFrom<TcpInitRequest> for Vec<u8> {
 
     fn try_from(value: TcpInitRequest) -> Result<Self, Self::Error> {
         bincode::serialize(&value).map_err(|e| CommonError::Encoder(SerializeError::TcpInitRequest(e).into()))
+    }
+}
+
+impl TryFrom<Vec<u8>> for TcpInitResponse {
+    type Error = CommonError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::TcpInitResponse(e).into()))
     }
 }
 
