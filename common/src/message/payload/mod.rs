@@ -29,6 +29,14 @@ impl TryFrom<&[u8]> for PpaassMessageAgentPayload {
     }
 }
 
+impl TryFrom<Vec<u8>> for PpaassMessageAgentPayload {
+    type Error = CommonError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessageAgentPayload(e).into()))
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Constructor)]
 pub struct PpaassMessageProxyPayload {
     pub payload_type: PpaassMessageProxyPayloadType,
@@ -48,5 +56,13 @@ impl TryFrom<&[u8]> for PpaassMessageProxyPayload {
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         bincode::deserialize(value).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessageProxyPayload(e).into()))
+    }
+}
+
+impl TryFrom<Vec<u8>> for PpaassMessageProxyPayload {
+    type Error = CommonError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessageProxyPayload(e).into()))
     }
 }

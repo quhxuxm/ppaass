@@ -112,7 +112,7 @@ where
                 "Decompressed bytes will convert to PpaassMessage:\n{}\n",
                 pretty_hex::pretty_hex(&decompressed_bytes)
             );
-            let encrypted_message: PpaassMessage = decompressed_bytes.as_slice().try_into()?;
+            let encrypted_message: PpaassMessage = decompressed_bytes.try_into()?;
             encrypted_message
         } else {
             trace!("Raw bytes will convert to PpaassMessage:\n{}\n", pretty_hex::pretty_hex(&body_bytes));
