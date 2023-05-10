@@ -26,6 +26,14 @@ pub struct PpaassMessage {
     pub payload: Vec<u8>,
 }
 
+impl TryFrom<Vec<u8>> for PpaassMessage {
+    type Error = CommonError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessage(e).into()))
+    }
+}
+
 impl TryFrom<&[u8]> for PpaassMessage {
     type Error = CommonError;
 

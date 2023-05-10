@@ -105,7 +105,7 @@ where
 
     fn unwrap_to_raw_tcp_data(message: PpaassMessage) -> Result<Vec<u8>, CommonError> {
         let PpaassMessage { payload, .. } = message;
-        let TcpData { data, .. } = payload.as_slice().try_into()?;
+        let TcpData { data, .. } = payload.try_into()?;
         Ok(data)
     }
 

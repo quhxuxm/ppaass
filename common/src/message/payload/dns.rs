@@ -50,6 +50,14 @@ impl TryFrom<&[u8]> for DnsLookupResponse {
     }
 }
 
+impl TryFrom<Vec<u8>> for DnsLookupResponse {
+    type Error = CommonError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::DnsLookupResponse(e).into()))
+    }
+}
+
 impl TryFrom<DnsLookupResponse> for Vec<u8> {
     type Error = CommonError;
 

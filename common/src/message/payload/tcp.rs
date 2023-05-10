@@ -73,6 +73,14 @@ impl TryFrom<&[u8]> for TcpData {
     }
 }
 
+impl TryFrom<Vec<u8>> for TcpData {
+    type Error = CommonError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::TcpData(e).into()))
+    }
+}
+
 impl TryFrom<TcpData> for Vec<u8> {
     type Error = CommonError;
 
