@@ -10,8 +10,8 @@ use httpcodec::{BodyEncoder, HttpVersion, ReasonPhrase, RequestEncoder, Response
 use ppaass_common::{
     generate_uuid,
     tcp::{TcpInitResponse, TcpInitResponseType},
-    PpaassConnectionParts, PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload,
-    PpaassMessageProxyPayloadParts, PpaassMessageProxyPayloadType, PpaassNetAddress,
+    PpaassConnectionParts, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload,
+    PpaassMessageProxyPayloadType, PpaassNetAddress,
 };
 use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, FramedParts};
@@ -106,14 +106,10 @@ impl HttpClientProcessor {
 
         let proxy_message = proxy_connection_read.next().await.ok_or(NetworkError::ConnectionExhausted)??;
 
-        let PpaassMessageParts {
-            payload: proxy_message_payload_bytes,
-            user_token,
-            ..
-        } = proxy_message.split();
-        let PpaassMessageProxyPayloadParts { payload_type, data } = TryInto::<PpaassMessageProxyPayload>::try_into(proxy_message_payload_bytes)?.split();
+        let PpaassMessage { payload, user_token, .. } = proxy_message;
+        let PpaassMessageProxyPayload { payload_type, data } = payload.as_slice().try_into()?;
         let tcp_init_response = match payload_type {
-            PpaassMessageProxyPayloadType::TcpInit => TryInto::<TcpInitResponse>::try_into(data)?,
+            PpaassMessageProxyPayloadType::TcpInit => data.as_slice().try_into()?,
             _ => {
                 error!("Client tcp connection [{src_address}] receive invalid message from proxy, payload type: {payload_type:?}");
                 return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
@@ -121,7 +117,7 @@ impl HttpClientProcessor {
         };
 
         let TcpInitResponse {
-            unique_key: tcp_loop_key,
+            id: tcp_loop_key,
             response_type,
             ..
         } = tcp_init_response;

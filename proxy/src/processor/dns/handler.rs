@@ -6,8 +6,8 @@ use crate::{
 use derive_more::{Constructor, Display};
 use futures::SinkExt;
 use ppaass_common::{
-    dns::{DnsLookupRequest, DnsLookupRequestParts},
-    generate_uuid, PpaassConnectionWrite, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher,
+    dns::DnsLookupRequest, generate_uuid, PpaassConnectionWrite, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress,
+    RsaCryptoFetcher,
 };
 use std::{collections::HashMap, fmt::Debug};
 use std::{fmt::Display, net::IpAddr};
@@ -43,7 +43,7 @@ where
     pub(crate) async fn exec(self, dns_lookup_request: DnsLookupRequest) -> Result<(), ProxyError> {
         let mut agent_connection_write = self.agent_connection_write;
         let handler_key = self.handler_key;
-        let DnsLookupRequestParts { domain_names, request_id } = dns_lookup_request.split();
+        let DnsLookupRequest { domain_names, request_id, .. } = dns_lookup_request;
         info!("Dns lookup handler {handler_key} receive agent request for domains [{domain_names:?}] with request id [{request_id}]");
         let addresses = domain_names
             .iter()

@@ -3,8 +3,8 @@ use bytes::BytesMut;
 use futures::{SinkExt, StreamExt};
 use ppaass_common::{
     tcp::{TcpInitResponse, TcpInitResponseType},
-    PpaassConnectionParts, PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload,
-    PpaassMessageProxyPayloadParts, PpaassMessageProxyPayloadType, PpaassNetAddress,
+    PpaassConnectionParts, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload,
+    PpaassMessageProxyPayloadType, PpaassNetAddress,
 };
 
 use std::sync::Arc;
@@ -109,21 +109,17 @@ impl Socks5ClientProcessor {
         debug!("Client tcp connection [{src_address}] take proxy connectopn [{proxy_connection_id}] to do proxy");
         proxy_connection_write.send(tcp_init_request).await?;
         let proxy_message = proxy_connection_read.next().await.ok_or(NetworkError::ConnectionExhausted)??;
-        let PpaassMessageParts {
-            payload: proxy_message_payload_bytes,
-            user_token,
-            ..
-        } = proxy_message.split();
-        let PpaassMessageProxyPayloadParts { payload_type, data } = TryInto::<PpaassMessageProxyPayload>::try_into(proxy_message_payload_bytes)?.split();
+        let PpaassMessage { payload, user_token, .. } = proxy_message;
+        let PpaassMessageProxyPayload { payload_type, data } = payload.as_slice().try_into()?;
         let tcp_init_response = match payload_type {
-            PpaassMessageProxyPayloadType::TcpInit => TryInto::<TcpInitResponse>::try_into(data)?,
+            PpaassMessageProxyPayloadType::TcpInit => data.as_slice().try_into()?,
             _ => {
                 error!("Client tcp connection [{src_address}] receive invalid message from proxy, payload type: {payload_type:?}");
                 return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
             },
         };
         let TcpInitResponse {
-            unique_key: tcp_loop_key,
+            id: tcp_loop_key,
             dst_address,
             response_type,
             ..
@@ -137,7 +133,7 @@ impl Socks5ClientProcessor {
                 return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
             },
         }
-        let socks5_init_success_result = Socks5InitCommandResultContent::new(Socks5InitCommandResultStatus::Succeeded, Some(dst_address.clone().into()));
+        let socks5_init_success_result = Socks5InitCommandResultContent::new(Socks5InitCommandResultStatus::Succeeded, Some(dst_address.clone().try_into()?));
         init_framed.send(socks5_init_success_result).await.map_err(EncoderError::Socks5)?;
         let FramedParts { io: client_tcp_stream, .. } = init_framed.into_parts();
         debug!("Client tcp connection [{src_address}] success to do sock5 handshake begin to relay, tcp loop key: [{tcp_loop_key}].");

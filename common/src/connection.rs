@@ -23,7 +23,7 @@ pub struct PpaassConnectionParts<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+    I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
     pub read_part: PpaassConnectionRead<T, R, I>,
     pub write_part: PpaassConnectionWrite<T, R, I>,
@@ -36,7 +36,7 @@ pub struct PpaassConnection<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+    I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
     framed_read: PpaassMessageFramedRead<T, R>,
     framed_write: PpaassMessageFramedWrite<T, R>,
@@ -47,7 +47,7 @@ impl<T, R, I> PpaassConnection<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+    I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
     pub fn new(id: I, stream: T, rsa_crypto_fetcher: Arc<R>, compress: bool, buffer_size: usize) -> Self {
         let ppaass_message_codec = PpaassMessageCodec::new(compress, rsa_crypto_fetcher);
@@ -74,7 +74,7 @@ pub struct PpaassConnectionWrite<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+    I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
     connection_id: I,
     #[pin]
@@ -85,7 +85,7 @@ impl<T, R, I> PpaassConnectionWrite<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+    I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
     fn new(connection_id: I, framed_write: PpaassMessageFramedWrite<T, R>) -> Self {
         Self { connection_id, framed_write }
@@ -96,7 +96,7 @@ impl<T, R, I> Sink<PpaassMessage> for PpaassConnectionWrite<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+    I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
     type Error = CommonError;
 
@@ -127,7 +127,7 @@ pub struct PpaassConnectionRead<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+    I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
     connection_id: I,
     #[pin]
@@ -138,7 +138,7 @@ impl<T, R, I> PpaassConnectionRead<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+    I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
     fn new(connection_id: I, framed_read: PpaassMessageFramedRead<T, R>) -> Self {
         Self { connection_id, framed_read }
@@ -149,7 +149,7 @@ impl<T, R, I> Stream for PpaassConnectionRead<T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+    I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
     type Item = Result<PpaassMessage, CommonError>;
 

@@ -210,12 +210,13 @@ impl From<Socks5Address> for PpaassNetAddress {
     }
 }
 
-impl From<PpaassNetAddress> for Socks5Address {
-    fn from(net_addr: PpaassNetAddress) -> Self {
+impl TryFrom<PpaassNetAddress> for Socks5Address {
+    type Error = ConversionError;
+    fn try_from(net_addr: PpaassNetAddress) -> Result<Self, Self::Error> {
         match net_addr {
-            PpaassNetAddress::IpV4 { ip, port } => Socks5Address::IpV4(ip, port),
-            PpaassNetAddress::IpV6 { ip, port } => Socks5Address::IpV6(ip, port),
-            PpaassNetAddress::Domain { host, port } => Socks5Address::Domain(host, port),
+            PpaassNetAddress::IpV4 { ip, port } => Ok(Socks5Address::IpV4(ip, port)),
+            PpaassNetAddress::IpV6 { ip, port } => Ok(Socks5Address::IpV6(ip, port)),
+            PpaassNetAddress::Domain { host, port } => Ok(Socks5Address::Domain(host, port)),
         }
     }
 }
