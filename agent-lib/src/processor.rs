@@ -142,7 +142,7 @@ impl ClientProtocolProcessor {
             if let Err(e) = proxy_connection_read
                 .map(|proxy_message| {
                     let PpaassMessage { payload, .. } = proxy_message?;
-                    let TcpData { data, .. } = payload.try_into()?;
+                    let TcpData { data, .. } = payload.as_slice().try_into()?;
                     Ok(BytesMut::from_iter(data))
                 })
                 .forward(client_io_write)

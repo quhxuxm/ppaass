@@ -74,11 +74,10 @@ where
             },
         };
         let PpaassMessage { user_token, payload, .. } = agent_message;
-        let PpaassMessageAgentPayload { payload_type, data } = TryInto::<PpaassMessageAgentPayload>::try_into(payload)?;
-
+        let PpaassMessageAgentPayload { payload_type, data } = payload.as_slice().try_into()?;
         match payload_type {
             PpaassMessageAgentPayloadType::TcpInit => {
-                let tcp_init_request: TcpInitRequest = data.try_into()?;
+                let tcp_init_request: TcpInitRequest = data.as_slice().try_into()?;
                 let src_address = tcp_init_request.src_address;
                 let dst_address = tcp_init_request.dst_address;
                 let tcp_handler_key = TcpHandlerKey::new(connection_id, user_token, agent_address, src_address, dst_address);
@@ -93,7 +92,7 @@ where
                     dst_address,
                     data: udp_raw_data,
                     ..
-                } = data.try_into()?;
+                } = data.as_slice().try_into()?;
                 let udp_handler_key = UdpHandlerKey::new(connection_id, user_token, agent_address, src_address, dst_address);
                 let udp_handler = UdpHandler::new(udp_handler_key, agent_connection_write, configuration);
                 udp_handler.exec(udp_raw_data).await?;
@@ -101,7 +100,7 @@ where
             },
             PpaassMessageAgentPayloadType::DnsLookupRequest => {
                 info!("Agent connection {connection_id} receive dns lookup request from agent.");
-                let dns_lookup_request: DnsLookupRequest = data.try_into()?;
+                let dns_lookup_request: DnsLookupRequest = data.as_slice().try_into()?;
                 let dns_lookup_handler_key = DnsLookupHandlerKey::new(connection_id, user_token, agent_address);
                 let dns_lookup_handler = DnsLookupHandler::new(dns_lookup_handler_key, agent_connection_write);
                 dns_lookup_handler.exec(dns_lookup_request).await?;

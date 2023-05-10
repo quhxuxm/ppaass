@@ -1,6 +1,6 @@
 use derive_more::Constructor;
 use serde_derive::{Deserialize, Serialize};
-use std::{borrow::Cow, collections::HashMap};
+use std::collections::HashMap;
 
 use crate::{CommonError, DeserializeError, SerializeError};
 
@@ -15,11 +15,11 @@ pub struct DnsLookupRequest {
     pub domain_names: Vec<String>,
 }
 
-impl<'a> TryFrom<Cow<'a, [u8]>> for DnsLookupRequest {
+impl TryFrom<&[u8]> for DnsLookupRequest {
     type Error = CommonError;
 
-    fn try_from(value: Cow<'a, [u8]>) -> Result<Self, Self::Error> {
-        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::DnsLookupRequest(e).into()))
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        bincode::deserialize(value).map_err(|e| CommonError::Decoder(DeserializeError::DnsLookupRequest(e).into()))
     }
 }
 
@@ -42,11 +42,11 @@ pub struct DnsLookupResponse {
     pub addresses: HashMap<String, Option<Vec<[u8; 4]>>>,
 }
 
-impl<'a> TryFrom<Cow<'a, [u8]>> for DnsLookupResponse {
+impl TryFrom<&[u8]> for DnsLookupResponse {
     type Error = CommonError;
 
-    fn try_from(value: Cow<'a, [u8]>) -> Result<Self, Self::Error> {
-        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::DnsLookupResponse(e).into()))
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        bincode::deserialize(value).map_err(|e| CommonError::Decoder(DeserializeError::DnsLookupResponse(e).into()))
     }
 }
 

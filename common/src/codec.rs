@@ -1,8 +1,6 @@
 use std::{
-    borrow::Cow,
     fmt::{Debug, Formatter},
     io::{Read, Write},
-    marker::PhantomData,
     mem::size_of,
     sync::Arc,
 };
@@ -27,49 +25,43 @@ enum DecodeStatus {
     Data(bool, u64),
 }
 
-pub(crate) struct PpaassMessageCodec<T, P>
+pub(crate) struct PpaassMessageCodec<T>
 where
     T: RsaCryptoFetcher + 'static,
-    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
     rsa_crypto_fetcher: Arc<T>,
     compress: bool,
     status: DecodeStatus,
-    _marker: PhantomData<P>,
 }
 
-impl<T, P> Debug for PpaassMessageCodec<T, P>
+impl<T> Debug for PpaassMessageCodec<T>
 where
     T: RsaCryptoFetcher + 'static,
-    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "PpaassMessageCodec: compress={}", self.compress)
     }
 }
 
-impl<T, P> PpaassMessageCodec<T, P>
+impl<T> PpaassMessageCodec<T>
 where
     T: RsaCryptoFetcher + 'static,
-    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
     pub fn new(compress: bool, rsa_crypto_fetcher: Arc<T>) -> Self {
         Self {
             rsa_crypto_fetcher,
             compress,
             status: DecodeStatus::Head,
-            _marker: PhantomData,
         }
     }
 }
 
 /// Decode the input bytes buffer to ppaass message
-impl<T, P> Decoder for PpaassMessageCodec<T, P>
+impl<T> Decoder for PpaassMessageCodec<T>
 where
     T: RsaCryptoFetcher + 'static,
-    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
-    type Item = PpaassMessage<P>;
+    type Item = PpaassMessage;
     type Error = CommonError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
@@ -120,11 +112,11 @@ where
                 "Decompressed bytes will convert to PpaassMessage:\n{}\n",
                 pretty_hex::pretty_hex(&decompressed_bytes)
             );
-            let encrypted_message: PpaassMessage = Cow::<'_, [u8]>::Owned(decompressed_bytes).try_into()?;
+            let encrypted_message: PpaassMessage = decompressed_bytes.as_slice().try_into()?;
             encrypted_message
         } else {
             trace!("Raw bytes will convert to PpaassMessage:\n{}\n", pretty_hex::pretty_hex(&body_bytes));
-            Cow::<'_, [u8]>::Owned(body_bytes.to_vec()).try_into()?
+            body_bytes.as_ref().try_into()?
         };
 
         let PpaassMessage {
@@ -143,11 +135,11 @@ where
             PpaassMessagePayloadEncryption::Plain => payload,
             PpaassMessagePayloadEncryption::Aes(ref encryption_token) => {
                 let original_encryption_token = rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?;
-                Cow::Owned(decrypt_with_aes(&original_encryption_token, &payload).map_err(CryptoError::Aes)?)
+                decrypt_with_aes(&original_encryption_token, &payload).map_err(CryptoError::Aes)?
             },
             PpaassMessagePayloadEncryption::Blowfish(ref encryption_token) => {
                 let original_encryption_token = rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?;
-                Cow::Owned(decrypt_with_blowfish(&original_encryption_token, &payload).map_err(CryptoError::Blowfish)?)
+                decrypt_with_blowfish(&original_encryption_token, &payload).map_err(CryptoError::Blowfish)?
             },
         };
         self.status = DecodeStatus::Head;
@@ -158,14 +150,13 @@ where
 }
 
 /// Encode the ppaass message to bytes buffer
-impl<T, P> Encoder<PpaassMessage<P>> for PpaassMessageCodec<T, P>
+impl<T> Encoder<PpaassMessage> for PpaassMessageCodec<T>
 where
     T: RsaCryptoFetcher + 'static,
-    P: ToOwned<Owned = Vec<u8>> + 'static,
 {
     type Error = CommonError;
 
-    fn encode(&mut self, original_message: PpaassMessage<P>, dst: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, original_message: PpaassMessage, dst: &mut BytesMut) -> Result<(), Self::Error> {
         trace!("Encode message to output(decrypted): {:?}", original_message);
         dst.put(PPAASS_FLAG);
         if self.compress {
@@ -191,16 +182,13 @@ where
             PpaassMessagePayloadEncryption::Aes(ref original_token) => {
                 let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token).map_err(CryptoError::Rsa)?;
                 let encrypted_payload_bytes = encrypt_with_aes(original_token, &payload);
-                (
-                    Cow::Owned(encrypted_payload_bytes),
-                    PpaassMessagePayloadEncryption::Aes(encrypted_payload_encryption_token),
-                )
+                (encrypted_payload_bytes, PpaassMessagePayloadEncryption::Aes(encrypted_payload_encryption_token))
             },
             PpaassMessagePayloadEncryption::Blowfish(ref original_token) => {
                 let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token).map_err(CryptoError::Rsa)?;
                 let encrypted_payload_bytes = encrypt_with_blowfish(original_token, &payload);
                 (
-                    Cow::Owned(encrypted_payload_bytes),
+                    encrypted_payload_bytes,
                     PpaassMessagePayloadEncryption::Blowfish(encrypted_payload_encryption_token),
                 )
             },

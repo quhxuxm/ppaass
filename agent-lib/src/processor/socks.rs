@@ -110,9 +110,9 @@ impl Socks5ClientProcessor {
         proxy_connection_write.send(tcp_init_request).await?;
         let proxy_message = proxy_connection_read.next().await.ok_or(NetworkError::ConnectionExhausted)??;
         let PpaassMessage { payload, user_token, .. } = proxy_message;
-        let PpaassMessageProxyPayload { payload_type, data } = TryInto::<PpaassMessageProxyPayload>::try_into(payload)?;
+        let PpaassMessageProxyPayload { payload_type, data } = payload.as_slice().try_into()?;
         let tcp_init_response = match payload_type {
-            PpaassMessageProxyPayloadType::TcpInit => TryInto::<TcpInitResponse>::try_into(data)?,
+            PpaassMessageProxyPayloadType::TcpInit => data.as_slice().try_into()?,
             _ => {
                 error!("Client tcp connection [{src_address}] receive invalid message from proxy, payload type: {payload_type:?}");
                 return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
