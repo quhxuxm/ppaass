@@ -1,27 +1,23 @@
-use std::{net::SocketAddr, sync::Arc};
-
 use crate::{
     config::ProxyServerConfig,
     crypto::ProxyServerRsaCryptoFetcher,
     error::{NetworkError, ProxyError},
     processor::AgentConnectionProcessor,
 };
+use derive_more::Constructor;
+use std::{net::SocketAddr, sync::Arc};
 
 use ppaass_common::{CommonError, CryptoError};
 use tokio::net::{TcpListener, TcpStream};
 use tracing::{debug, error, info};
 
 /// The ppaass proxy server.
+#[derive(Constructor)]
 pub(crate) struct ProxyServer {
     configuration: Arc<ProxyServerConfig>,
 }
 
 impl ProxyServer {
-    /// Create a new proxy server instance.
-    pub(crate) fn new(configuration: Arc<ProxyServerConfig>) -> Self {
-        Self { configuration }
-    }
-
     async fn accept_agent_connection(tcp_listener: &TcpListener) -> Result<(TcpStream, SocketAddr), ProxyError> {
         let (agent_tcp_stream, agent_socket_address) = tcp_listener.accept().await.map_err(NetworkError::AgentAccept)?;
         agent_tcp_stream.set_linger(None).map_err(NetworkError::AgentAccept)?;
