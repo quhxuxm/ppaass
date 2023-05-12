@@ -19,7 +19,9 @@ use log::{error, trace};
 use tokio_util::codec::{Decoder, Encoder};
 
 const PPAASS_FLAG: &[u8] = "__PPAASS__".as_bytes();
-
+const HEADER_LENGTH: usize = PPAASS_FLAG.len() + size_of::<u8>() + size_of::<u64>();
+const COMPRESS_FLAG: u8=1;
+const UNCOMPRESS_FLAG: u8=1;
 enum DecodeStatus {
     Head,
     Data(bool, u64),
@@ -65,12 +67,11 @@ where
     type Error = CommonError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        let header_length = PPAASS_FLAG.len() + size_of::<u8>() + size_of::<u64>();
-        let (body_is_compressed, body_length) = match self.status {
+        let (compressed, body_length) = match self.status {
             DecodeStatus::Head => {
-                if src.len() < header_length {
+                if src.len() < HEADER_LENGTH {
                     trace!("Input message is not enough to decode header, header length: {}", src.len());
-                    src.reserve(header_length);
+                    src.reserve(HEADER_LENGTH);
                     return Ok(None);
                 }
                 let ppaass_flag = src.split_to(PPAASS_FLAG.len());
@@ -84,7 +85,7 @@ where
                 self.status = DecodeStatus::Data(compressed, body_length);
                 (compressed, body_length)
             },
-            DecodeStatus::Data(body_is_compressed, body_length) => (body_is_compressed, body_length),
+            DecodeStatus::Data(compressed, body_length) => (compressed, body_length),
         };
         if src.remaining() < body_length as usize {
             trace!(
@@ -98,10 +99,10 @@ where
             "Input message has enough bytes to decode body, buffer remaining: {}, body length: {body_length}.",
             src.remaining(),
         );
-        self.status = DecodeStatus::Data(body_is_compressed, body_length);
+        self.status = DecodeStatus::Data(compressed, body_length);
         let body_bytes = src.split_to(body_length as usize);
-        trace!("Input message body bytes(compressed={body_is_compressed}):\n\n{}\n\n", pretty_hex(&body_bytes));
-        let encrypted_message: PpaassMessage = if body_is_compressed {
+        trace!("Input message body bytes(compressed={compressed}):\n\n{}\n\n", pretty_hex(&body_bytes));
+        let encrypted_message: PpaassMessage = if compressed {
             let mut gzip_decoder = GzDecoder::new(body_bytes.chunk());
             let mut decompressed_bytes = Vec::new();
             if let Err(e) = gzip_decoder.read_to_end(&mut decompressed_bytes) {
@@ -143,9 +144,9 @@ where
             },
         };
         self.status = DecodeStatus::Head;
-        src.reserve(header_length);
-        let new_message = PpaassMessage::new(id, user_token, payload_encryption, decrypt_payload_bytes);
-        Ok(Some(new_message))
+        src.reserve(HEADER_LENGTH);
+        let message_framed = PpaassMessage::new(id, user_token, payload_encryption, decrypt_payload_bytes);
+        Ok(Some(message_framed))
     }
 }
 
@@ -160,9 +161,9 @@ where
         trace!("Encode message to output(decrypted): {:?}", original_message);
         dst.put(PPAASS_FLAG);
         if self.compress {
-            dst.put_u8(1);
+            dst.put_u8(COMPRESS_FLAG);
         } else {
-            dst.put_u8(0);
+            dst.put_u8(UNCOMPRESS_FLAG);
         }
         let PpaassMessage {
             id,
