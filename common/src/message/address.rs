@@ -1,34 +1,24 @@
-use crate::serializer::array_u8_l16_to_base64;
-use crate::serializer::array_u8_l4_to_base64;
+use crate::CommonError;
 
 use bytes::Buf;
-use log::error;
+
+use derive_more::Display;
 use serde_derive::{Deserialize, Serialize};
 
-use std::fmt::{Display, Formatter};
 use std::net::{IpAddr, SocketAddr};
 use std::{
     io::Cursor,
     net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6, ToSocketAddrs},
 };
 
-#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
-#[serde(tag = "type", content = "value")]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, Display)]
 pub enum PpaassNetAddress {
-    IpV4 {
-        #[serde(with = "array_u8_l4_to_base64")]
-        ip: [u8; 4],
-        port: u16,
-    },
-    IpV6 {
-        #[serde(with = "array_u8_l16_to_base64")]
-        ip: [u8; 16],
-        port: u16,
-    },
-    Domain {
-        host: String,
-        port: u16,
-    },
+    #[display(fmt = "{:?}:{}", ip, port)]
+    IpV4 { ip: [u8; 4], port: u16 },
+    #[display(fmt = "{:?}:{}", ip, port)]
+    IpV6 { ip: [u8; 16], port: u16 },
+    #[display(fmt = "{}:{}", host, port)]
+    Domain { host: String, port: u16 },
 }
 
 pub struct SocketAddrIter {
@@ -62,7 +52,7 @@ impl ToSocketAddrs for PpaassNetAddress {
 }
 
 impl TryFrom<&PpaassNetAddress> for Vec<SocketAddr> {
-    type Error = anyhow::Error;
+    type Error = CommonError;
 
     fn try_from(value: &PpaassNetAddress) -> Result<Self, Self::Error> {
         match value {
@@ -91,13 +81,7 @@ impl TryFrom<&PpaassNetAddress> for Vec<SocketAddr> {
             },
             PpaassNetAddress::Domain { host, port } => {
                 let address_string = format!("{host}:{port}");
-                let addresses = match address_string.to_socket_addrs() {
-                    Ok(v) => v,
-                    Err(e) => {
-                        error!("Fail to parse domain name \"{host}:{port}\" because of error: {e:?}");
-                        return Err(anyhow::anyhow!(e));
-                    },
-                };
+                let addresses = address_string.to_socket_addrs()?;
                 let addresses = addresses.collect::<Vec<_>>();
                 Ok(addresses)
             },
@@ -106,7 +90,7 @@ impl TryFrom<&PpaassNetAddress> for Vec<SocketAddr> {
 }
 
 impl TryFrom<PpaassNetAddress> for Vec<SocketAddr> {
-    type Error = anyhow::Error;
+    type Error = CommonError;
     fn try_from(value: PpaassNetAddress) -> Result<Self, Self::Error> {
         (&value).try_into()
     }
@@ -131,23 +115,5 @@ impl From<&SocketAddr> for PpaassNetAddress {
 impl From<SocketAddr> for PpaassNetAddress {
     fn from(value: SocketAddr) -> Self {
         (&value).into()
-    }
-}
-
-impl Display for PpaassNetAddress {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PpaassNetAddress::IpV4 { ip, port } => {
-                let ipv4_addr = Ipv4Addr::from(*ip);
-                write!(f, "{ipv4_addr}:{port}")
-            },
-            PpaassNetAddress::IpV6 { ip, port } => {
-                let ipv6_addr = Ipv6Addr::from(*ip);
-                write!(f, "{ipv6_addr}:{port}")
-            },
-            PpaassNetAddress::Domain { host, port } => {
-                write!(f, "{host}:{port}")
-            },
-        }
     }
 }

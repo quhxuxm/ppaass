@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::config::AgentServerConfig;
 use anyhow::{Context, Result};
-use ppaass_common::{RsaCrypto, RsaCryptoFetcher};
+use ppaass_common::{RsaCrypto, RsaCryptoFetcher, RsaError};
 use tracing::error;
 
 #[derive(Debug)]
@@ -59,7 +59,7 @@ impl AgentServerRsaCryptoFetcher {
 }
 
 impl RsaCryptoFetcher for AgentServerRsaCryptoFetcher {
-    fn fetch(&self, user_token: impl AsRef<str>) -> Result<Option<&ppaass_common::RsaCrypto>> {
+    fn fetch(&self, user_token: impl AsRef<str>) -> Result<Option<&RsaCrypto>, RsaError> {
         Ok(self.cache.get(user_token.as_ref()))
     }
 }

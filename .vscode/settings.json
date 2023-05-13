@@ -1,3 +1,8 @@
 {
-    "git.ignoreLimitWarning": true
+    "git.ignoreLimitWarning": true,
+    "rust-analyzer.linkedProjects": [
+        ".\\proxy\\Cargo.toml",
+        ".\\proxy\\Cargo.toml",
+        ".\\proxy\\Cargo.toml"
+    ]
 }

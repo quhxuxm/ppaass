@@ -4,7 +4,6 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs},
 };
 
-use anyhow::Context;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use ppaass_common::PpaassNetAddress;
 
@@ -15,6 +14,8 @@ mod udp;
 pub(crate) use auth::*;
 pub(crate) use init::*;
 
+use crate::error::ConversionError;
+
 #[derive(Debug, Clone)]
 pub(crate) enum Socks5Address {
     IpV4([u8; 4], u16),
@@ -23,7 +24,7 @@ pub(crate) enum Socks5Address {
 }
 
 impl TryFrom<Socks5Address> for SocketAddr {
-    type Error = anyhow::Error;
+    type Error = ConversionError;
 
     fn try_from(socks5_addr: Socks5Address) -> Result<Self, Self::Error> {
         match socks5_addr {
@@ -47,11 +48,9 @@ impl TryFrom<Socks5Address> for SocketAddr {
                 )))
             },
             Socks5Address::Domain(host, port) => {
-                let addresses = format!("{host}:{port}")
-                    .to_socket_addrs()
-                    .context(format!("fail to parse domain address to socket address: {host}:{port}"))?
-                    .collect::<Vec<_>>();
-                let result = addresses.get(0).context(format!("none socket address parsed from {host}:{port}"))?;
+                let address_string = format!("{host}:{port}");
+                let addresses = address_string.to_socket_addrs()?.collect::<Vec<_>>();
+                let result = addresses.get(0).ok_or(ConversionError::Format(address_string))?;
                 Ok(*result)
             },
         }
@@ -95,19 +94,20 @@ impl ToString for Socks5Address {
 }
 
 impl TryFrom<&mut Bytes> for Socks5Address {
-    type Error = anyhow::Error;
+    type Error = ConversionError;
     fn try_from(value: &mut Bytes) -> Result<Self, Self::Error> {
         if !value.has_remaining() {
-            return Err(anyhow::anyhow!("no remaing bytes to parse socks5 address"));
+            return Err(ConversionError::NoRemaining(
+                "No remaining bytes on converting bytes to socks5 address".to_string(),
+            ));
         }
         let address_type = value.get_u8();
         let address = match address_type {
             1 => {
                 if value.remaining() < 6 {
-                    return Err(anyhow::anyhow!(format!(
-                        "no enough remaing bytes to parse socks5 IPV4 address, remaining is {}, require 6",
-                        value.remaining()
-                    )));
+                    return Err(ConversionError::NoRemaining(
+                        "No remaining bytes on converting bytes to socks5 address".to_string(),
+                    ));
                 }
                 let mut addr_content = [0u8; 4];
                 addr_content.iter_mut().for_each(|item| {
@@ -118,10 +118,9 @@ impl TryFrom<&mut Bytes> for Socks5Address {
             },
             4 => {
                 if value.remaining() < 18 {
-                    return Err(anyhow::anyhow!(format!(
-                        "no enough remaing bytes to parse socks5 IPV6 address, remaining is {}, require 18",
-                        value.remaining()
-                    ),));
+                    return Err(ConversionError::NoRemaining(
+                        "No remaining bytes on converting bytes to socks5 address".to_string(),
+                    ));
                 }
                 let mut addr_content = [0u8; 16];
                 addr_content.iter_mut().for_each(|item| {
@@ -132,18 +131,15 @@ impl TryFrom<&mut Bytes> for Socks5Address {
             },
             3 => {
                 if value.remaining() < 1 {
-                    return Err(anyhow::anyhow!(format!(
-                        "no enough remaing bytes to parse socks5 Domain address, remaining is {}, require 1",
-                        value.remaining()
-                    )));
+                    return Err(ConversionError::NoRemaining(
+                        "No remaining bytes on converting bytes to socks5 address".to_string(),
+                    ));
                 }
                 let domain_name_length = value.get_u8() as usize;
                 if value.remaining() < domain_name_length + 2 {
-                    return Err(anyhow::anyhow!(format!(
-                        "no enough remaing bytes to parse socks5 Domain address, remaining is {}, require {}",
-                        value.remaining(),
-                        domain_name_length + 2
-                    )));
+                    return Err(ConversionError::NoRemaining(
+                        "No remaining bytes on converting bytes to socks5 address".to_string(),
+                    ));
                 }
                 let domain_name_bytes = value.copy_to_bytes(domain_name_length);
                 let domain_name = match String::from_utf8_lossy(domain_name_bytes.chunk()).to_string().as_str() {
@@ -154,7 +150,7 @@ impl TryFrom<&mut Bytes> for Socks5Address {
                 Socks5Address::Domain(domain_name, port)
             },
             unknown_addr_type => {
-                return Err(anyhow::anyhow!(format!("unknown address type: {unknown_addr_type}")));
+                return Err(ConversionError::Format(format!("Invalid address type: {unknown_addr_type}")));
             },
         };
         Ok(address)
@@ -162,7 +158,7 @@ impl TryFrom<&mut Bytes> for Socks5Address {
 }
 
 impl TryFrom<Bytes> for Socks5Address {
-    type Error = anyhow::Error;
+    type Error = ConversionError;
 
     fn try_from(mut value: Bytes) -> Result<Self, Self::Error> {
         let value_mut_ref = &mut value;
@@ -171,7 +167,7 @@ impl TryFrom<Bytes> for Socks5Address {
 }
 
 impl TryFrom<&mut BytesMut> for Socks5Address {
-    type Error = anyhow::Error;
+    type Error = ConversionError;
 
     fn try_from(value: &mut BytesMut) -> Result<Self, Self::Error> {
         let value = value.copy_to_bytes(value.len());
@@ -214,12 +210,13 @@ impl From<Socks5Address> for PpaassNetAddress {
     }
 }
 
-impl From<PpaassNetAddress> for Socks5Address {
-    fn from(net_addr: PpaassNetAddress) -> Self {
+impl TryFrom<PpaassNetAddress> for Socks5Address {
+    type Error = ConversionError;
+    fn try_from(net_addr: PpaassNetAddress) -> Result<Self, Self::Error> {
         match net_addr {
-            PpaassNetAddress::IpV4 { ip, port } => Socks5Address::IpV4(ip, port),
-            PpaassNetAddress::IpV6 { ip, port } => Socks5Address::IpV6(ip, port),
-            PpaassNetAddress::Domain { host, port } => Socks5Address::Domain(host, port),
+            PpaassNetAddress::IpV4 { ip, port } => Ok(Socks5Address::IpV4(ip, port)),
+            PpaassNetAddress::IpV6 { ip, port } => Ok(Socks5Address::IpV6(ip, port)),
+            PpaassNetAddress::Domain { host, port } => Ok(Socks5Address::Domain(host, port)),
         }
     }
 }

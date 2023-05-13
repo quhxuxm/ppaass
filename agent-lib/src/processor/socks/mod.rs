@@ -3,7 +3,7 @@ use bytes::BytesMut;
 use futures::{SinkExt, StreamExt};
 use ppaass_common::{
     tcp::{TcpInitResponse, TcpInitResponseType},
-    PpaassMessageGenerator, PpaassMessageParts, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload, PpaassMessageProxyPayloadParts,
+    PpaassConnectionParts, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload,
     PpaassMessageProxyPayloadType, PpaassNetAddress,
 };
 
@@ -16,6 +16,7 @@ use self::message::Socks5InitCommandResultStatus;
 
 use crate::{
     config::AgentServerConfig,
+    error::{AgentError, DecoderError, EncoderError, NetworkError},
     pool::ProxyConnectionPool,
     processor::{
         socks::{
@@ -25,11 +26,11 @@ use crate::{
                 Socks5InitCommandType,
             },
         },
-        ClientDataRelayInfo, ClientProcessor,
+        ClientDataRelayInfo, ClientProtocolProcessor,
     },
     AgentServerPayloadEncryptionTypeSelector,
 };
-use anyhow::{Context, Result};
+
 use ppaass_common::generate_uuid;
 
 mod codec;
@@ -50,7 +51,7 @@ impl Socks5ClientProcessor {
 
     pub(crate) async fn exec(
         self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>, initial_buf: BytesMut,
-    ) -> Result<()> {
+    ) -> Result<(), AgentError> {
         let client_tcp_stream = self.client_tcp_stream;
         let src_address = self.src_address;
         let mut auth_framed_parts = FramedParts::new(client_tcp_stream, Socks5AuthCommandContentCodec::default());
@@ -59,31 +60,19 @@ impl Socks5ClientProcessor {
         let auth_message = auth_framed
             .next()
             .await
-            .context(format!(
-                "Client tcp connection [{src_address}] nothing to read from socks5 client in authenticate phase"
-            ))?
-            .context(format!(
-                "Client tcp connection [{src_address}] error happen when read socks5 client data in authenticate phase"
-            ))?;
+            .ok_or(NetworkError::ConnectionExhausted)?
+            .map_err(DecoderError::Socks5)?;
         let Socks5AuthCommandContentParts { methods } = auth_message.split();
         debug!("Client tcp connection [{src_address}] start socks5 authenticate process, authenticate methods in request: {methods:?}");
         let auth_response = Socks5AuthCommandResultContent::new(message::Socks5AuthMethod::NoAuthenticationRequired);
-        if let Err(e) = auth_framed.send(auth_response).await {
-            error!("Client tcp connection [{src_address}] fail reply auth success in socks5 flow.");
-            return Err(e);
-        };
-
+        auth_framed.send(auth_response).await.map_err(EncoderError::Socks5)?;
         let FramedParts { io: client_tcp_stream, .. } = auth_framed.into_parts();
         let mut init_framed = Framed::new(client_tcp_stream, Socks5InitCommandContentCodec::default());
         let init_message = init_framed
             .next()
             .await
-            .context(format!(
-                "Client tcp connection [{src_address}] nothing to read from socks5 client in init phase"
-            ))?
-            .context(format!(
-                "Client tcp connection [{src_address}] error happen when read socks5 client data in init phase"
-            ))?;
+            .ok_or(NetworkError::ConnectionExhausted)?
+            .map_err(DecoderError::Socks5)?;
         let Socks5InitCommandContentParts { command_type, dst_address } = init_message.split();
         debug!("Client tcp connection [{src_address}] start socks5 init process, command type: {command_type:?}, destination address: {dst_address:?}");
 
@@ -101,54 +90,36 @@ impl Socks5ClientProcessor {
     async fn handle_connect_command(
         src_address: PpaassNetAddress, dst_address: PpaassNetAddress, proxy_connection_pool: Arc<ProxyConnectionPool>,
         mut init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>, configuration: Arc<AgentServerConfig>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), AgentError> {
         let user_token = configuration
             .get_user_token()
-            .as_ref()
-            .context(format!("Client tcp connection [{src_address}] can not get user token form configuration file"))?
-            .clone();
+            .clone()
+            .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
 
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(&user_token, Some(generate_uuid().into_bytes()));
         let tcp_init_request =
             PpaassMessageGenerator::generate_tcp_init_request(&user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
-        let proxy_connection = proxy_connection_pool.take_connection().await.context(format!(
-            "Client tcp connection [{src_address}] fail to take proxy connection from connection poool because of error"
-        ))?;
-        let proxy_connection_id = proxy_connection.connection_id.clone();
-        let (mut proxy_connection_read, mut proxy_connection_write) = proxy_connection.split()?;
+        let proxy_connection = proxy_connection_pool.take_connection().await?;
+        let PpaassConnectionParts {
+            read_part: mut proxy_connection_read,
+            write_part: mut proxy_connection_write,
+            id: proxy_connection_id,
+        } = proxy_connection.split();
+
         debug!("Client tcp connection [{src_address}] take proxy connectopn [{proxy_connection_id}] to do proxy");
-        if let Err(e) = proxy_connection_write.send(tcp_init_request).await {
-            error!("Client tcp connection [{src_address}] fail to send tcp loop init to proxy because of error: {e:?}");
-            return Err(anyhow::anyhow!(format!(
-                "Client tcp connection [{src_address}] fail to send tcp loop init request to proxy because of error: {e:?}"
-            )));
-        };
-        let proxy_message = proxy_connection_read
-            .next()
-            .await
-            .context(format!(
-                "Client tcp connection [{src_address}] nothing to read from proxy for init tcp loop response"
-            ))?
-            .context(format!(
-                "Client tcp connection [{src_address}] error happen when read proxy message for init tcp loop response"
-            ))?;
-        let PpaassMessageParts {
-            payload: proxy_message_payload_bytes,
-            user_token,
-            ..
-        } = proxy_message.split();
-        let PpaassMessageProxyPayloadParts { payload_type, data } = TryInto::<PpaassMessageProxyPayload>::try_into(proxy_message_payload_bytes)?.split();
+        proxy_connection_write.send(tcp_init_request).await?;
+        let proxy_message = proxy_connection_read.next().await.ok_or(NetworkError::ConnectionExhausted)??;
+        let PpaassMessage { payload, user_token, .. } = proxy_message;
+        let PpaassMessageProxyPayload { payload_type, data } = payload.as_slice().try_into()?;
         let tcp_init_response = match payload_type {
-            PpaassMessageProxyPayloadType::TcpInit => TryInto::<TcpInitResponse>::try_into(data)?,
+            PpaassMessageProxyPayloadType::TcpInit => data.as_slice().try_into()?,
             _ => {
                 error!("Client tcp connection [{src_address}] receive invalid message from proxy, payload type: {payload_type:?}");
-                return Err(anyhow::anyhow!(format!(
-                    "Client tcp connection [{src_address}] receive invalid message from proxy, payload type: {payload_type:?}"
-                )));
+                return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
             },
         };
         let TcpInitResponse {
-            unique_key: tcp_loop_key,
+            id: tcp_loop_key,
             dst_address,
             response_type,
             ..
@@ -159,23 +130,17 @@ impl Socks5ClientProcessor {
             },
             TcpInitResponseType::Fail => {
                 error!("Client tcp connection [{src_address}] fail to do tcp loop init, tcp loop key: [{tcp_loop_key}]");
-                return Err(anyhow::anyhow!(format!(
-                    "Client tcp connection [{src_address}] fail to do tcp loop init, tcp loop key: [{tcp_loop_key}]"
-                )));
+                return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
             },
         }
-        let socks5_init_success_result = Socks5InitCommandResultContent::new(Socks5InitCommandResultStatus::Succeeded, Some(dst_address.clone().into()));
-        if let Err(e) = init_framed.send(socks5_init_success_result).await {
-            error!("Client tcp connection [{src_address}] fail reply init success in socks5 flow, tcp loop key: [{tcp_loop_key}].");
-            return Err(e);
-        };
+        let socks5_init_success_result = Socks5InitCommandResultContent::new(Socks5InitCommandResultStatus::Succeeded, Some(dst_address.clone().try_into()?));
+        init_framed.send(socks5_init_success_result).await.map_err(EncoderError::Socks5)?;
         let FramedParts { io: client_tcp_stream, .. } = init_framed.into_parts();
         debug!("Client tcp connection [{src_address}] success to do sock5 handshake begin to relay, tcp loop key: [{tcp_loop_key}].");
-        ClientProcessor::relay(ClientDataRelayInfo {
+        ClientProtocolProcessor::relay(ClientDataRelayInfo {
             client_tcp_stream,
             src_address: src_address.clone(),
             dst_address,
-            tcp_loop_key: tcp_loop_key.clone(),
             user_token,
             payload_encryption,
             proxy_connection_read,

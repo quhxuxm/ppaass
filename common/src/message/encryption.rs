@@ -1,12 +1,10 @@
-use crate::serializer::vec_u8_to_base64;
 use serde_derive::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "type", content = "token")]
 pub enum PpaassMessagePayloadEncryption {
     Plain,
-    Aes(#[serde(with = "vec_u8_to_base64")] Vec<u8>),
-    Blowfish(#[serde(with = "vec_u8_to_base64")] Vec<u8>),
+    Aes(Vec<u8>),
+    Blowfish(Vec<u8>),
 }
 
 pub trait PpaassMessagePayloadEncryptionSelector {
