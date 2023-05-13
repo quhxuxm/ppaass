@@ -1,6 +1,7 @@
 use std::{
     fmt::{Debug, Formatter},
     io::{Read, Write},
+    marker::PhantomData,
     mem::size_of,
     sync::Arc,
 };
@@ -20,23 +21,24 @@ use tokio_util::codec::{Decoder, Encoder};
 
 const PPAASS_FLAG: &[u8] = "__PPAASS__".as_bytes();
 const HEADER_LENGTH: usize = PPAASS_FLAG.len() + size_of::<u8>() + size_of::<u64>();
-const COMPRESS_FLAG: u8=1;
-const UNCOMPRESS_FLAG: u8=1;
+const COMPRESS_FLAG: u8 = 1;
+const UNCOMPRESS_FLAG: u8 = 1;
 enum DecodeStatus {
     Head,
     Data(bool, u64),
 }
 
-pub(crate) struct PpaassMessageCodec<T>
+pub(crate) struct PpaassMessageCodec<'a, T>
 where
     T: RsaCryptoFetcher + 'static,
 {
     rsa_crypto_fetcher: Arc<T>,
     compress: bool,
     status: DecodeStatus,
+    _marker: PhantomData<&'a u8>,
 }
 
-impl<T> Debug for PpaassMessageCodec<T>
+impl<T> Debug for PpaassMessageCodec<'_, T>
 where
     T: RsaCryptoFetcher + 'static,
 {
@@ -45,7 +47,7 @@ where
     }
 }
 
-impl<T> PpaassMessageCodec<T>
+impl<T> PpaassMessageCodec<'_, T>
 where
     T: RsaCryptoFetcher + 'static,
 {
@@ -54,16 +56,18 @@ where
             rsa_crypto_fetcher,
             compress,
             status: DecodeStatus::Head,
+            _marker: Default::default(),
         }
     }
 }
 
 /// Decode the input bytes buffer to ppaass message
-impl<T> Decoder for PpaassMessageCodec<T>
+impl<'a, T> Decoder for PpaassMessageCodec<'a, T>
 where
     T: RsaCryptoFetcher + 'static,
+    Self: 'a,
 {
-    type Item = PpaassMessage;
+    type Item = PpaassMessage<'a>;
     type Error = CommonError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
@@ -136,11 +140,13 @@ where
             PpaassMessagePayloadEncryption::Plain => payload,
             PpaassMessagePayloadEncryption::Aes(ref encryption_token) => {
                 let original_encryption_token = rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?;
-                decrypt_with_aes(&original_encryption_token, &payload).map_err(CryptoError::Aes)?
+                decrypt_with_aes(&original_encryption_token, &payload).map_err(CryptoError::Aes)?.into()
             },
             PpaassMessagePayloadEncryption::Blowfish(ref encryption_token) => {
                 let original_encryption_token = rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?;
-                decrypt_with_blowfish(&original_encryption_token, &payload).map_err(CryptoError::Blowfish)?
+                decrypt_with_blowfish(&original_encryption_token, &payload)
+                    .map_err(CryptoError::Blowfish)?
+                    .into()
             },
         };
         self.status = DecodeStatus::Head;
@@ -151,7 +157,7 @@ where
 }
 
 /// Encode the ppaass message to bytes buffer
-impl<T> Encoder<PpaassMessage> for PpaassMessageCodec<T>
+impl<T> Encoder<PpaassMessage<'_>> for PpaassMessageCodec<'_, T>
 where
     T: RsaCryptoFetcher + 'static,
 {
@@ -183,13 +189,16 @@ where
             PpaassMessagePayloadEncryption::Aes(ref original_token) => {
                 let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token).map_err(CryptoError::Rsa)?;
                 let encrypted_payload_bytes = encrypt_with_aes(original_token, &payload);
-                (encrypted_payload_bytes, PpaassMessagePayloadEncryption::Aes(encrypted_payload_encryption_token))
+                (
+                    encrypted_payload_bytes.into(),
+                    PpaassMessagePayloadEncryption::Aes(encrypted_payload_encryption_token),
+                )
             },
             PpaassMessagePayloadEncryption::Blowfish(ref original_token) => {
                 let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token).map_err(CryptoError::Rsa)?;
                 let encrypted_payload_bytes = encrypt_with_blowfish(original_token, &payload);
                 (
-                    encrypted_payload_bytes,
+                    encrypted_payload_bytes.into(),
                     PpaassMessagePayloadEncryption::Blowfish(encrypted_payload_encryption_token),
                 )
             },
