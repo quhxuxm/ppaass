@@ -122,7 +122,7 @@ impl ClientProtocolProcessor {
         }
 
         tokio::spawn(async move {
-            if let Err(e) = FuturesStreamExt::map(client_io_read.timeout(Duration::from_secs(client_relay_timeout)), |client_message| {
+            if let Err(e) = TokioStreamExt::map(client_io_read.timeout(Duration::from_secs(client_relay_timeout)), |client_message| {
                 let client_message = client_message.map_err(|_| CommonError::Other(anyhow!("Relay client data timeout in {client_relay_timeout} seconds.")))?;
                 let client_message = client_message.map_err(|e| CommonError::Other(anyhow!(e)))?;
                 let tcp_data = PpaassMessageGenerator::generate_tcp_data(
@@ -142,7 +142,7 @@ impl ClientProtocolProcessor {
         });
 
         tokio::spawn(async move {
-            if let Err(e) = FuturesStreamExt::map(proxy_connection_read.timeout(Duration::from_secs(proxy_relay_timeout)), |proxy_message| {
+            if let Err(e) = TokioStreamExt::map(proxy_connection_read.timeout(Duration::from_secs(proxy_relay_timeout)), |proxy_message| {
                 let proxy_message = proxy_message.map_err(|_| CommonError::Other(anyhow!("Relay proxy data timeout in {proxy_relay_timeout} seconds.")))?;
                 let PpaassMessage { payload, .. } = proxy_message?;
                 let TcpData { data, .. } = payload.as_slice().try_into()?;

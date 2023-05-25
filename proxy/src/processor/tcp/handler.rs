@@ -147,7 +147,7 @@ where
         {
             let handler_key = handler_key.clone();
             tokio::spawn(async move {
-                if let Err(e) = FuturesStreamExt::map(agent_connection_read.timeout(Duration::from_secs(agent_relay_timeout)), |agent_message| {
+                if let Err(e) = TokioStreamExt::map(agent_connection_read.timeout(Duration::from_secs(agent_relay_timeout)), |agent_message| {
                     let agent_message = agent_message.map_err(|_| NetworkError::Timeout(agent_relay_timeout))?;
                     let agent_message = agent_message.map_err(NetworkError::AgentRead)?;
                     let raw_data = Self::unwrap_to_raw_tcp_data(agent_message).map_err(NetworkError::AgentRead)?;
@@ -162,7 +162,7 @@ where
             });
         }
         tokio::spawn(async move {
-            if let Err(e) = FuturesStreamExt::map(dst_connection_read.timeout(Duration::from_secs(dst_relay_timeout)), |dst_message| {
+            if let Err(e) = TokioStreamExt::map(dst_connection_read.timeout(Duration::from_secs(dst_relay_timeout)), |dst_message| {
                 let dst_message = dst_message.map_err(|_| CommonError::Other(anyhow!("Relay destination data timeout in {dst_relay_timeout} seconds.")))?;
                 let dst_message = dst_message.map_err(|e| CommonError::Other(anyhow!(e)))?;
                 let tcp_data_message = PpaassMessageGenerator::generate_tcp_data(
