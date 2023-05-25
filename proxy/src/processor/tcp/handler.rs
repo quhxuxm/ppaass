@@ -9,7 +9,7 @@ use std::{
 use anyhow::anyhow;
 use bytes::BytesMut;
 use derive_more::{Constructor, Display};
-use futures::StreamExt;
+use futures::StreamExt as FuturesStreamExt;
 use futures_util::SinkExt;
 
 use tokio::time::timeout;
@@ -18,6 +18,7 @@ use tokio::{
     net::TcpStream,
 };
 
+use tokio_stream::StreamExt as TokioStreamExt;
 use tracing::{debug, error};
 
 use ppaass_common::{
@@ -113,6 +114,8 @@ where
         let handler_key = self.handler_key;
         let mut agent_connection_write = self.agent_connection_write;
         let agent_connection_read = self.agent_connection_read;
+        let dst_relay_timeout = self.configuration.get_dst_relay_timeout();
+        let agent_relay_timeout = self.configuration.get_agent_relay_timeout();
 
         let (dst_connection_read, dst_connection_write) = match Self::init_dst_connection(&handler_key, self.configuration).await {
             Ok(dst_read_and_write) => dst_read_and_write,
@@ -144,14 +147,14 @@ where
         {
             let handler_key = handler_key.clone();
             tokio::spawn(async move {
-                if let Err(e) = agent_connection_read
-                    .map(|agent_message| {
-                        let agent_message = agent_message.map_err(NetworkError::AgentRead)?;
-                        let raw_data = Self::unwrap_to_raw_tcp_data(agent_message).map_err(NetworkError::AgentRead)?;
-                        Ok(BytesMut::from_iter(raw_data))
-                    })
-                    .forward(dst_connection_write)
-                    .await
+                if let Err(e) = FuturesStreamExt::map(agent_connection_read.timeout(Duration::from_secs(agent_relay_timeout)), |agent_message| {
+                    let agent_message = agent_message.map_err(|_| NetworkError::Timeout(agent_relay_timeout))?;
+                    let agent_message = agent_message.map_err(NetworkError::AgentRead)?;
+                    let raw_data = Self::unwrap_to_raw_tcp_data(agent_message).map_err(NetworkError::AgentRead)?;
+                    Ok(BytesMut::from_iter(raw_data))
+                })
+                .forward(dst_connection_write)
+                .await
                 {
                     error!("Tcp handler {handler_key} fail to relay agent data to destination because of error: {e:?}");
                 };
@@ -159,20 +162,20 @@ where
             });
         }
         tokio::spawn(async move {
-            if let Err(e) = dst_connection_read
-                .map(|dst_message| {
-                    let dst_message = dst_message.map_err(|e| CommonError::Other(anyhow!(e)))?;
-                    let tcp_data_message = PpaassMessageGenerator::generate_tcp_data(
-                        handler_key.user_token.clone(),
-                        payload_encryption.clone(),
-                        handler_key.src_address.clone(),
-                        handler_key.dst_address.clone(),
-                        dst_message.to_vec(),
-                    )?;
-                    Ok(tcp_data_message)
-                })
-                .forward(agent_connection_write)
-                .await
+            if let Err(e) = FuturesStreamExt::map(dst_connection_read.timeout(Duration::from_secs(dst_relay_timeout)), |dst_message| {
+                let dst_message = dst_message.map_err(|_| CommonError::Other(anyhow!("Relay destination data timeout in {dst_relay_timeout} seconds.")))?;
+                let dst_message = dst_message.map_err(|e| CommonError::Other(anyhow!(e)))?;
+                let tcp_data_message = PpaassMessageGenerator::generate_tcp_data(
+                    handler_key.user_token.clone(),
+                    payload_encryption.clone(),
+                    handler_key.src_address.clone(),
+                    handler_key.dst_address.clone(),
+                    dst_message.to_vec(),
+                )?;
+                Ok(tcp_data_message)
+            })
+            .forward(agent_connection_write)
+            .await
             {
                 error!("Tcp handler {handler_key} fail to relay destination data to agent because of error: {e:?}");
             }

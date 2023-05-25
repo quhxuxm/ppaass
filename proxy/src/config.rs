@@ -21,6 +21,8 @@ pub(crate) struct ProxyServerConfig {
     agent_recive_buffer_size: Option<usize>,
     dst_tcp_buffer_size: Option<usize>,
     dst_connect_timeout: Option<u64>,
+    dst_relay_timeout: Option<u64>,
+    agent_relay_timeout: Option<u64>,
     dst_udp_recv_timeout: Option<u64>,
     dst_udp_connect_timeout: Option<u64>,
 }
@@ -78,6 +80,12 @@ impl ProxyServerConfig {
         self.dst_connect_timeout.unwrap_or(20)
     }
 
+    pub(crate) fn get_dst_relay_timeout(&self) -> u64 {
+        self.dst_relay_timeout.unwrap_or(20)
+    }
+    pub(crate) fn get_agent_relay_timeout(&self) -> u64 {
+        self.agent_relay_timeout.unwrap_or(20)
+    }
     pub(crate) fn get_dst_udp_recv_timeout(&self) -> u64 {
         self.dst_udp_recv_timeout.unwrap_or(5)
     }

@@ -25,3 +25,4 @@ toml = {workspace = true}
 tracing = {workspace = true}
 url = {workspace = true}
 thiserror = {workspace = true}
+tokio-stream= {workspace = true}
