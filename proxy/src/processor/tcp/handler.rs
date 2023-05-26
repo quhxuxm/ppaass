@@ -116,7 +116,7 @@ where
         let dst_relay_timeout = self.configuration.get_dst_relay_timeout();
         let agent_relay_timeout = self.configuration.get_agent_relay_timeout();
 
-        let (dst_connection_read, dst_connection_write) = match Self::init_dst_connection(&handler_key, self.configuration).await {
+        let (dst_connection_read, mut dst_connection_write) = match Self::init_dst_connection(&handler_key, self.configuration).await {
             Ok(dst_read_and_write) => dst_read_and_write,
             Err(e) => {
                 let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&handler_key.user_token, Some(generate_uuid().into_bytes()));
@@ -152,10 +152,12 @@ where
                     let raw_data = Self::unwrap_to_raw_tcp_data(agent_message).ok()?;
                     Some(Ok(BytesMut::from_iter(raw_data)))
                 })
-                .forward(dst_connection_write)
+                .forward(&mut dst_connection_write)
                 .await
                 {
                     error!("Tcp handler {handler_key} fail to relay agent data to destination because of error: {e:?}");
+                    dst_connection_write.flush().await?;
+                    dst_connection_write.close().await?;
                 };
                 Ok::<_, NetworkError>(())
             });
@@ -174,11 +176,14 @@ where
                 .ok()?;
                 Some(Ok(tcp_data_message))
             })
-            .forward(agent_connection_write)
+            .forward(&mut agent_connection_write)
             .await
             {
                 error!("Tcp handler {handler_key} fail to relay destination data to agent because of error: {e:?}");
+                agent_connection_write.flush().await?;
+                agent_connection_write.close().await?;
             }
+            Ok::<_, CommonError>(())
         });
 
         Ok(())

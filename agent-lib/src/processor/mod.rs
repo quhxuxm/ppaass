@@ -23,8 +23,8 @@ use futures::{
 };
 use pin_project::pin_project;
 use ppaass_common::{
-    tcp::TcpData, PpaassConnectionRead, PpaassConnectionWrite, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassNetAddress,
-    RsaCryptoFetcher,
+    tcp::TcpData, CommonError, PpaassConnectionRead, PpaassConnectionWrite, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryption,
+    PpaassNetAddress, RsaCryptoFetcher,
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -108,7 +108,7 @@ impl ClientProtocolProcessor {
         let proxy_connection_read = info.proxy_connection_read;
         let client_io_framed = Framed::with_capacity(client_tcp_stream, BytesCodec::new(), configuration.get_client_receive_buffer_size());
         let (client_io_write, client_io_read) = client_io_framed.split::<BytesMut>();
-        let (client_io_write, client_io_read) = (
+        let (mut client_io_write, client_io_read) = (
             ClientConnectionWrite::new(src_address.clone(), client_io_write),
             ClientConnectionRead::new(src_address.clone(), client_io_read),
         );
@@ -135,11 +135,14 @@ impl ClientProtocolProcessor {
                 .ok()?;
                 Some(Ok(tcp_data))
             })
-            .forward(proxy_connection_write)
+            .forward(&mut proxy_connection_write)
             .await
             {
                 error!("Client connection fail to relay client data to proxy because of error: {e:?}");
+                proxy_connection_write.flush().await?;
+                proxy_connection_write.close().await?;
             }
+            Ok::<_, CommonError>(())
         });
 
         tokio::spawn(async move {
@@ -149,11 +152,14 @@ impl ClientProtocolProcessor {
                 let TcpData { data, .. } = payload.as_slice().try_into().ok()?;
                 Some(Ok(BytesMut::from_iter(data)))
             })
-            .forward(client_io_write)
+            .forward(&mut client_io_write)
             .await
             {
                 error!("Client connection fail to relay proxy data to client because of error: {e:?}");
+                client_io_write.flush().await?;
+                client_io_write.close().await?;
             }
+            Ok::<_, AgentError>(())
         });
 
         Ok(())
