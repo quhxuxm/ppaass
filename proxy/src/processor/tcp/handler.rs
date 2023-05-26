@@ -6,7 +6,6 @@ use std::{
     time::Duration,
 };
 
-use anyhow::anyhow;
 use bytes::BytesMut;
 use derive_more::{Constructor, Display};
 use futures::StreamExt as FuturesStreamExt;
@@ -147,11 +146,11 @@ where
         {
             let handler_key = handler_key.clone();
             tokio::spawn(async move {
-                if let Err(e) = TokioStreamExt::map(agent_connection_read.timeout(Duration::from_secs(agent_relay_timeout)), |agent_message| {
-                    let agent_message = agent_message.map_err(|_| NetworkError::Timeout(agent_relay_timeout))?;
-                    let agent_message = agent_message.map_err(NetworkError::AgentRead)?;
-                    let raw_data = Self::unwrap_to_raw_tcp_data(agent_message).map_err(NetworkError::AgentRead)?;
-                    Ok(BytesMut::from_iter(raw_data))
+                if let Err(e) = TokioStreamExt::map_while(agent_connection_read.timeout(Duration::from_secs(agent_relay_timeout)), |agent_message| {
+                    let agent_message = agent_message.ok()?;
+                    let agent_message = agent_message.ok()?;
+                    let raw_data = Self::unwrap_to_raw_tcp_data(agent_message).ok()?;
+                    Some(Ok(BytesMut::from_iter(raw_data)))
                 })
                 .forward(dst_connection_write)
                 .await
@@ -162,17 +161,18 @@ where
             });
         }
         tokio::spawn(async move {
-            if let Err(e) = TokioStreamExt::map(dst_connection_read.timeout(Duration::from_secs(dst_relay_timeout)), |dst_message| {
-                let dst_message = dst_message.map_err(|_| CommonError::Other(anyhow!("Relay destination data timeout in {dst_relay_timeout} seconds.")))?;
-                let dst_message = dst_message.map_err(|e| CommonError::Other(anyhow!(e)))?;
+            if let Err(e) = TokioStreamExt::map_while(dst_connection_read.timeout(Duration::from_secs(dst_relay_timeout)), |dst_message| {
+                let dst_message = dst_message.ok()?;
+                let dst_message = dst_message.ok()?;
                 let tcp_data_message = PpaassMessageGenerator::generate_tcp_data(
                     handler_key.user_token.clone(),
                     payload_encryption.clone(),
                     handler_key.src_address.clone(),
                     handler_key.dst_address.clone(),
                     dst_message.to_vec(),
-                )?;
-                Ok(tcp_data_message)
+                )
+                .ok()?;
+                Some(Ok(tcp_data_message))
             })
             .forward(agent_connection_write)
             .await

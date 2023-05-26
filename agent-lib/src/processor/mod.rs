@@ -14,7 +14,7 @@ use crate::{
     error::{AgentError, NetworkError},
     pool::ProxyConnectionPool,
 };
-use anyhow::anyhow;
+
 use bytes::BytesMut;
 use futures::StreamExt as FuturesStreamExt;
 use futures::{
@@ -23,8 +23,8 @@ use futures::{
 };
 use pin_project::pin_project;
 use ppaass_common::{
-    tcp::TcpData, CommonError, PpaassConnectionRead, PpaassConnectionWrite, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryption,
-    PpaassNetAddress, RsaCryptoFetcher,
+    tcp::TcpData, PpaassConnectionRead, PpaassConnectionWrite, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassNetAddress,
+    RsaCryptoFetcher,
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -122,17 +122,18 @@ impl ClientProtocolProcessor {
         }
 
         tokio::spawn(async move {
-            if let Err(e) = TokioStreamExt::map(client_io_read.timeout(Duration::from_secs(client_relay_timeout)), |client_message| {
-                let client_message = client_message.map_err(|_| CommonError::Other(anyhow!("Relay client data timeout in {client_relay_timeout} seconds.")))?;
-                let client_message = client_message.map_err(|e| CommonError::Other(anyhow!(e)))?;
+            if let Err(e) = TokioStreamExt::map_while(client_io_read.timeout(Duration::from_secs(client_relay_timeout)), |client_message| {
+                let client_message = client_message.ok()?;
+                let client_message = client_message.ok()?;
                 let tcp_data = PpaassMessageGenerator::generate_tcp_data(
                     user_token.clone(),
                     payload_encryption.clone(),
                     src_address.clone(),
                     dst_address.clone(),
                     client_message.to_vec(),
-                )?;
-                Ok::<_, CommonError>(tcp_data)
+                )
+                .ok()?;
+                Some(Ok(tcp_data))
             })
             .forward(proxy_connection_write)
             .await
@@ -142,11 +143,11 @@ impl ClientProtocolProcessor {
         });
 
         tokio::spawn(async move {
-            if let Err(e) = TokioStreamExt::map(proxy_connection_read.timeout(Duration::from_secs(proxy_relay_timeout)), |proxy_message| {
-                let proxy_message = proxy_message.map_err(|_| CommonError::Other(anyhow!("Relay proxy data timeout in {proxy_relay_timeout} seconds.")))?;
-                let PpaassMessage { payload, .. } = proxy_message?;
-                let TcpData { data, .. } = payload.as_slice().try_into()?;
-                Ok(BytesMut::from_iter(data))
+            if let Err(e) = TokioStreamExt::map_while(proxy_connection_read.timeout(Duration::from_secs(proxy_relay_timeout)), |proxy_message| {
+                let proxy_message = proxy_message.ok()?;
+                let PpaassMessage { payload, .. } = proxy_message.ok()?;
+                let TcpData { data, .. } = payload.as_slice().try_into().ok()?;
+                Some(Ok(BytesMut::from_iter(data)))
             })
             .forward(client_io_write)
             .await
