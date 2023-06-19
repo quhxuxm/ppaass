@@ -20,6 +20,9 @@ pub struct AgentServerConfig {
     client_receive_buffer_size: Option<usize>,
     proxy_send_buffer_size: Option<usize>,
     connect_to_proxy_timeout: Option<u64>,
+
+    proxy_relay_timeout: Option<u64>,
+    client_relay_timeout: Option<u64>,
 }
 
 impl AgentServerConfig {
@@ -86,6 +89,14 @@ impl AgentServerConfig {
     }
     pub fn get_client_receive_buffer_size(&self) -> usize {
         self.client_receive_buffer_size.unwrap_or(1024 * 512)
+    }
+
+    pub fn get_proxy_relay_timeout(&self) -> u64 {
+        self.proxy_relay_timeout.unwrap_or(20)
+    }
+
+    pub fn get_client_relay_timeout(&self) -> u64 {
+        self.client_relay_timeout.unwrap_or(20)
     }
 }
 

@@ -1,3 +1,4 @@
+#![allow(unused)]
 use anyhow::Error as AnyhowError;
 use ppaass_common::CommonError;
 use std::io::Error as StdIoError;

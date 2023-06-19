@@ -4,6 +4,7 @@ use crate::{
 };
 
 use derive_more::{Constructor, Display};
+use dns_lookup::lookup_host;
 use futures::SinkExt;
 use ppaass_common::{
     dns::DnsLookupRequest, generate_uuid, PpaassConnectionWrite, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress,
@@ -47,7 +48,7 @@ where
         info!("Dns lookup handler {handler_key} receive agent request for domains [{domain_names:?}] with request id [{request_id}]");
         let addresses = domain_names
             .iter()
-            .map(|domain_name| match dns_lookup::lookup_host(domain_name) {
+            .map(|domain_name| match lookup_host(domain_name) {
                 Err(e) => {
                     error!("Dns lookup handler fail to lookup domain name: [{domain_name}] because of error: {e:?}");
                     (domain_name.to_owned(), None)
