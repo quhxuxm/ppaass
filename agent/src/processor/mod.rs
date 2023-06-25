@@ -23,8 +23,7 @@ use futures::{
 };
 use pin_project::pin_project;
 use ppaass_common::{
-    tcp::TcpData, CommonError, PpaassConnectionRead, PpaassConnectionWrite, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryption,
-    PpaassNetAddress, RsaCryptoFetcher,
+    tcp::TcpData, CommonError, PpaassConnection, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassNetAddress, RsaCryptoFetcher,
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -48,8 +47,7 @@ where
     dst_address: PpaassNetAddress,
     user_token: String,
     payload_encryption: PpaassMessagePayloadEncryption,
-    proxy_connection_read: PpaassConnectionRead<TcpStream, R, I>,
-    proxy_connection_write: PpaassConnectionWrite<TcpStream, R, I>,
+    proxy_connection: PpaassConnection<TcpStream, R, I>,
     configuration: Arc<AgentServerConfig>,
     init_data: Option<Vec<u8>>,
 }
@@ -103,9 +101,8 @@ impl ClientProtocolProcessor {
         let proxy_relay_timeout = configuration.get_proxy_relay_timeout();
         let client_relay_timeout = configuration.get_client_relay_timeout();
         let payload_encryption = info.payload_encryption;
-        let mut proxy_connection_write = info.proxy_connection_write;
+        let mut proxy_connection = info.proxy_connection;
         let user_token = info.user_token;
-        let proxy_connection_read = info.proxy_connection_read;
         let client_io_framed = Framed::with_capacity(client_tcp_stream, BytesCodec::new(), configuration.get_client_receive_buffer_size());
         let (client_io_write, client_io_read) = client_io_framed.split::<BytesMut>();
         let (mut client_io_write, client_io_read) = (
@@ -118,8 +115,10 @@ impl ClientProtocolProcessor {
         if let Some(init_data) = init_data {
             let agent_message =
                 PpaassMessageGenerator::generate_tcp_data(&user_token, payload_encryption.clone(), src_address.clone(), dst_address.clone(), init_data)?;
-            proxy_connection_write.send(agent_message).await?;
+            proxy_connection.send(agent_message).await?;
         }
+
+        let (mut proxy_connection_write, proxy_connection_read) = proxy_connection.split();
 
         tokio::spawn(async move {
             if let Err(e) = TokioStreamExt::map_while(client_io_read.timeout(Duration::from_secs(client_relay_timeout)), |client_message| {

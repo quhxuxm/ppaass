@@ -7,8 +7,7 @@ use derive_more::{Constructor, Display};
 use dns_lookup::lookup_host;
 use futures::SinkExt;
 use ppaass_common::{
-    dns::DnsLookupRequest, generate_uuid, PpaassConnectionWrite, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress,
-    RsaCryptoFetcher,
+    dns::DnsLookupRequest, generate_uuid, PpaassConnection, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher,
 };
 use std::{collections::HashMap, fmt::Debug};
 use std::{fmt::Display, net::IpAddr};
@@ -32,7 +31,7 @@ where
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
     handler_key: DnsLookupHandlerKey,
-    agent_connection_write: PpaassConnectionWrite<T, R, I>,
+    agent_connection: PpaassConnection<T, R, I>,
 }
 
 impl<T, R, I> DnsLookupHandler<T, R, I>
@@ -42,7 +41,7 @@ where
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
     pub(crate) async fn exec(self, dns_lookup_request: DnsLookupRequest) -> Result<(), ProxyError> {
-        let mut agent_connection_write = self.agent_connection_write;
+        let mut agent_connection = self.agent_connection;
         let handler_key = self.handler_key;
         let DnsLookupRequest { domain_names, request_id, .. } = dns_lookup_request;
         info!("Dns lookup handler {handler_key} receive agent request for domains [{domain_names:?}] with request id [{request_id}]");
@@ -77,7 +76,7 @@ where
         let dns_lookup_response_message =
             PpaassMessageGenerator::generate_dns_lookup_response(handler_key.user_token.clone(), payload_encryption, request_id, addresses)?;
 
-        if let Err(e) = agent_connection_write.send(dns_lookup_response_message).await {
+        if let Err(e) = agent_connection.send(dns_lookup_response_message).await {
             error!("Dns lookup handler {handler_key} fail to send response for dns lookup [{request_id}] to agent because of error: {e:?}");
             return Err(ProxyError::Network(NetworkError::AgentWrite(e)));
         };

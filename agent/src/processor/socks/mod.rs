@@ -3,8 +3,7 @@ use bytes::BytesMut;
 use futures::{SinkExt, StreamExt};
 use ppaass_common::{
     tcp::{TcpInitResponse, TcpInitResponseType},
-    PpaassConnectionParts, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload,
-    PpaassMessageProxyPayloadType, PpaassNetAddress,
+    PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload, PpaassMessageProxyPayloadType, PpaassNetAddress,
 };
 
 use std::sync::Arc;
@@ -99,16 +98,14 @@ impl Socks5ClientProcessor {
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(&user_token, Some(generate_uuid().into_bytes()));
         let tcp_init_request =
             PpaassMessageGenerator::generate_tcp_init_request(&user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
-        let proxy_connection = proxy_connection_pool.take_connection().await?;
-        let PpaassConnectionParts {
-            read_part: mut proxy_connection_read,
-            write_part: mut proxy_connection_write,
-            id: proxy_connection_id,
-        } = proxy_connection.split();
+        let mut proxy_connection = proxy_connection_pool.take_connection().await?;
 
-        debug!("Client tcp connection [{src_address}] take proxy connectopn [{proxy_connection_id}] to do proxy");
-        proxy_connection_write.send(tcp_init_request).await?;
-        let proxy_message = proxy_connection_read.next().await.ok_or(NetworkError::ConnectionExhausted)??;
+        debug!(
+            "Client tcp connection [{src_address}] take proxy connectopn [{}] to do proxy.",
+            proxy_connection.get_connection_id()
+        );
+        proxy_connection.send(tcp_init_request).await?;
+        let proxy_message = proxy_connection.next().await.ok_or(NetworkError::ConnectionExhausted)??;
         let PpaassMessage { payload, user_token, .. } = proxy_message;
         let PpaassMessageProxyPayload { payload_type, data } = payload.as_slice().try_into()?;
         let tcp_init_response = match payload_type {
@@ -143,8 +140,7 @@ impl Socks5ClientProcessor {
             dst_address,
             user_token,
             payload_encryption,
-            proxy_connection_read,
-            proxy_connection_write,
+            proxy_connection,
             configuration,
             init_data: None,
         })

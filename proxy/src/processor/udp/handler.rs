@@ -7,7 +7,7 @@ use std::{
 
 use derive_more::{Constructor, Display};
 use futures::SinkExt;
-use ppaass_common::{generate_uuid, PpaassConnectionWrite, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher};
+use ppaass_common::{generate_uuid, PpaassConnection, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher};
 use pretty_hex::pretty_hex;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -41,7 +41,7 @@ where
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
     handler_key: UdpHandlerKey,
-    agent_connection_write: PpaassConnectionWrite<T, R, I>,
+    agent_connection: PpaassConnection<T, R, I>,
     configuration: Arc<ProxyServerConfig>,
 }
 
@@ -52,7 +52,7 @@ where
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
     pub(crate) async fn exec(self, udp_data: Vec<u8>) -> Result<(), ProxyError> {
-        let mut agent_connection_write = self.agent_connection_write;
+        let mut agent_connection = self.agent_connection;
         let handler_key = self.handler_key;
         let dst_udp_socket = match UdpSocket::bind("0.0.0.0:0").await {
             Ok(dst_udp_socket) => dst_udp_socket,
@@ -139,7 +139,7 @@ where
             handler_key.dst_address.clone(),
             dst_recv_buf.to_vec(),
         )?;
-        if let Err(e) = agent_connection_write.send(udp_data_message).await {
+        if let Err(e) = agent_connection.send(udp_data_message).await {
             error!("Udp handler {handler_key} fail to send udp data from [{dst_socket_addrs:?}] to agent because of error: {e:?}");
             return Err(ProxyError::Network(NetworkError::AgentWrite(e)));
         };

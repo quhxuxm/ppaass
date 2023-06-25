@@ -23,7 +23,7 @@ use tracing::{debug, error};
 use ppaass_common::{
     generate_uuid,
     tcp::{TcpData, TcpInitResponseType},
-    CommonError, PpaassConnectionRead, PpaassConnectionWrite, PpaassMessage, RsaCryptoFetcher,
+    CommonError, PpaassConnection, PpaassMessage, RsaCryptoFetcher,
 };
 use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
 
@@ -54,8 +54,7 @@ where
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
     handler_key: TcpHandlerKey,
-    agent_connection_read: PpaassConnectionRead<T, R, I>,
-    agent_connection_write: PpaassConnectionWrite<T, R, I>,
+    agent_connection: PpaassConnection<T, R, I>,
     configuration: Arc<ProxyServerConfig>,
 }
 
@@ -111,8 +110,7 @@ where
 
     pub(crate) async fn exec(self) -> Result<(), ProxyError> {
         let handler_key = self.handler_key;
-        let mut agent_connection_write = self.agent_connection_write;
-        let agent_connection_read = self.agent_connection_read;
+        let mut agent_connection = self.agent_connection;
         let dst_relay_timeout = self.configuration.get_dst_relay_timeout();
         let agent_relay_timeout = self.configuration.get_agent_relay_timeout();
 
@@ -128,7 +126,7 @@ where
                     payload_encryption,
                     TcpInitResponseType::Fail,
                 )?;
-                agent_connection_write.send(tcp_init_fail).await?;
+                agent_connection.send(tcp_init_fail).await?;
                 return Err(e);
             },
         };
@@ -141,8 +139,9 @@ where
             payload_encryption.clone(),
             TcpInitResponseType::Success,
         )?;
-        agent_connection_write.send(tcp_init_success_message).await?;
+        agent_connection.send(tcp_init_success_message).await?;
         debug!("Tcp handler {handler_key} create destination connection success.");
+        let (mut agent_connection_write, agent_connection_read) = agent_connection.split();
         {
             let handler_key = handler_key.clone();
             tokio::spawn(async move {
