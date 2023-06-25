@@ -9,8 +9,8 @@ use crate::{
 };
 
 use super::message::{
-    Socks5Address, Socks5AuthCommandContent, Socks5AuthCommandResultContent, Socks5AuthCommandResultContentParts, Socks5AuthMethod, Socks5InitCommandContent,
-    Socks5InitCommandResultContent, Socks5InitCommandResultContentParts, Socks5InitCommandType,
+    Socks5Address, Socks5AuthCommandContent, Socks5AuthCommandResultContent, Socks5AuthMethod, Socks5InitCommandContent, Socks5InitCommandResultContent,
+    Socks5InitCommandType,
 };
 
 #[derive(Debug, Default)]
@@ -42,9 +42,8 @@ impl Encoder<Socks5AuthCommandResultContent> for Socks5AuthCommandContentCodec {
     type Error = Socks5EncodeError;
 
     fn encode(&mut self, item: Socks5AuthCommandResultContent, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        let Socks5AuthCommandResultContentParts { method } = item.split();
         dst.put_u8(SOCKS_V5);
-        dst.put_u8(method.into());
+        dst.put_u8(item.method.into());
         Ok(())
     }
 }
@@ -76,11 +75,10 @@ impl Encoder<Socks5InitCommandResultContent> for Socks5InitCommandContentCodec {
     type Error = Socks5EncodeError;
 
     fn encode(&mut self, item: Socks5InitCommandResultContent, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        let Socks5InitCommandResultContentParts { status, bind_address } = item.split();
         dst.put_u8(5);
-        dst.put_u8(status.into());
+        dst.put_u8(item.status.into());
         dst.put_u8(0);
-        if let Some(bind_address) = bind_address {
+        if let Some(bind_address) = item.bind_address {
             dst.put::<Bytes>(bind_address.into());
         }
         Ok(())

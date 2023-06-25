@@ -1,3 +1,5 @@
+use derive_more::Constructor;
+
 #[derive(Debug)]
 pub(crate) enum Socks5AuthMethod {
     NoAuthenticationRequired,
@@ -35,38 +37,12 @@ impl From<Socks5AuthMethod> for u8 {
     }
 }
 
-pub(crate) struct Socks5AuthCommandContentParts {
-    pub methods: Vec<Socks5AuthMethod>,
-}
-#[derive(Debug)]
+#[derive(Debug, Constructor)]
 pub(crate) struct Socks5AuthCommandContent {
-    methods: Vec<Socks5AuthMethod>,
+    pub(crate) methods: Vec<Socks5AuthMethod>,
 }
 
-impl Socks5AuthCommandContent {
-    pub fn new(methods: Vec<Socks5AuthMethod>) -> Self {
-        Socks5AuthCommandContent { methods }
-    }
-
-    pub(crate) fn split(self) -> Socks5AuthCommandContentParts {
-        Socks5AuthCommandContentParts { methods: self.methods }
-    }
-}
-
-pub(crate) struct Socks5AuthCommandResultContentParts {
-    pub(crate) method: Socks5AuthMethod,
-}
-#[derive(Debug)]
+#[derive(Debug, Constructor)]
 pub(crate) struct Socks5AuthCommandResultContent {
-    method: Socks5AuthMethod,
-}
-
-impl Socks5AuthCommandResultContent {
-    pub(crate) fn new(method: Socks5AuthMethod) -> Self {
-        Socks5AuthCommandResultContent { method }
-    }
-
-    pub(crate) fn split(self) -> Socks5AuthCommandResultContentParts {
-        Socks5AuthCommandResultContentParts { method: self.method }
-    }
+    pub(crate) method: Socks5AuthMethod,
 }

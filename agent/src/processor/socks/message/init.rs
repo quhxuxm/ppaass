@@ -1,3 +1,5 @@
+use derive_more::Constructor;
+
 use crate::error::Socks5DecodeError;
 
 use super::Socks5Address;
@@ -73,50 +75,14 @@ impl From<Socks5InitCommandResultStatus> for u8 {
     }
 }
 
-pub(crate) struct Socks5InitCommandContentParts {
-    pub command_type: Socks5InitCommandType,
-    pub dst_address: Socks5Address,
-}
-
-#[derive(Debug)]
+#[derive(Debug, Constructor)]
 pub(crate) struct Socks5InitCommandContent {
-    request_type: Socks5InitCommandType,
-    dst_address: Socks5Address,
+    pub(crate) request_type: Socks5InitCommandType,
+    pub(crate) dst_address: Socks5Address,
 }
 
-impl Socks5InitCommandContent {
-    pub fn new(request_type: Socks5InitCommandType, dst_address: Socks5Address) -> Self {
-        Socks5InitCommandContent { request_type, dst_address }
-    }
-
-    pub(crate) fn split(self) -> Socks5InitCommandContentParts {
-        Socks5InitCommandContentParts {
-            command_type: self.request_type,
-            dst_address: self.dst_address,
-        }
-    }
-}
-
-pub(crate) struct Socks5InitCommandResultContentParts {
-    pub status: Socks5InitCommandResultStatus,
-    pub bind_address: Option<Socks5Address>,
-}
-
-#[derive(Debug)]
+#[derive(Debug, Constructor)]
 pub(crate) struct Socks5InitCommandResultContent {
-    status: Socks5InitCommandResultStatus,
-    bind_address: Option<Socks5Address>,
-}
-
-impl Socks5InitCommandResultContent {
-    pub fn new(status: Socks5InitCommandResultStatus, bind_address: Option<Socks5Address>) -> Self {
-        Socks5InitCommandResultContent { status, bind_address }
-    }
-
-    pub fn split(self) -> Socks5InitCommandResultContentParts {
-        Socks5InitCommandResultContentParts {
-            status: self.status,
-            bind_address: self.bind_address,
-        }
-    }
+    pub(crate) status: Socks5InitCommandResultStatus,
+    pub(crate) bind_address: Option<Socks5Address>,
 }

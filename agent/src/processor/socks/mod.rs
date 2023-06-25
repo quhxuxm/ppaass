@@ -20,10 +20,7 @@ use crate::{
     processor::{
         socks::{
             codec::{Socks5AuthCommandContentCodec, Socks5InitCommandContentCodec},
-            message::{
-                Socks5AuthCommandContentParts, Socks5AuthCommandResultContent, Socks5InitCommandContentParts, Socks5InitCommandResultContent,
-                Socks5InitCommandType,
-            },
+            message::{Socks5AuthCommandResultContent, Socks5InitCommandResultContent, Socks5InitCommandType},
         },
         ClientDataRelayInfo, ClientProtocolProcessor,
     },
@@ -61,8 +58,10 @@ impl Socks5ClientProcessor {
             .await
             .ok_or(NetworkError::ConnectionExhausted)?
             .map_err(DecoderError::Socks5)?;
-        let Socks5AuthCommandContentParts { methods } = auth_message.split();
-        debug!("Client tcp connection [{src_address}] start socks5 authenticate process, authenticate methods in request: {methods:?}");
+        debug!(
+            "Client tcp connection [{src_address}] start socks5 authenticate process, authenticate methods in request: {:?}",
+            auth_message.methods
+        );
         let auth_response = Socks5AuthCommandResultContent::new(message::Socks5AuthMethod::NoAuthenticationRequired);
         auth_framed.send(auth_response).await.map_err(EncoderError::Socks5)?;
         let FramedParts { io: client_tcp_stream, .. } = auth_framed.into_parts();
@@ -72,14 +71,16 @@ impl Socks5ClientProcessor {
             .await
             .ok_or(NetworkError::ConnectionExhausted)?
             .map_err(DecoderError::Socks5)?;
-        let Socks5InitCommandContentParts { command_type, dst_address } = init_message.split();
-        debug!("Client tcp connection [{src_address}] start socks5 init process, command type: {command_type:?}, destination address: {dst_address:?}");
+        debug!(
+            "Client tcp connection [{src_address}] start socks5 init process, command type: {:?}, destination address: {:?}",
+            init_message.request_type, init_message.dst_address
+        );
 
-        match command_type {
+        match init_message.request_type {
             Socks5InitCommandType::Bind => todo!(),
             Socks5InitCommandType::UdpAssociate => todo!(),
             Socks5InitCommandType::Connect => {
-                Self::handle_connect_command(src_address, dst_address.into(), proxy_connection_pool, init_framed, configuration).await?;
+                Self::handle_connect_command(src_address, init_message.dst_address.into(), proxy_connection_pool, init_framed, configuration).await?;
             },
         }
 

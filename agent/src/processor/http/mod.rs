@@ -5,6 +5,7 @@ use std::sync::Arc;
 use bytecodec::{bytes::BytesEncoder, EncodeExt};
 
 use bytes::BytesMut;
+use derive_more::Constructor;
 use futures::{SinkExt, StreamExt};
 use httpcodec::{BodyEncoder, HttpVersion, ReasonPhrase, RequestEncoder, Response, StatusCode};
 use ppaass_common::{
@@ -33,19 +34,13 @@ const HTTP_DEFAULT_PORT: u16 = 80;
 const OK_CODE: u16 = 200;
 const CONNECTION_ESTABLISHED: &str = "Connection Established";
 
+#[derive(Debug, Constructor)]
 pub(crate) struct HttpClientProcessor {
     client_tcp_stream: TcpStream,
     src_address: PpaassNetAddress,
 }
 
 impl HttpClientProcessor {
-    pub(crate) fn new(client_tcp_stream: TcpStream, src_address: PpaassNetAddress) -> Self {
-        Self {
-            client_tcp_stream,
-            src_address,
-        }
-    }
-
     pub(crate) async fn exec(
         self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>, initial_buf: BytesMut,
     ) -> Result<(), AgentError> {
