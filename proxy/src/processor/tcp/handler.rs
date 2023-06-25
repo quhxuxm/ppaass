@@ -23,7 +23,7 @@ use tracing::{debug, error};
 use ppaass_common::{
     generate_uuid,
     tcp::{TcpData, TcpInitResponseType},
-    CommonError, PpaassConnectionRead, PpaassConnectionWrite, PpaassMessage, RsaCryptoFetcher,
+    CommonError, PpaassConnection, PpaassMessage, RsaCryptoFetcher,
 };
 use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
 
@@ -33,7 +33,7 @@ use crate::{
     error::{NetworkError, ProxyError},
 };
 
-use super::destination::{DstConnection, DstConnectionParts, DstConnectionRead, DstConnectionWrite};
+use super::destination::DstConnection;
 
 #[derive(Debug, Clone, Constructor, Display)]
 #[display(fmt = "[{}]#[{}]@TCP::[{}]::[{}=>{}]", connection_id, user_token, agent_address, src_address, dst_address)]
@@ -54,8 +54,7 @@ where
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
     handler_key: TcpHandlerKey,
-    agent_connection_read: PpaassConnectionRead<T, R, I>,
-    agent_connection_write: PpaassConnectionWrite<T, R, I>,
+    agent_connection: PpaassConnection<T, R, I>,
     configuration: Arc<ProxyServerConfig>,
 }
 
@@ -65,9 +64,7 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    async fn init_dst_connection(
-        handler_key: &TcpHandlerKey, configuration: Arc<ProxyServerConfig>,
-    ) -> Result<(DstConnectionRead<TcpStream>, DstConnectionWrite<TcpStream>), ProxyError> {
+    async fn init_dst_connection(handler_key: &TcpHandlerKey, configuration: Arc<ProxyServerConfig>) -> Result<DstConnection<TcpStream>, ProxyError> {
         let dst_socket_address = handler_key.dst_address.to_socket_addrs()?.collect::<Vec<SocketAddr>>();
 
         let dst_tcp_stream = match timeout(
@@ -95,12 +92,7 @@ where
         dst_tcp_stream.set_nodelay(true)?;
         dst_tcp_stream.set_linger(None)?;
         let dst_connection = DstConnection::new(dst_tcp_stream, configuration.get_dst_tcp_buffer_size());
-        let DstConnectionParts {
-            read: dst_tcp_read,
-            write: dst_tcp_write,
-            ..
-        } = dst_connection.split();
-        Ok((dst_tcp_read, dst_tcp_write))
+        Ok(dst_connection)
     }
 
     fn unwrap_to_raw_tcp_data(message: PpaassMessage) -> Result<Vec<u8>, CommonError> {
@@ -111,12 +103,11 @@ where
 
     pub(crate) async fn exec(self) -> Result<(), ProxyError> {
         let handler_key = self.handler_key;
-        let mut agent_connection_write = self.agent_connection_write;
-        let agent_connection_read = self.agent_connection_read;
+        let mut agent_connection = self.agent_connection;
         let dst_relay_timeout = self.configuration.get_dst_relay_timeout();
         let agent_relay_timeout = self.configuration.get_agent_relay_timeout();
 
-        let (dst_connection_read, mut dst_connection_write) = match Self::init_dst_connection(&handler_key, self.configuration).await {
+        let dst_connection = match Self::init_dst_connection(&handler_key, self.configuration).await {
             Ok(dst_read_and_write) => dst_read_and_write,
             Err(e) => {
                 let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&handler_key.user_token, Some(generate_uuid().into_bytes()));
@@ -128,7 +119,7 @@ where
                     payload_encryption,
                     TcpInitResponseType::Fail,
                 )?;
-                agent_connection_write.send(tcp_init_fail).await?;
+                agent_connection.send(tcp_init_fail).await?;
                 return Err(e);
             },
         };
@@ -141,8 +132,10 @@ where
             payload_encryption.clone(),
             TcpInitResponseType::Success,
         )?;
-        agent_connection_write.send(tcp_init_success_message).await?;
+        agent_connection.send(tcp_init_success_message).await?;
         debug!("Tcp handler {handler_key} create destination connection success.");
+        let (mut agent_connection_write, agent_connection_read) = agent_connection.split();
+        let (mut dst_connection_write, dst_connection_read) = dst_connection.split();
         {
             let handler_key = handler_key.clone();
             tokio::spawn(async move {

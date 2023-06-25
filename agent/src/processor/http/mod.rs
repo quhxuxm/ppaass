@@ -5,13 +5,13 @@ use std::sync::Arc;
 use bytecodec::{bytes::BytesEncoder, EncodeExt};
 
 use bytes::BytesMut;
+use derive_more::Constructor;
 use futures::{SinkExt, StreamExt};
 use httpcodec::{BodyEncoder, HttpVersion, ReasonPhrase, RequestEncoder, Response, StatusCode};
 use ppaass_common::{
     generate_uuid,
     tcp::{TcpInitResponse, TcpInitResponseType},
-    PpaassConnectionParts, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload,
-    PpaassMessageProxyPayloadType, PpaassNetAddress,
+    PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload, PpaassMessageProxyPayloadType, PpaassNetAddress,
 };
 use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, FramedParts};
@@ -34,19 +34,13 @@ const HTTP_DEFAULT_PORT: u16 = 80;
 const OK_CODE: u16 = 200;
 const CONNECTION_ESTABLISHED: &str = "Connection Established";
 
+#[derive(Debug, Constructor)]
 pub(crate) struct HttpClientProcessor {
     client_tcp_stream: TcpStream,
     src_address: PpaassNetAddress,
 }
 
 impl HttpClientProcessor {
-    pub(crate) fn new(client_tcp_stream: TcpStream, src_address: PpaassNetAddress) -> Self {
-        Self {
-            client_tcp_stream,
-            src_address,
-        }
-    }
-
     pub(crate) async fn exec(
         self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>, initial_buf: BytesMut,
     ) -> Result<(), AgentError> {
@@ -94,17 +88,15 @@ impl HttpClientProcessor {
         let tcp_init_request =
             PpaassMessageGenerator::generate_tcp_init_request(&user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
 
-        let proxy_connection = proxy_connection_pool.take_connection().await?;
-        let PpaassConnectionParts {
-            read_part: mut proxy_connection_read,
-            write_part: mut proxy_connection_write,
-            id: proxy_connection_id,
-        } = proxy_connection.split();
+        let mut proxy_connection = proxy_connection_pool.take_connection().await?;
 
-        debug!("Client tcp connection [{src_address}] take proxy connectopn [{proxy_connection_id}] to do proxy");
-        proxy_connection_write.send(tcp_init_request).await?;
+        debug!(
+            "Client tcp connection [{src_address}] take proxy connectopn [{}] to do proxy",
+            proxy_connection.get_connection_id()
+        );
+        proxy_connection.send(tcp_init_request).await?;
 
-        let proxy_message = proxy_connection_read.next().await.ok_or(NetworkError::ConnectionExhausted)??;
+        let proxy_message = proxy_connection.next().await.ok_or(NetworkError::ConnectionExhausted)??;
 
         let PpaassMessage { payload, user_token, .. } = proxy_message;
         let PpaassMessageProxyPayload { payload_type, data } = payload.as_slice().try_into()?;
@@ -149,8 +141,7 @@ impl HttpClientProcessor {
             dst_address,
             user_token,
             payload_encryption,
-            proxy_connection_read,
-            proxy_connection_write,
+            proxy_connection,
             configuration,
             init_data,
         })

@@ -1,16 +1,33 @@
+mod common;
+mod constant;
+
+pub mod config;
+pub mod server;
+
+pub(crate) mod crypto;
+pub(crate) mod error;
+pub(crate) mod pool;
+pub(crate) mod processor;
+
+use ppaass_common::PpaassMessagePayloadEncryptionSelector;
 use std::{str::FromStr, sync::Arc};
 
 use anyhow::Context;
 use anyhow::Result;
 use common::AgentServerLogTimer;
-use ppaass_agent_lib::config::AgentServerLogConfig;
-use ppaass_agent_lib::{config::AgentServerConfig, server::AgentServer};
+use config::AgentServerConfig;
+use config::AgentServerLogConfig;
+use server::AgentServer;
 use tokio::{fs::read_to_string, runtime::Builder};
 use tracing::{error, metadata::LevelFilter, subscriber};
 use tracing_subscriber::{fmt::Layer, prelude::__tracing_subscriber_SubscriberExt, Registry};
 
-mod common;
-mod constant;
+pub const SOCKS_V5: u8 = 5;
+pub const SOCKS_V4: u8 = 4;
+
+pub struct AgentServerPayloadEncryptionTypeSelector;
+
+impl PpaassMessagePayloadEncryptionSelector for AgentServerPayloadEncryptionTypeSelector {}
 
 #[tokio::main]
 async fn main() -> Result<()> {

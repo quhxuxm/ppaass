@@ -7,9 +7,9 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use tracing::{error, info};
 
+use ppaass_common::PpaassMessage;
 use ppaass_common::{dns::DnsLookupRequest, tcp::TcpInitRequest, udp::UdpData};
 use ppaass_common::{PpaassConnection, PpaassMessageAgentPayload, PpaassMessageAgentPayloadType, PpaassNetAddress, RsaCryptoFetcher};
-use ppaass_common::{PpaassConnectionParts, PpaassMessage};
 
 use crate::{
     config::ProxyServerConfig,
@@ -57,19 +57,16 @@ where
         }
     }
 
-    pub(crate) async fn exec(self) -> Result<(), ProxyError> {
+    pub(crate) async fn exec(mut self) -> Result<(), ProxyError> {
         let agent_address = self.agent_address;
         let configuration = self.configuration;
-        let PpaassConnectionParts {
-            read_part: mut agent_connection_read,
-            write_part: agent_connection_write,
-            id: connection_id,
-        } = self.agent_connection.split();
-
-        let agent_message = match agent_connection_read.next().await {
+        let agent_message = match self.agent_connection.next().await {
             Some(agent_message) => agent_message?,
             None => {
-                error!("Agent connection {connection_id} closed in agent side, close the proxy side also.");
+                error!(
+                    "Agent connection {} closed in agent side, close the proxy side also.",
+                    self.agent_connection.get_connection_id()
+                );
                 return Ok(());
             },
         };
@@ -80,29 +77,44 @@ where
                 let tcp_init_request: TcpInitRequest = data.as_slice().try_into()?;
                 let src_address = tcp_init_request.src_address;
                 let dst_address = tcp_init_request.dst_address;
-                let tcp_handler_key = TcpHandlerKey::new(connection_id, user_token, agent_address, src_address, dst_address);
-                let tcp_handler = TcpHandler::new(tcp_handler_key, agent_connection_read, agent_connection_write, configuration);
+                let tcp_handler_key = TcpHandlerKey::new(
+                    self.agent_connection.get_connection_id().to_string(),
+                    user_token,
+                    agent_address,
+                    src_address,
+                    dst_address,
+                );
+                let tcp_handler = TcpHandler::new(tcp_handler_key, self.agent_connection, configuration);
                 tcp_handler.exec().await?;
                 Ok(())
             },
             PpaassMessageAgentPayloadType::UdpData => {
-                info!("Agent connection {connection_id} receive udp data from agent.");
+                info!("Agent connection {} receive udp data from agent.", self.agent_connection.get_connection_id());
                 let UdpData {
                     src_address,
                     dst_address,
                     data: udp_raw_data,
                     ..
                 } = data.as_slice().try_into()?;
-                let udp_handler_key = UdpHandlerKey::new(connection_id, user_token, agent_address, src_address, dst_address);
-                let udp_handler = UdpHandler::new(udp_handler_key, agent_connection_write, configuration);
+                let udp_handler_key = UdpHandlerKey::new(
+                    self.agent_connection.get_connection_id().to_string(),
+                    user_token,
+                    agent_address,
+                    src_address,
+                    dst_address,
+                );
+                let udp_handler = UdpHandler::new(udp_handler_key, self.agent_connection, configuration);
                 udp_handler.exec(udp_raw_data).await?;
                 Ok(())
             },
             PpaassMessageAgentPayloadType::DnsLookupRequest => {
-                info!("Agent connection {connection_id} receive dns lookup request from agent.");
+                info!(
+                    "Agent connection {} receive dns lookup request from agent.",
+                    self.agent_connection.get_connection_id()
+                );
                 let dns_lookup_request: DnsLookupRequest = data.as_slice().try_into()?;
-                let dns_lookup_handler_key = DnsLookupHandlerKey::new(connection_id, user_token, agent_address);
-                let dns_lookup_handler = DnsLookupHandler::new(dns_lookup_handler_key, agent_connection_write);
+                let dns_lookup_handler_key = DnsLookupHandlerKey::new(self.agent_connection.get_connection_id().to_string(), user_token, agent_address);
+                let dns_lookup_handler = DnsLookupHandler::new(dns_lookup_handler_key, self.agent_connection);
                 dns_lookup_handler.exec(dns_lookup_request).await?;
                 Ok(())
             },

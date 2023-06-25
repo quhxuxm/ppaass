@@ -1,6 +1,6 @@
 [package]
 edition = "2021"
-name = "ppaass-agent-lib"
+name = "ppaass-agent"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -23,6 +23,10 @@ tokio = {workspace = true, features = ["macros", "time", "net", "io-util", "rt-m
 tokio-util = {workspace = true, features = ["codec"]}
 toml = {workspace = true}
 tracing = {workspace = true}
+tracing-subscriber = {workspace = true}
+tracing-appender = {workspace = true}
 url = {workspace = true}
 thiserror = {workspace = true}
-tokio-stream= {workspace = true}
+tokio-stream = {workspace = true}
+chrono = {workspace = true}
+derive_more= {workspace = true}

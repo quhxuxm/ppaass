@@ -20,8 +20,8 @@ use tokio_util::codec::{Decoder, Encoder};
 
 const PPAASS_FLAG: &[u8] = "__PPAASS__".as_bytes();
 const HEADER_LENGTH: usize = PPAASS_FLAG.len() + size_of::<u8>() + size_of::<u64>();
-const COMPRESS_FLAG: u8=1;
-const UNCOMPRESS_FLAG: u8=1;
+const COMPRESS_FLAG: u8 = 1;
+const UNCOMPRESS_FLAG: u8 = 1;
 enum DecodeStatus {
     Head,
     Data(bool, u64),

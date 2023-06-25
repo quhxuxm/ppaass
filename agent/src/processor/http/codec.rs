@@ -8,21 +8,10 @@ use tokio_util::codec::{Decoder, Encoder};
 
 use crate::error::{HttpDecodeError, HttpEncodeError};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct HttpCodec {
     request_decoder: RequestDecoder<BodyDecoder<RemainingBytesDecoder>>,
     response_encoder: ResponseEncoder<BodyEncoder<BytesEncoder>>,
-}
-
-impl Default for HttpCodec {
-    fn default() -> Self {
-        let request_decoder = RequestDecoder::<BodyDecoder<RemainingBytesDecoder>>::default();
-        let response_encoder = ResponseEncoder::<BodyEncoder<BytesEncoder>>::default();
-        HttpCodec {
-            request_decoder,
-            response_encoder,
-        }
-    }
 }
 
 impl Decoder for HttpCodec {
