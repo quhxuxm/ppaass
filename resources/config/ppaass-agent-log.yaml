@@ -1,21 +1,19 @@
 refresh_rate: 30 seconds
 appenders:
-  stdout:
+  stdout-appender:
     kind: console
-  requests:
+  file-appender:
     kind: file
     path: "log/ppaass-agent.log"
     encoder:
       pattern: "{d} - {m}{n}"
 root:
-  level: warn
+  level: info
   appenders:
-    - stdout
+    - file-appender
 loggers:
-  app::backend::db:
-    level: info
-  app::requests:
+  main:
     level: info
     appenders:
-      - requests
+      - file-appender
     additive: false

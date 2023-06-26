@@ -21,6 +21,7 @@ use futures::{
     stream::{SplitSink, SplitStream},
     Sink, SinkExt, Stream,
 };
+use log::error;
 use pin_project::pin_project;
 use ppaass_common::{
     tcp::TcpData, CommonError, PpaassConnection, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassNetAddress, RsaCryptoFetcher,
@@ -31,7 +32,6 @@ use tokio::{
 };
 use tokio_stream::StreamExt as TokioStreamExt;
 use tokio_util::codec::{BytesCodec, Framed};
-use tracing::error;
 
 mod http;
 mod socks;

@@ -2,9 +2,9 @@ use std::{mem::size_of, net::SocketAddr};
 
 use bytes::BytesMut;
 use futures::StreamExt;
+use log::{debug, error};
 use tokio::net::TcpStream;
 use tokio_util::codec::{Decoder, Framed, FramedParts};
-use tracing::{debug, error};
 
 use crate::{
     config::AGENT_CONFIG,

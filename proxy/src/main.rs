@@ -1,3 +1,10 @@
+mod common;
+mod config;
+mod crypto;
+mod error;
+mod processor;
+mod server;
+
 use config::PROXY_CONFIG;
 use log::error;
 use log::info;
@@ -7,20 +14,13 @@ use tokio::runtime::Builder;
 
 use crate::server::ProxyServer;
 
-mod common;
-mod config;
-mod crypto;
-mod error;
-mod processor;
-mod server;
-
 fn main() -> Result<()> {
     log4rs::init_file("resources/config/ppaass-proxy-log.yaml", Default::default())?;
 
     let proxy_server_runtime = Builder::new_multi_thread()
         .enable_all()
         .thread_name("proxy-server-runtime")
-        .worker_threads(PROXY_CONFIG.get_proxy_server_worker_thread_number())
+        .worker_threads(PROXY_CONFIG.get_worker_thread_number())
         .build()?;
 
     proxy_server_runtime.block_on(async {

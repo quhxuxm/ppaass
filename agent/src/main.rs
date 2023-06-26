@@ -1,13 +1,12 @@
-mod common;
-
-pub mod config;
-pub mod server;
+pub(crate) mod config;
+pub(crate) mod server;
 
 pub(crate) mod crypto;
 pub(crate) mod error;
 pub(crate) mod pool;
 pub(crate) mod processor;
 
+use config::AGENT_CONFIG;
 use ppaass_common::PpaassMessagePayloadEncryptionSelector;
 
 use anyhow::Result;
@@ -24,7 +23,10 @@ impl PpaassMessagePayloadEncryptionSelector for AgentServerPayloadEncryptionType
 
 fn main() -> Result<()> {
     log4rs::init_file("resources/config/ppaass-agent-log.yaml", Default::default())?;
-    let agent_server_runtime = Builder::new_multi_thread().enable_all().worker_threads(64).build()?;
+    let agent_server_runtime = Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(AGENT_CONFIG.get_worker_thread_number())
+        .build()?;
     agent_server_runtime.block_on(async move {
         let mut agent_server = AgentServer::default();
         if let Err(e) = agent_server.start().await {

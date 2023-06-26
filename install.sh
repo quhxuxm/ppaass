@@ -46,9 +46,7 @@ sudo git pull
 cargo build --release
 
 # ps -ef | grep gradle | grep -v grep | awk '{print $2}' | xargs kill -9
-sudo cp /ppaass/sourcecode/ppaass/ppaass-proxy.toml /ppaass/build
-sudo cp /ppaass/sourcecode/ppaass/ppaass-proxy-log.toml /ppaass/build
-sudo cp -r /ppaass/sourcecode/ppaass/resources/rsa /ppaass/build/resources/rsa
+sudo cp -r /ppaass/sourcecode/ppaass/resources/ /ppaass/build/resources/
 sudo cp /ppaass/sourcecode/ppaass/target/release/ppaass-proxy /ppaass/build
 sudo cp /ppaass/sourcecode/ppaass/ppaass-proxy-start.sh /ppaass/build/
 

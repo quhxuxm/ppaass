@@ -5,7 +5,7 @@ use futures::StreamExt;
 
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use tracing::{error, info};
+use log::{error, info};
 
 use ppaass_common::PpaassMessage;
 use ppaass_common::{dns::DnsLookupRequest, tcp::TcpInitRequest, udp::UdpData};

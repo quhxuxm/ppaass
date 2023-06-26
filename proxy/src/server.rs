@@ -7,9 +7,9 @@ use crate::{
 
 use std::{net::SocketAddr, sync::Arc};
 
+use log::{debug, error, info};
 use ppaass_common::{CommonError, CryptoError};
 use tokio::net::{TcpListener, TcpStream};
-use tracing::{debug, error, info};
 
 /// The ppaass proxy server.
 #[derive(Default)]

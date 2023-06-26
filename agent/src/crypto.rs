@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use crate::config::AGENT_CONFIG;
 use anyhow::{Context, Result};
+use log::error;
 use ppaass_common::{RsaCrypto, RsaCryptoFetcher, RsaError};
-use tracing::error;
 
 #[derive(Debug)]
 pub(crate) struct AgentServerRsaCryptoFetcher {

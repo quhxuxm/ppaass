@@ -6,10 +6,10 @@ use ppaass_common::{
     PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload, PpaassMessageProxyPayloadType, PpaassNetAddress,
 };
 
+use log::{debug, error};
 use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, FramedParts};
-use tracing::{debug, error};
 
 use self::message::Socks5InitCommandResultStatus;
 

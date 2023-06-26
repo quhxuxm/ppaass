@@ -9,7 +9,7 @@ use crate::config::PROXY_CONFIG;
 use anyhow::anyhow;
 use ppaass_common::{RsaCrypto, RsaCryptoFetcher, RsaError};
 
-use tracing::error;
+use log::error;
 
 #[derive(Debug)]
 pub(crate) struct ProxyServerRsaCryptoFetcher {

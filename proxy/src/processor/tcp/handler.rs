@@ -16,8 +16,8 @@ use tokio::{
     net::TcpStream,
 };
 
+use log::{debug, error};
 use tokio_stream::StreamExt as TokioStreamExt;
-use tracing::{debug, error};
 
 use ppaass_common::{
     generate_uuid,

@@ -22,7 +22,7 @@ pub struct AgentConfig {
     /// files for each user
     rsa_dir: Option<String>,
     /// The threads number
-    agent_server_worker_thread_number: Option<usize>,
+    worker_thread_number: Option<usize>,
     /// Whether enable compressing
     compress: Option<bool>,
     /// The proxy addresses
@@ -39,51 +39,25 @@ impl AgentConfig {
     pub fn get_user_token(&self) -> &Option<String> {
         &self.user_token
     }
-    pub fn set_user_token(&mut self, user_token: String) {
-        self.user_token = Some(user_token);
-    }
-
-    pub fn set_proxy_addresses(&mut self, proxy_addresses: Vec<String>) {
-        self.proxy_addresses = Some(proxy_addresses)
-    }
 
     pub fn get_proxy_addresses(&self) -> Option<&Vec<String>> {
         self.proxy_addresses.as_ref()
-    }
-    pub fn set_ipv6(&mut self, ipv6: bool) {
-        self.ipv6 = Some(ipv6)
     }
 
     pub fn get_ipv6(&self) -> bool {
         self.ipv6.unwrap_or(false)
     }
 
-    pub fn set_port(&mut self, port: u16) {
-        self.port = Some(port)
-    }
-
     pub fn get_port(&self) -> u16 {
         self.port.unwrap_or(80)
-    }
-
-    pub fn set_rsa_dir(&mut self, rsa_dir: &str) {
-        self.rsa_dir = Some(rsa_dir.to_string())
     }
 
     pub fn get_rsa_dir(&self) -> Option<&String> {
         self.rsa_dir.as_ref()
     }
 
-    pub fn set_agent_server_worker_thread_number(&mut self, thread_number: usize) {
-        self.agent_server_worker_thread_number = Some(thread_number)
-    }
-
-    pub fn get_agent_server_worker_thread_number(&self) -> usize {
-        self.agent_server_worker_thread_number.unwrap_or(128)
-    }
-
-    pub fn set_compress(&mut self, compress: bool) {
-        self.compress = Some(compress)
+    pub fn get_worker_thread_number(&self) -> usize {
+        self.worker_thread_number.unwrap_or(128)
     }
 
     pub fn get_compress(&self) -> bool {

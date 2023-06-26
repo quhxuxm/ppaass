@@ -24,7 +24,7 @@ pub(crate) struct ProxyConfig {
     /// files for each user
     rsa_dir: Option<String>,
     /// The threads number
-    proxy_server_worker_thread_number: Option<usize>,
+    worker_thread_number: Option<usize>,
     /// Whether enable compressing
     compress: Option<bool>,
     /// The buffer size for one agent connection
@@ -50,8 +50,8 @@ impl ProxyConfig {
         self.rsa_dir.as_ref().unwrap_or(&DEFAULT_RSA_DIR.to_string()).to_string()
     }
 
-    pub(crate) fn get_proxy_server_worker_thread_number(&self) -> usize {
-        self.proxy_server_worker_thread_number.unwrap_or(DEFAULT_PROXY_SERVER_WORKER_THREAD_NUMBER)
+    pub(crate) fn get_worker_thread_number(&self) -> usize {
+        self.worker_thread_number.unwrap_or(DEFAULT_PROXY_SERVER_WORKER_THREAD_NUMBER)
     }
 
     pub(crate) fn get_compress(&self) -> bool {
