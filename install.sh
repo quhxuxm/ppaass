@@ -38,7 +38,7 @@ sudo mkdir /ppaass/build/resources
 
 # Pull ppaass
 cd /ppaass/sourcecode
-sudo git clone https://github.com/quhxuxm/ppaass.git ppaass
+sudo git clone -b dev https://github.com/quhxuxm/ppaass.git ppaass
 sudo chmod 777 ppaass
 cd /ppaass/sourcecode/ppaass
 sudo git pull
@@ -46,7 +46,7 @@ sudo git pull
 cargo build --release
 
 # ps -ef | grep gradle | grep -v grep | awk '{print $2}' | xargs kill -9
-sudo cp -r /ppaass/sourcecode/ppaass/resources/ /ppaass/build/resources/
+sudo cp -r /ppaass/sourcecode/ppaass/resources/ /ppaass/build/
 sudo cp /ppaass/sourcecode/ppaass/target/release/ppaass-proxy /ppaass/build
 sudo cp /ppaass/sourcecode/ppaass/ppaass-proxy-start.sh /ppaass/build/
 
