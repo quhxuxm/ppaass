@@ -1,4 +1,4 @@
-port = 10081
+port = 10080
 worker_thread_number = 128
 client_connection_accept_timeout = 20
 compress = true
@@ -6,8 +6,8 @@ connect_to_proxy_timeout = 5
 ipv6 = false
 proxy_send_buffer_size = 524288
 client_receive_buffer_size = 524288
-# proxy_addresses = ["149.28.219.182:80"]
-proxy_addresses = ["127.0.0.1:88"]
+proxy_addresses = ["64.176.193.76:80:80"]
+# proxy_addresses = ["127.0.0.1:88"]
 rsa_dir = "./resources/rsa/"
 user_token = "user1"
 proxy_relay_timeout = 7200
