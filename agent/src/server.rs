@@ -1,16 +1,13 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::net::SocketAddr;
 
-use derive_more::Constructor;
+use log::{debug, error, info};
 use tokio::net::{TcpListener, TcpStream};
-use tracing::{debug, error, info};
 
-use crate::{config::AgentServerConfig, crypto::AgentServerRsaCryptoFetcher, error::NetworkError, pool::ProxyConnectionPool};
+use crate::{config::AGENT_CONFIG, error::NetworkError};
 use crate::{error::AgentError, processor::dispatcher::ClientProtocolDispatcher};
 
-#[derive(Debug, Constructor)]
-pub struct AgentServer {
-    configuration: Arc<AgentServerConfig>,
-}
+#[derive(Debug, Default)]
+pub struct AgentServer {}
 
 impl AgentServer {
     async fn accept_client_connection(tcp_listener: &TcpListener) -> Result<(TcpStream, SocketAddr), AgentError> {
@@ -20,17 +17,16 @@ impl AgentServer {
     }
 
     pub async fn start(&mut self) -> Result<(), AgentError> {
-        let agent_server_bind_addr = if self.configuration.get_ipv6() {
-            format!("::1:{}", self.configuration.get_port())
+        let agent_server_bind_addr = if AGENT_CONFIG.get_ipv6() {
+            format!("::1:{}", AGENT_CONFIG.get_port())
         } else {
-            format!("0.0.0.0:{}", self.configuration.get_port())
+            format!("0.0.0.0:{}", AGENT_CONFIG.get_port())
         };
-        let rsa_crypto_fetcher = Arc::new(AgentServerRsaCryptoFetcher::new(self.configuration.clone())?);
-
         info!("Agent server start to serve request on address: {agent_server_bind_addr}.");
 
         let tcp_listener = TcpListener::bind(&agent_server_bind_addr).await.map_err(NetworkError::Io)?;
-        let proxy_connection_pool = Arc::new(ProxyConnectionPool::new(self.configuration.clone(), rsa_crypto_fetcher.clone()).await?);
+        // let proxy_connection_pool = Box::new(ProxyConnectionPool::new().await?);
+        // let proxy_connection_pool: &'static ProxyConnectionPool = Box::leak(proxy_connection_pool);
         loop {
             let (client_tcp_stream, client_socket_address) = match Self::accept_client_connection(&tcp_listener).await {
                 Ok(accept_result) => accept_result,
@@ -40,10 +36,8 @@ impl AgentServer {
                 },
             };
             debug!("Accept client tcp connection on address: {}", client_socket_address);
-            let configuration = self.configuration.clone();
-            let proxy_connection_pool = proxy_connection_pool.clone();
             tokio::spawn(async move {
-                let processor = match ClientProtocolDispatcher::dispatch(client_tcp_stream, client_socket_address, &configuration).await {
+                let processor = match ClientProtocolDispatcher::dispatch(client_tcp_stream, client_socket_address).await {
                     Err(e) => {
                         error!(
                             "Client tcp connection [{client_socket_address}] fail to dispatch client tcp connection to concrete flow because of error: {e:?}"
@@ -52,7 +46,7 @@ impl AgentServer {
                     },
                     Ok(v) => v,
                 };
-                if let Err(e) = processor.exec(proxy_connection_pool, configuration).await {
+                if let Err(e) = processor.exec().await {
                     error!("Client tcp connection [{client_socket_address}] fail to execute client flow because of error: {e:?}");
                     return;
                 };

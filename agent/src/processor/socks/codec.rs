@@ -1,7 +1,7 @@
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 
+use log::error;
 use tokio_util::codec::{Decoder, Encoder};
-use tracing::error;
 
 use crate::{
     error::{Socks5DecodeError, Socks5EncodeError},
@@ -9,15 +9,14 @@ use crate::{
 };
 
 use super::message::{
-    Socks5Address, Socks5AuthCommandContent, Socks5AuthCommandResultContent, Socks5AuthMethod, Socks5InitCommandContent, Socks5InitCommandResultContent,
-    Socks5InitCommandType,
+    Socks5Address, Socks5AuthCommand, Socks5AuthCommandResult, Socks5AuthMethod, Socks5InitCommand, Socks5InitCommandResult, Socks5InitCommandType,
 };
 
 #[derive(Debug, Default)]
 pub(crate) struct Socks5AuthCommandContentCodec;
 
 impl Decoder for Socks5AuthCommandContentCodec {
-    type Item = Socks5AuthCommandContent;
+    type Item = Socks5AuthCommand;
     type Error = Socks5DecodeError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
@@ -34,14 +33,14 @@ impl Decoder for Socks5AuthCommandContentCodec {
         (0..methods_number).for_each(|_| {
             methods.push(Socks5AuthMethod::from(src.get_u8()));
         });
-        Ok(Some(Socks5AuthCommandContent::new(methods)))
+        Ok(Some(Socks5AuthCommand::new(methods)))
     }
 }
 
-impl Encoder<Socks5AuthCommandResultContent> for Socks5AuthCommandContentCodec {
+impl Encoder<Socks5AuthCommandResult> for Socks5AuthCommandContentCodec {
     type Error = Socks5EncodeError;
 
-    fn encode(&mut self, item: Socks5AuthCommandResultContent, dst: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, item: Socks5AuthCommandResult, dst: &mut BytesMut) -> Result<(), Self::Error> {
         dst.put_u8(SOCKS_V5);
         dst.put_u8(item.method.into());
         Ok(())
@@ -52,7 +51,7 @@ impl Encoder<Socks5AuthCommandResultContent> for Socks5AuthCommandContentCodec {
 pub(crate) struct Socks5InitCommandContentCodec;
 
 impl Decoder for Socks5InitCommandContentCodec {
-    type Item = Socks5InitCommandContent;
+    type Item = Socks5InitCommand;
     type Error = Socks5DecodeError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
@@ -67,14 +66,14 @@ impl Decoder for Socks5InitCommandContentCodec {
         let request_type: Socks5InitCommandType = src.get_u8().try_into()?;
         src.get_u8();
         let dest_address: Socks5Address = src.try_into()?;
-        Ok(Some(Socks5InitCommandContent::new(request_type, dest_address)))
+        Ok(Some(Socks5InitCommand::new(request_type, dest_address)))
     }
 }
 
-impl Encoder<Socks5InitCommandResultContent> for Socks5InitCommandContentCodec {
+impl Encoder<Socks5InitCommandResult> for Socks5InitCommandContentCodec {
     type Error = Socks5EncodeError;
 
-    fn encode(&mut self, item: Socks5InitCommandResultContent, dst: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, item: Socks5InitCommandResult, dst: &mut BytesMut) -> Result<(), Self::Error> {
         dst.put_u8(5);
         dst.put_u8(item.status.into());
         dst.put_u8(0);

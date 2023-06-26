@@ -2,7 +2,6 @@ use std::{
     fmt::{Debug, Formatter},
     io::{Read, Write},
     mem::size_of,
-    sync::Arc,
 };
 
 use crate::{
@@ -27,16 +26,16 @@ enum DecodeStatus {
     Data(bool, u64),
 }
 
-pub(crate) struct PpaassMessageCodec<T>
+pub(crate) struct PpaassMessageCodec<'r, T>
 where
     T: RsaCryptoFetcher + 'static,
 {
-    rsa_crypto_fetcher: Arc<T>,
+    rsa_crypto_fetcher: &'r T,
     compress: bool,
     status: DecodeStatus,
 }
 
-impl<T> Debug for PpaassMessageCodec<T>
+impl<T> Debug for PpaassMessageCodec<'_, T>
 where
     T: RsaCryptoFetcher + 'static,
 {
@@ -45,11 +44,14 @@ where
     }
 }
 
-impl<T> PpaassMessageCodec<T>
+impl<'r, T> PpaassMessageCodec<'r, T>
 where
     T: RsaCryptoFetcher + 'static,
 {
-    pub fn new(compress: bool, rsa_crypto_fetcher: Arc<T>) -> Self {
+    pub fn new<'a>(compress: bool, rsa_crypto_fetcher: &'a T) -> PpaassMessageCodec<'r, T>
+    where
+        'a: 'r,
+    {
         Self {
             rsa_crypto_fetcher,
             compress,
@@ -59,7 +61,7 @@ where
 }
 
 /// Decode the input bytes buffer to ppaass message
-impl<T> Decoder for PpaassMessageCodec<T>
+impl<T> Decoder for PpaassMessageCodec<'_, T>
 where
     T: RsaCryptoFetcher + 'static,
 {
@@ -151,7 +153,7 @@ where
 }
 
 /// Encode the ppaass message to bytes buffer
-impl<T> Encoder<PpaassMessage> for PpaassMessageCodec<T>
+impl<T> Encoder<PpaassMessage> for PpaassMessageCodec<'_, T>
 where
     T: RsaCryptoFetcher + 'static,
 {

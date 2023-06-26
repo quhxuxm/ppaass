@@ -1,9 +1,14 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
-use crate::config::AgentServerConfig;
+use crate::config::AGENT_CONFIG;
 use anyhow::{Context, Result};
+use lazy_static::lazy_static;
+use log::error;
 use ppaass_common::{RsaCrypto, RsaCryptoFetcher, RsaError};
-use tracing::error;
+
+lazy_static! {
+    pub(crate) static ref RSA_CRYPTO: AgentServerRsaCryptoFetcher = AgentServerRsaCryptoFetcher::new().expect("Can not initialize agent rsa crypto fetcher.");
+}
 
 #[derive(Debug)]
 pub(crate) struct AgentServerRsaCryptoFetcher {
@@ -11,9 +16,9 @@ pub(crate) struct AgentServerRsaCryptoFetcher {
 }
 
 impl AgentServerRsaCryptoFetcher {
-    pub(crate) fn new(configuration: Arc<AgentServerConfig>) -> Result<Self> {
+    pub(crate) fn new() -> Result<Self> {
         let mut result = Self { cache: HashMap::new() };
-        let rsa_dir_path = configuration.get_rsa_dir().context("fail to get rsa directory from configuration file")?;
+        let rsa_dir_path = AGENT_CONFIG.get_rsa_dir().context("fail to get rsa directory from configuration file")?;
         let rsa_dir = std::fs::read_dir(rsa_dir_path).context("fail to read rsa directory")?;
         rsa_dir.for_each(|entry| {
             let Ok(entry) =  entry else{

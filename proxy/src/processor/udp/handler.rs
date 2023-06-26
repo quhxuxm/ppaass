@@ -1,24 +1,24 @@
 use std::{
     fmt::{Debug, Display},
     net::{SocketAddr, ToSocketAddrs},
-    sync::Arc,
     time::Duration,
 };
 
 use derive_more::{Constructor, Display};
 use futures::SinkExt;
 use ppaass_common::{generate_uuid, PpaassConnection, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher};
+
+use log::{debug, error};
 use pretty_hex::pretty_hex;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::UdpSocket,
     time::timeout,
 };
-use tracing::{debug, error};
 
 use crate::{
     common::ProxyServerPayloadEncryptionSelector,
-    config::ProxyServerConfig,
+    config::PROXY_CONFIG,
     error::{NetworkError, ProxyError},
 };
 
@@ -34,18 +34,17 @@ pub(crate) struct UdpHandlerKey {
 
 #[derive(Debug, Constructor)]
 #[non_exhaustive]
-pub(crate) struct UdpHandler<T, R, I>
+pub(crate) struct UdpHandler<'r, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
     handler_key: UdpHandlerKey,
-    agent_connection: PpaassConnection<T, R, I>,
-    configuration: Arc<ProxyServerConfig>,
+    agent_connection: PpaassConnection<'r, T, R, I>,
 }
 
-impl<T, R, I> UdpHandler<T, R, I>
+impl<T, R, I> UdpHandler<'_, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -73,7 +72,7 @@ where
         };
         let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
         match timeout(
-            Duration::from_secs(self.configuration.get_dst_udp_connect_timeout()),
+            Duration::from_secs(PROXY_CONFIG.get_dst_udp_connect_timeout()),
             dst_udp_socket.connect(dst_socket_addrs.as_slice()),
         )
         .await
@@ -87,7 +86,7 @@ where
             },
             Err(_) => {
                 error!("Udp handler {handler_key} fail to connect destination udp socket because of timeout.");
-                return Err(ProxyError::Network(NetworkError::Timeout(self.configuration.get_dst_udp_connect_timeout())));
+                return Err(ProxyError::Network(NetworkError::Timeout(PROXY_CONFIG.get_dst_udp_connect_timeout())));
             },
         };
         if let Err(e) = dst_udp_socket.send(&udp_data).await {
@@ -97,12 +96,7 @@ where
         let mut dst_recv_buf = Vec::new();
         loop {
             let mut buf = [0u8; 65535];
-            let data_size = match timeout(
-                Duration::from_secs(self.configuration.get_dst_udp_recv_timeout()),
-                dst_udp_socket.recv(&mut buf),
-            )
-            .await
-            {
+            let data_size = match timeout(Duration::from_secs(PROXY_CONFIG.get_dst_udp_recv_timeout()), dst_udp_socket.recv(&mut buf)).await {
                 Ok(Ok(0)) => {
                     debug!("Complete read from destination udp socket.");
                     break;
@@ -114,7 +108,7 @@ where
                 },
                 Err(_) => {
                     error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of timeout");
-                    return Err(ProxyError::Network(NetworkError::Timeout(self.configuration.get_dst_udp_recv_timeout())));
+                    return Err(ProxyError::Network(NetworkError::Timeout(PROXY_CONFIG.get_dst_udp_recv_timeout())));
                 },
             };
             let buf = &buf[0..data_size];

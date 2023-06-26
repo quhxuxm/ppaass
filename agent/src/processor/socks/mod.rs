@@ -6,21 +6,21 @@ use ppaass_common::{
     PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload, PpaassMessageProxyPayloadType, PpaassNetAddress,
 };
 
-use std::sync::Arc;
+use log::{debug, error};
+
 use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, FramedParts};
-use tracing::{debug, error};
 
 use self::message::Socks5InitCommandResultStatus;
 
 use crate::{
-    config::AgentServerConfig,
+    config::AGENT_CONFIG,
     error::{AgentError, DecoderError, EncoderError, NetworkError},
-    pool::ProxyConnectionPool,
+    pool::PROXY_CONNECTION_POOL,
     processor::{
         socks::{
             codec::{Socks5AuthCommandContentCodec, Socks5InitCommandContentCodec},
-            message::{Socks5AuthCommandResultContent, Socks5InitCommandResultContent, Socks5InitCommandType},
+            message::{Socks5AuthCommandResult, Socks5InitCommandResult, Socks5InitCommandType},
         },
         ClientDataRelayInfo, ClientProtocolProcessor,
     },
@@ -45,9 +45,7 @@ impl Socks5ClientProcessor {
         }
     }
 
-    pub(crate) async fn exec(
-        self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>, initial_buf: BytesMut,
-    ) -> Result<(), AgentError> {
+    pub(crate) async fn exec(self, initial_buf: BytesMut) -> Result<(), AgentError> {
         let client_tcp_stream = self.client_tcp_stream;
         let src_address = self.src_address;
         let mut auth_framed_parts = FramedParts::new(client_tcp_stream, Socks5AuthCommandContentCodec::default());
@@ -62,7 +60,7 @@ impl Socks5ClientProcessor {
             "Client tcp connection [{src_address}] start socks5 authenticate process, authenticate methods in request: {:?}",
             auth_message.methods
         );
-        let auth_response = Socks5AuthCommandResultContent::new(message::Socks5AuthMethod::NoAuthenticationRequired);
+        let auth_response = Socks5AuthCommandResult::new(message::Socks5AuthMethod::NoAuthenticationRequired);
         auth_framed.send(auth_response).await.map_err(EncoderError::Socks5)?;
         let FramedParts { io: client_tcp_stream, .. } = auth_framed.into_parts();
         let mut init_framed = Framed::new(client_tcp_stream, Socks5InitCommandContentCodec::default());
@@ -80,7 +78,7 @@ impl Socks5ClientProcessor {
             Socks5InitCommandType::Bind => todo!(),
             Socks5InitCommandType::UdpAssociate => todo!(),
             Socks5InitCommandType::Connect => {
-                Self::handle_connect_command(src_address, init_message.dst_address.into(), proxy_connection_pool, init_framed, configuration).await?;
+                Self::handle_connect_command(src_address, init_message.dst_address.into(), init_framed).await?;
             },
         }
 
@@ -88,10 +86,9 @@ impl Socks5ClientProcessor {
     }
 
     async fn handle_connect_command(
-        src_address: PpaassNetAddress, dst_address: PpaassNetAddress, proxy_connection_pool: Arc<ProxyConnectionPool>,
-        mut init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>, configuration: Arc<AgentServerConfig>,
+        src_address: PpaassNetAddress, dst_address: PpaassNetAddress, mut init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
     ) -> Result<(), AgentError> {
-        let user_token = configuration
+        let user_token = AGENT_CONFIG
             .get_user_token()
             .clone()
             .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
@@ -99,7 +96,7 @@ impl Socks5ClientProcessor {
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(&user_token, Some(generate_uuid().into_bytes()));
         let tcp_init_request =
             PpaassMessageGenerator::generate_tcp_init_request(&user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
-        let mut proxy_connection = proxy_connection_pool.take_connection().await?;
+        let mut proxy_connection = PROXY_CONNECTION_POOL.take_connection().await?;
 
         debug!(
             "Client tcp connection [{src_address}] take proxy connectopn [{}] to do proxy.",
@@ -131,7 +128,7 @@ impl Socks5ClientProcessor {
                 return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
             },
         }
-        let socks5_init_success_result = Socks5InitCommandResultContent::new(Socks5InitCommandResultStatus::Succeeded, Some(dst_address.clone().try_into()?));
+        let socks5_init_success_result = Socks5InitCommandResult::new(Socks5InitCommandResultStatus::Succeeded, Some(dst_address.clone().try_into()?));
         init_framed.send(socks5_init_success_result).await.map_err(EncoderError::Socks5)?;
         let FramedParts { io: client_tcp_stream, .. } = init_framed.into_parts();
         debug!("Client tcp connection [{src_address}] success to do sock5 handshake begin to relay, tcp loop key: [{tcp_loop_key}].");
@@ -142,7 +139,6 @@ impl Socks5ClientProcessor {
             user_token,
             payload_encryption,
             proxy_connection,
-            configuration,
             init_data: None,
         })
         .await?;

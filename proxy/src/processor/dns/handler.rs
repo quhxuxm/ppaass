@@ -1,18 +1,17 @@
 use crate::{
     common::ProxyServerPayloadEncryptionSelector,
+    crypto::ProxyServerRsaCryptoFetcher,
     error::{NetworkError, ProxyError},
 };
 
 use derive_more::{Constructor, Display};
 use dns_lookup::lookup_host;
 use futures::SinkExt;
-use ppaass_common::{
-    dns::DnsLookupRequest, generate_uuid, PpaassConnection, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher,
-};
+use log::{error, info};
+use ppaass_common::{dns::DnsLookupRequest, generate_uuid, PpaassConnection, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
 use std::{collections::HashMap, fmt::Debug};
 use std::{fmt::Display, net::IpAddr};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tracing::{error, info};
 
 #[derive(Debug, Clone, Constructor, Display)]
 #[display(fmt = "[{}]#[{}]@DNS::[{}]", connection_id, user_token, agent_address)]
@@ -24,21 +23,21 @@ pub(crate) struct DnsLookupHandlerKey {
 
 #[derive(Constructor)]
 #[non_exhaustive]
-pub(crate) struct DnsLookupHandler<T, R, I>
+pub(crate) struct DnsLookupHandler<'r, T, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+    'r: 'static,
 {
     handler_key: DnsLookupHandlerKey,
-    agent_connection: PpaassConnection<T, R, I>,
+    agent_connection: PpaassConnection<'r, T, ProxyServerRsaCryptoFetcher, I>,
 }
 
-impl<T, R, I> DnsLookupHandler<T, R, I>
+impl<'r, T, I> DnsLookupHandler<'r, T, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+    'r: 'static,
 {
     pub(crate) async fn exec(self, dns_lookup_request: DnsLookupRequest) -> Result<(), ProxyError> {
         let mut agent_connection = self.agent_connection;

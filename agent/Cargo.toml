@@ -22,11 +22,10 @@ serde_derive = {workspace = true}
 tokio = {workspace = true, features = ["macros", "time", "net", "io-util", "rt-multi-thread", "fs"]}
 tokio-util = {workspace = true, features = ["codec"]}
 toml = {workspace = true}
-tracing = {workspace = true}
-tracing-subscriber = {workspace = true}
-tracing-appender = {workspace = true}
 url = {workspace = true}
 thiserror = {workspace = true}
 tokio-stream = {workspace = true}
 chrono = {workspace = true}
 derive_more= {workspace = true}
+log4rs = {workspace = true}
+log = {workspace = true}

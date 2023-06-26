@@ -3,16 +3,15 @@ pub(crate) mod dispatcher;
 use std::{
     fmt::{Debug, Display},
     pin::Pin,
-    sync::Arc,
     task::{Context, Poll},
     time::Duration,
 };
 
 use self::{http::HttpClientProcessor, socks::Socks5ClientProcessor};
 use crate::{
-    config::AgentServerConfig,
+    config::AGENT_CONFIG,
+    crypto::AgentServerRsaCryptoFetcher,
     error::{AgentError, NetworkError},
-    pool::ProxyConnectionPool,
 };
 
 use bytes::BytesMut;
@@ -21,25 +20,22 @@ use futures::{
     stream::{SplitSink, SplitStream},
     Sink, SinkExt, Stream,
 };
+use log::error;
 use pin_project::pin_project;
-use ppaass_common::{
-    tcp::TcpData, CommonError, PpaassConnection, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassNetAddress, RsaCryptoFetcher,
-};
+use ppaass_common::{tcp::TcpData, CommonError, PpaassConnection, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassNetAddress};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpStream,
 };
 use tokio_stream::StreamExt as TokioStreamExt;
 use tokio_util::codec::{BytesCodec, Framed};
-use tracing::error;
 
 mod http;
 mod socks;
 
 #[non_exhaustive]
-struct ClientDataRelayInfo<R, I>
+struct ClientDataRelayInfo<'r, I>
 where
-    R: RsaCryptoFetcher + Send + Sync + 'static,
     I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
     client_tcp_stream: TcpStream,
@@ -47,8 +43,7 @@ where
     dst_address: PpaassNetAddress,
     user_token: String,
     payload_encryption: PpaassMessagePayloadEncryption,
-    proxy_connection: PpaassConnection<TcpStream, R, I>,
-    configuration: Arc<AgentServerConfig>,
+    proxy_connection: PpaassConnection<'r, TcpStream, AgentServerRsaCryptoFetcher, I>,
     init_data: Option<Vec<u8>>,
 }
 
@@ -66,7 +61,7 @@ pub(crate) enum ClientProtocolProcessor {
 }
 
 impl ClientProtocolProcessor {
-    pub(crate) async fn exec(self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>) -> Result<(), AgentError> {
+    pub(crate) async fn exec(self) -> Result<(), AgentError> {
         match self {
             ClientProtocolProcessor::Http {
                 client_tcp_stream,
@@ -74,7 +69,7 @@ impl ClientProtocolProcessor {
                 initial_buf,
             } => {
                 let http_flow = HttpClientProcessor::new(client_tcp_stream, src_address.clone());
-                http_flow.exec(proxy_connection_pool, configuration, initial_buf).await?;
+                http_flow.exec(initial_buf).await?;
             },
             ClientProtocolProcessor::Socks5 {
                 client_tcp_stream,
@@ -82,28 +77,27 @@ impl ClientProtocolProcessor {
                 initial_buf,
             } => {
                 let socks5_flow = Socks5ClientProcessor::new(client_tcp_stream, src_address.clone());
-                socks5_flow.exec(proxy_connection_pool, configuration, initial_buf).await?;
+                socks5_flow.exec(initial_buf).await?;
             },
         }
         Ok(())
     }
 
-    async fn relay<R, I>(info: ClientDataRelayInfo<R, I>) -> Result<(), AgentError>
+    async fn relay<'r, I>(info: ClientDataRelayInfo<'r, I>) -> Result<(), AgentError>
     where
-        R: RsaCryptoFetcher + Send + Sync + 'static,
         I: ToString + Send + Sync + Clone + Display + Debug + 'static,
+        'r: 'static,
     {
         let client_tcp_stream = info.client_tcp_stream;
 
         let src_address = info.src_address;
         let dst_address = info.dst_address;
-        let configuration = info.configuration;
-        let proxy_relay_timeout = configuration.get_proxy_relay_timeout();
-        let client_relay_timeout = configuration.get_client_relay_timeout();
+        let proxy_relay_timeout = AGENT_CONFIG.get_proxy_relay_timeout();
+        let client_relay_timeout = AGENT_CONFIG.get_client_relay_timeout();
         let payload_encryption = info.payload_encryption;
         let mut proxy_connection = info.proxy_connection;
         let user_token = info.user_token;
-        let client_io_framed = Framed::with_capacity(client_tcp_stream, BytesCodec::new(), configuration.get_client_receive_buffer_size());
+        let client_io_framed = Framed::with_capacity(client_tcp_stream, BytesCodec::new(), AGENT_CONFIG.get_client_receive_buffer_size());
         let (client_io_write, client_io_read) = client_io_framed.split::<BytesMut>();
         let (mut client_io_write, client_io_read) = (
             ClientConnectionWrite::new(src_address.clone(), client_io_write),
