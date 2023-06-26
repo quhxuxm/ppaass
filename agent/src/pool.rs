@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::{fmt::Debug, str::FromStr};
 use std::{net::SocketAddr, time::Duration};
 
@@ -11,18 +10,17 @@ use ppaass_common::PpaassConnection;
 
 use crate::{
     config::AGENT_CONFIG,
-    crypto::AgentServerRsaCryptoFetcher,
+    crypto::{AgentServerRsaCryptoFetcher, RSA_CRYPTO},
     error::{AgentError, NetworkError},
 };
 
 #[derive(Debug)]
 pub(crate) struct ProxyConnectionPool {
     proxy_addresses: Vec<SocketAddr>,
-    rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
 }
 
 impl ProxyConnectionPool {
-    pub(crate) async fn new(rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>) -> Result<Self, AgentError> {
+    pub(crate) async fn new() -> Result<Self, AgentError> {
         let proxy_addresses_configuration = AGENT_CONFIG
             .get_proxy_addresses()
             .expect("Fail to parse proxy addresses from configuration file");
@@ -35,13 +33,10 @@ impl ProxyConnectionPool {
             panic!("No available proxy address for runtime to use.")
         }
 
-        Ok(Self {
-            proxy_addresses,
-            rsa_crypto_fetcher,
-        })
+        Ok(Self { proxy_addresses })
     }
 
-    pub(crate) async fn take_connection(&self) -> Result<PpaassConnection<TcpStream, AgentServerRsaCryptoFetcher, String>, AgentError> {
+    pub(crate) async fn take_connection<'r>(&self) -> Result<PpaassConnection<'r, TcpStream, AgentServerRsaCryptoFetcher, String>, AgentError> {
         debug!("Take proxy connection from pool.");
         let proxy_tcp_stream = match timeout(
             Duration::from_secs(AGENT_CONFIG.get_connect_to_proxy_timeout()),
@@ -64,7 +59,7 @@ impl ProxyConnectionPool {
         let proxy_connection = PpaassConnection::new(
             generate_uuid(),
             proxy_tcp_stream,
-            self.rsa_crypto_fetcher.clone(),
+            &*RSA_CRYPTO,
             AGENT_CONFIG.get_compress(),
             AGENT_CONFIG.get_proxy_send_buffer_size(),
         );

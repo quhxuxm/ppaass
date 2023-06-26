@@ -11,6 +11,7 @@ use std::{
 use self::{http::HttpClientProcessor, socks::Socks5ClientProcessor};
 use crate::{
     config::AGENT_CONFIG,
+    crypto::AgentServerRsaCryptoFetcher,
     error::{AgentError, NetworkError},
     pool::ProxyConnectionPool,
 };
@@ -23,9 +24,7 @@ use futures::{
 };
 use log::error;
 use pin_project::pin_project;
-use ppaass_common::{
-    tcp::TcpData, CommonError, PpaassConnection, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassNetAddress, RsaCryptoFetcher,
-};
+use ppaass_common::{tcp::TcpData, CommonError, PpaassConnection, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassNetAddress};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpStream,
@@ -37,9 +36,8 @@ mod http;
 mod socks;
 
 #[non_exhaustive]
-struct ClientDataRelayInfo<R, I>
+struct ClientDataRelayInfo<'r, I>
 where
-    R: RsaCryptoFetcher + Send + Sync + 'static,
     I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
     client_tcp_stream: TcpStream,
@@ -47,7 +45,7 @@ where
     dst_address: PpaassNetAddress,
     user_token: String,
     payload_encryption: PpaassMessagePayloadEncryption,
-    proxy_connection: PpaassConnection<TcpStream, R, I>,
+    proxy_connection: PpaassConnection<'r, TcpStream, AgentServerRsaCryptoFetcher, I>,
     init_data: Option<Vec<u8>>,
 }
 
@@ -87,10 +85,10 @@ impl ClientProtocolProcessor {
         Ok(())
     }
 
-    async fn relay<R, I>(info: ClientDataRelayInfo<R, I>) -> Result<(), AgentError>
+    async fn relay<'r, I>(info: ClientDataRelayInfo<'r, I>) -> Result<(), AgentError>
     where
-        R: RsaCryptoFetcher + Send + Sync + 'static,
         I: ToString + Send + Sync + Clone + Display + Debug + 'static,
+        'r: 'static,
     {
         let client_tcp_stream = info.client_tcp_stream;
 

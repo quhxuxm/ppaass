@@ -1,7 +1,6 @@
 use std::{
     fmt::{Debug, Display},
     pin::Pin,
-    sync::Arc,
     task::{Context, Poll},
 };
 
@@ -15,24 +14,27 @@ use tokio_util::codec::Framed;
 #[derive(Debug)]
 #[non_exhaustive]
 #[pin_project]
-pub struct PpaassConnection<T, R, I>
+pub struct PpaassConnection<'r, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
     #[pin]
-    inner: Framed<T, PpaassMessageCodec<R>>,
+    inner: Framed<T, PpaassMessageCodec<'r, R>>,
     connection_id: I,
 }
 
-impl<T, R, I> PpaassConnection<T, R, I>
+impl<'r, T, R, I> PpaassConnection<'r, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
-    pub fn new(connection_id: I, stream: T, rsa_crypto_fetcher: Arc<R>, compress: bool, buffer_size: usize) -> Self {
+    pub fn new<'a>(connection_id: I, stream: T, rsa_crypto_fetcher: &'a R, compress: bool, buffer_size: usize) -> PpaassConnection<'r, T, R, I>
+    where
+        'a: 'r,
+    {
         let ppaass_message_codec = PpaassMessageCodec::new(compress, rsa_crypto_fetcher);
         let inner = Framed::with_capacity(stream, ppaass_message_codec, buffer_size);
         Self { inner, connection_id }
@@ -43,7 +45,7 @@ where
     }
 }
 
-impl<T, R, I> Sink<PpaassMessage> for PpaassConnection<T, R, I>
+impl<T, R, I> Sink<PpaassMessage> for PpaassConnection<'_, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -72,7 +74,7 @@ where
     }
 }
 
-impl<T, R, I> Stream for PpaassConnection<T, R, I>
+impl<T, R, I> Stream for PpaassConnection<'_, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,

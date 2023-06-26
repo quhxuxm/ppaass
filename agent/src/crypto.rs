@@ -2,8 +2,13 @@ use std::collections::HashMap;
 
 use crate::config::AGENT_CONFIG;
 use anyhow::{Context, Result};
+use lazy_static::lazy_static;
 use log::error;
 use ppaass_common::{RsaCrypto, RsaCryptoFetcher, RsaError};
+
+lazy_static! {
+    pub(crate) static ref RSA_CRYPTO: AgentServerRsaCryptoFetcher = AgentServerRsaCryptoFetcher::new().expect("Can not initialize agent rsa crypto fetcher.");
+}
 
 #[derive(Debug)]
 pub(crate) struct AgentServerRsaCryptoFetcher {

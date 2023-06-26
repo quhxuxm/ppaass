@@ -34,17 +34,17 @@ pub(crate) struct UdpHandlerKey {
 
 #[derive(Debug, Constructor)]
 #[non_exhaustive]
-pub(crate) struct UdpHandler<T, R, I>
+pub(crate) struct UdpHandler<'r, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
     handler_key: UdpHandlerKey,
-    agent_connection: PpaassConnection<T, R, I>,
+    agent_connection: PpaassConnection<'r, T, R, I>,
 }
 
-impl<T, R, I> UdpHandler<T, R, I>
+impl<T, R, I> UdpHandler<'_, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,

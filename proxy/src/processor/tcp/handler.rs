@@ -22,13 +22,14 @@ use tokio_stream::StreamExt as TokioStreamExt;
 use ppaass_common::{
     generate_uuid,
     tcp::{TcpData, TcpInitResponseType},
-    CommonError, PpaassConnection, PpaassMessage, RsaCryptoFetcher,
+    CommonError, PpaassConnection, PpaassMessage,
 };
 use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
 
 use crate::{
     common::ProxyServerPayloadEncryptionSelector,
     config::PROXY_CONFIG,
+    crypto::ProxyServerRsaCryptoFetcher,
     error::{NetworkError, ProxyError},
 };
 
@@ -46,21 +47,21 @@ pub(crate) struct TcpHandlerKey {
 
 #[derive(Debug, Constructor)]
 #[non_exhaustive]
-pub(crate) struct TcpHandler<T, R, I>
+pub(crate) struct TcpHandler<'r, T, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+    'r: 'static,
 {
     handler_key: TcpHandlerKey,
-    agent_connection: PpaassConnection<T, R, I>,
+    agent_connection: PpaassConnection<'r, T, ProxyServerRsaCryptoFetcher, I>,
 }
 
-impl<T, R, I> TcpHandler<T, R, I>
+impl<'r, T, I> TcpHandler<'r, T, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+    'r: 'static,
 {
     async fn init_dst_connection(handler_key: &TcpHandlerKey) -> Result<DstConnection<TcpStream>, ProxyError> {
         let dst_socket_address = handler_key.dst_address.to_socket_addrs()?.collect::<Vec<SocketAddr>>();

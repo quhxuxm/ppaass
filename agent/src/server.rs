@@ -3,7 +3,7 @@ use std::{net::SocketAddr, sync::Arc};
 use log::{debug, error, info};
 use tokio::net::{TcpListener, TcpStream};
 
-use crate::{config::AGENT_CONFIG, crypto::AgentServerRsaCryptoFetcher, error::NetworkError, pool::ProxyConnectionPool};
+use crate::{config::AGENT_CONFIG, error::NetworkError, pool::ProxyConnectionPool};
 use crate::{error::AgentError, processor::dispatcher::ClientProtocolDispatcher};
 
 #[derive(Debug, Default)]
@@ -22,12 +22,10 @@ impl AgentServer {
         } else {
             format!("0.0.0.0:{}", AGENT_CONFIG.get_port())
         };
-        let rsa_crypto_fetcher = Arc::new(AgentServerRsaCryptoFetcher::new()?);
-
         info!("Agent server start to serve request on address: {agent_server_bind_addr}.");
 
         let tcp_listener = TcpListener::bind(&agent_server_bind_addr).await.map_err(NetworkError::Io)?;
-        let proxy_connection_pool = Arc::new(ProxyConnectionPool::new(rsa_crypto_fetcher.clone()).await?);
+        let proxy_connection_pool = Arc::new(ProxyConnectionPool::new().await?);
         loop {
             let (client_tcp_stream, client_socket_address) = match Self::accept_client_connection(&tcp_listener).await {
                 Ok(accept_result) => accept_result,

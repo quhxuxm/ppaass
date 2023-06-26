@@ -7,9 +7,14 @@ use std::{
 use crate::config::PROXY_CONFIG;
 
 use anyhow::anyhow;
+use lazy_static::lazy_static;
 use ppaass_common::{RsaCrypto, RsaCryptoFetcher, RsaError};
 
 use log::error;
+
+lazy_static! {
+    pub(crate) static ref RSA_CRYPTO: ProxyServerRsaCryptoFetcher = ProxyServerRsaCryptoFetcher::new().expect("Can not initialize proxy rsa crypto fetcher.");
+}
 
 #[derive(Debug)]
 pub(crate) struct ProxyServerRsaCryptoFetcher {

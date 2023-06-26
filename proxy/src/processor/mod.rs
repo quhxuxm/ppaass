@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Arc};
+use std::fmt::Debug;
 
 use anyhow::Result;
 use futures::StreamExt;
@@ -9,10 +9,11 @@ use log::{error, info};
 
 use ppaass_common::PpaassMessage;
 use ppaass_common::{dns::DnsLookupRequest, tcp::TcpInitRequest, udp::UdpData};
-use ppaass_common::{PpaassConnection, PpaassMessageAgentPayload, PpaassMessageAgentPayloadType, PpaassNetAddress, RsaCryptoFetcher};
+use ppaass_common::{PpaassConnection, PpaassMessageAgentPayload, PpaassMessageAgentPayloadType, PpaassNetAddress};
 
 use crate::{
     config::PROXY_CONFIG,
+    crypto::{ProxyServerRsaCryptoFetcher, RSA_CRYPTO},
     error::ProxyError,
     processor::{
         dns::{DnsLookupHandler, DnsLookupHandlerKey},
@@ -27,25 +28,25 @@ mod tcp;
 mod udp;
 
 #[derive(Debug)]
-pub(crate) struct AgentConnectionProcessor<T, R>
+pub(crate) struct AgentConnectionProcessor<'r, T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
+    'r: 'static,
 {
-    agent_connection: PpaassConnection<T, R, String>,
+    agent_connection: PpaassConnection<'r, T, ProxyServerRsaCryptoFetcher, String>,
     agent_address: PpaassNetAddress,
 }
 
-impl<T, R> AgentConnectionProcessor<T, R>
+impl<'r, T> AgentConnectionProcessor<'r, T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
+    'r: 'static,
 {
-    pub(crate) fn new(agent_tcp_stream: T, agent_address: PpaassNetAddress, rsa_crypto_fetcher: Arc<R>) -> Self {
+    pub(crate) fn new(agent_tcp_stream: T, agent_address: PpaassNetAddress) -> AgentConnectionProcessor<'r, T> {
         let agent_connection = PpaassConnection::new(
             agent_address.to_string(),
             agent_tcp_stream,
-            rsa_crypto_fetcher,
+            &*RSA_CRYPTO,
             PROXY_CONFIG.get_compress(),
             PROXY_CONFIG.get_agent_recive_buffer_size(),
         );

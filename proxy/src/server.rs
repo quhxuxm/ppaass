@@ -1,14 +1,13 @@
 use crate::{
     config::PROXY_CONFIG,
-    crypto::ProxyServerRsaCryptoFetcher,
     error::{NetworkError, ProxyError},
     processor::AgentConnectionProcessor,
 };
 
-use std::{net::SocketAddr, sync::Arc};
+use std::net::SocketAddr;
 
 use log::{debug, error, info};
-use ppaass_common::{CommonError, CryptoError};
+
 use tokio::net::{TcpListener, TcpStream};
 
 /// The ppaass proxy server.
@@ -31,7 +30,6 @@ impl ProxyServer {
         } else {
             format!("0.0.0.0:{port}")
         };
-        let rsa_crypto_fetcher = Arc::new(ProxyServerRsaCryptoFetcher::new().map_err(|e| CommonError::Crypto(CryptoError::Rsa(e)))?);
         info!("Proxy server start to serve request on address: {server_bind_addr}.");
         let tcp_listener = TcpListener::bind(&server_bind_addr).await.map_err(NetworkError::PortBinding)?;
         loop {
@@ -43,10 +41,9 @@ impl ProxyServer {
                 },
             };
             debug!("Proxy server success accept agent connection on address: {}", agent_socket_address);
-            let rsa_crypto_fetcher = rsa_crypto_fetcher.clone();
 
             tokio::spawn(async move {
-                let agent_connection_processor = AgentConnectionProcessor::new(agent_tcp_stream, agent_socket_address.into(), rsa_crypto_fetcher);
+                let agent_connection_processor = AgentConnectionProcessor::new(agent_tcp_stream, agent_socket_address.into());
                 agent_connection_processor.exec().await?;
                 debug!("Complete execute agent connection [{agent_socket_address}].");
                 Ok::<_, ProxyError>(())
