@@ -1,3 +1,0 @@
-dir = "./log"
-file = "ppaass-agent.log"
-level = "error"

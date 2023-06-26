@@ -10,7 +10,7 @@ use ppaass_common::generate_uuid;
 use ppaass_common::PpaassConnection;
 
 use crate::{
-    config::AgentServerConfig,
+    config::AGENT_CONFIG,
     crypto::AgentServerRsaCryptoFetcher,
     error::{AgentError, NetworkError},
 };
@@ -18,13 +18,12 @@ use crate::{
 #[derive(Debug)]
 pub(crate) struct ProxyConnectionPool {
     proxy_addresses: Vec<SocketAddr>,
-    configuration: Arc<AgentServerConfig>,
     rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>,
 }
 
 impl ProxyConnectionPool {
-    pub(crate) async fn new(configuration: Arc<AgentServerConfig>, rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>) -> Result<Self, AgentError> {
-        let proxy_addresses_configuration = configuration
+    pub(crate) async fn new(rsa_crypto_fetcher: Arc<AgentServerRsaCryptoFetcher>) -> Result<Self, AgentError> {
+        let proxy_addresses_configuration = AGENT_CONFIG
             .get_proxy_addresses()
             .expect("Fail to parse proxy addresses from configuration file");
         let proxy_addresses: Vec<SocketAddr> = proxy_addresses_configuration
@@ -38,7 +37,6 @@ impl ProxyConnectionPool {
 
         Ok(Self {
             proxy_addresses,
-            configuration: configuration.clone(),
             rsa_crypto_fetcher,
         })
     }
@@ -46,14 +44,14 @@ impl ProxyConnectionPool {
     pub(crate) async fn take_connection(&self) -> Result<PpaassConnection<TcpStream, AgentServerRsaCryptoFetcher, String>, AgentError> {
         debug!("Take proxy connection from pool.");
         let proxy_tcp_stream = match timeout(
-            Duration::from_secs(self.configuration.get_connect_to_proxy_timeout()),
+            Duration::from_secs(AGENT_CONFIG.get_connect_to_proxy_timeout()),
             TcpStream::connect(self.proxy_addresses.as_slice()),
         )
         .await
         {
             Err(_) => {
                 error!("Fail connect to proxy because of timeout.");
-                return Err(NetworkError::Timeout(self.configuration.get_connect_to_proxy_timeout()).into());
+                return Err(NetworkError::Timeout(AGENT_CONFIG.get_connect_to_proxy_timeout()).into());
             },
             Ok(Ok(proxy_tcp_stream)) => proxy_tcp_stream,
             Ok(Err(e)) => {
@@ -67,8 +65,8 @@ impl ProxyConnectionPool {
             generate_uuid(),
             proxy_tcp_stream,
             self.rsa_crypto_fetcher.clone(),
-            self.configuration.get_compress(),
-            self.configuration.get_proxy_send_buffer_size(),
+            AGENT_CONFIG.get_compress(),
+            AGENT_CONFIG.get_proxy_send_buffer_size(),
         );
         Ok(proxy_connection)
     }

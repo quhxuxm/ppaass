@@ -1,11 +1,21 @@
+use std::fs::read_to_string;
+
+use lazy_static::lazy_static;
 use serde_derive::{Deserialize, Serialize};
 
-use crate::constant::{DEFAULT_PROXY_SERVER_PORT, DEFAULT_PROXY_SERVER_WORKER_THREAD_NUMBER, DEFAULT_RSA_DIR};
+lazy_static! {
+    pub(crate) static ref PROXY_CONFIG: ProxyConfig = {
+        let configuration_file = read_to_string("resources/config/ppaass-proxy.toml").expect("Fail to read proxy configuration file.");
+        toml::from_str(&configuration_file).expect("Fail to parse proxy configuration file content.")
+    };
+}
 
-pub const DEFAULT_PROXY_LOG_CONFIG_FILE: &str = "./ppaass-proxy-log.toml";
+const DEFAULT_PROXY_SERVER_PORT: u16 = 80;
+const DEFAULT_PROXY_SERVER_WORKER_THREAD_NUMBER: usize = 128;
+const DEFAULT_RSA_DIR: &str = "rsa";
 
 #[derive(Serialize, Deserialize, Debug, Default)]
-pub(crate) struct ProxyServerConfig {
+pub(crate) struct ProxyConfig {
     /// Whehter use ip v6
     ipv6: Option<bool>,
     /// Port of the ppaass proxy
@@ -27,41 +37,21 @@ pub(crate) struct ProxyServerConfig {
     dst_udp_connect_timeout: Option<u64>,
 }
 
-impl ProxyServerConfig {
-    pub(crate) fn set_ipv6(&mut self, ipv6: bool) {
-        self.ipv6 = Some(ipv6)
-    }
-
+impl ProxyConfig {
     pub(crate) fn get_ipv6(&self) -> bool {
         self.ipv6.unwrap_or(false)
-    }
-
-    pub(crate) fn set_port(&mut self, port: u16) {
-        self.port = Some(port)
     }
 
     pub(crate) fn get_port(&self) -> u16 {
         self.port.unwrap_or(DEFAULT_PROXY_SERVER_PORT)
     }
 
-    pub(crate) fn set_rsa_dir(&mut self, rsa_dir: &str) {
-        self.rsa_dir = Some(rsa_dir.to_string())
-    }
-
     pub(crate) fn get_rsa_dir(&self) -> String {
         self.rsa_dir.as_ref().unwrap_or(&DEFAULT_RSA_DIR.to_string()).to_string()
     }
 
-    pub(crate) fn set_proxy_server_worker_thread_number(&mut self, thread_number: usize) {
-        self.proxy_server_worker_thread_number = Some(thread_number)
-    }
-
     pub(crate) fn get_proxy_server_worker_thread_number(&self) -> usize {
         self.proxy_server_worker_thread_number.unwrap_or(DEFAULT_PROXY_SERVER_WORKER_THREAD_NUMBER)
-    }
-
-    pub(crate) fn set_compress(&mut self, compress: bool) {
-        self.compress = Some(compress)
     }
 
     pub(crate) fn get_compress(&self) -> bool {
@@ -91,29 +81,5 @@ impl ProxyServerConfig {
     }
     pub(crate) fn get_dst_udp_connect_timeout(&self) -> u64 {
         self.dst_udp_connect_timeout.unwrap_or(5)
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub(crate) struct ProxyServerLogConfig {
-    /// The log directory
-    dir: Option<String>,
-    /// The log file name prefix
-    file: Option<String>,
-    /// The max log level
-    level: Option<String>,
-}
-
-impl ProxyServerLogConfig {
-    pub(crate) fn get_dir(&self) -> &Option<String> {
-        &self.dir
-    }
-
-    pub(crate) fn get_file(&self) -> &Option<String> {
-        &self.file
-    }
-
-    pub(crate) fn get_level(&self) -> &Option<String> {
-        &self.level
     }
 }

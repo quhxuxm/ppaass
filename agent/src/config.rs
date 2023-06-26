@@ -1,7 +1,17 @@
+use std::fs::read_to_string;
+
+use lazy_static::lazy_static;
 use serde_derive::{Deserialize, Serialize};
 
+lazy_static! {
+    pub(crate) static ref AGENT_CONFIG: AgentConfig = {
+        let agent_configuration_file = read_to_string("resources/config/ppaass-agent.toml").expect("Fail to read agent configuration file.");
+        toml::from_str(&agent_configuration_file).expect("Fail to parse agent configuration file content.")
+    };
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
-pub struct AgentServerConfig {
+pub struct AgentConfig {
     //The user token
     user_token: Option<String>,
     /// Whehter use ip v6
@@ -25,7 +35,7 @@ pub struct AgentServerConfig {
     client_relay_timeout: Option<u64>,
 }
 
-impl AgentServerConfig {
+impl AgentConfig {
     pub fn get_user_token(&self) -> &Option<String> {
         &self.user_token
     }
@@ -97,29 +107,5 @@ impl AgentServerConfig {
 
     pub fn get_client_relay_timeout(&self) -> u64 {
         self.client_relay_timeout.unwrap_or(20)
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct AgentServerLogConfig {
-    /// The log directory
-    dir: Option<String>,
-    /// The log file name prefix
-    file: Option<String>,
-    /// The max log level
-    level: Option<String>,
-}
-
-impl AgentServerLogConfig {
-    pub fn get_dir(&self) -> &Option<String> {
-        &self.dir
-    }
-
-    pub fn get_file(&self) -> &Option<String> {
-        &self.file
-    }
-
-    pub fn get_level(&self) -> &Option<String> {
-        &self.level
     }
 }

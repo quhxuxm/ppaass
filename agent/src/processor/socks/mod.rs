@@ -14,7 +14,7 @@ use tracing::{debug, error};
 use self::message::Socks5InitCommandResultStatus;
 
 use crate::{
-    config::AgentServerConfig,
+    config::AGENT_CONFIG,
     error::{AgentError, DecoderError, EncoderError, NetworkError},
     pool::ProxyConnectionPool,
     processor::{
@@ -45,9 +45,7 @@ impl Socks5ClientProcessor {
         }
     }
 
-    pub(crate) async fn exec(
-        self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>, initial_buf: BytesMut,
-    ) -> Result<(), AgentError> {
+    pub(crate) async fn exec(self, proxy_connection_pool: Arc<ProxyConnectionPool>, initial_buf: BytesMut) -> Result<(), AgentError> {
         let client_tcp_stream = self.client_tcp_stream;
         let src_address = self.src_address;
         let mut auth_framed_parts = FramedParts::new(client_tcp_stream, Socks5AuthCommandContentCodec::default());
@@ -80,7 +78,7 @@ impl Socks5ClientProcessor {
             Socks5InitCommandType::Bind => todo!(),
             Socks5InitCommandType::UdpAssociate => todo!(),
             Socks5InitCommandType::Connect => {
-                Self::handle_connect_command(src_address, init_message.dst_address.into(), proxy_connection_pool, init_framed, configuration).await?;
+                Self::handle_connect_command(src_address, init_message.dst_address.into(), proxy_connection_pool, init_framed).await?;
             },
         }
 
@@ -89,9 +87,9 @@ impl Socks5ClientProcessor {
 
     async fn handle_connect_command(
         src_address: PpaassNetAddress, dst_address: PpaassNetAddress, proxy_connection_pool: Arc<ProxyConnectionPool>,
-        mut init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>, configuration: Arc<AgentServerConfig>,
+        mut init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
     ) -> Result<(), AgentError> {
-        let user_token = configuration
+        let user_token = AGENT_CONFIG
             .get_user_token()
             .clone()
             .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
@@ -142,7 +140,6 @@ impl Socks5ClientProcessor {
             user_token,
             payload_encryption,
             proxy_connection,
-            configuration,
             init_data: None,
         })
         .await?;

@@ -30,3 +30,5 @@ thiserror = {workspace = true}
 tokio-stream = {workspace = true}
 chrono = {workspace = true}
 derive_more= {workspace = true}
+log4rs = {workspace = true}
+log = {workspace = true}

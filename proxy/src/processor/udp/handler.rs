@@ -1,7 +1,6 @@
 use std::{
     fmt::{Debug, Display},
     net::{SocketAddr, ToSocketAddrs},
-    sync::Arc,
     time::Duration,
 };
 
@@ -18,7 +17,7 @@ use tracing::{debug, error};
 
 use crate::{
     common::ProxyServerPayloadEncryptionSelector,
-    config::ProxyServerConfig,
+    config::PROXY_CONFIG,
     error::{NetworkError, ProxyError},
 };
 
@@ -42,7 +41,6 @@ where
 {
     handler_key: UdpHandlerKey,
     agent_connection: PpaassConnection<T, R, I>,
-    configuration: Arc<ProxyServerConfig>,
 }
 
 impl<T, R, I> UdpHandler<T, R, I>
@@ -73,7 +71,7 @@ where
         };
         let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
         match timeout(
-            Duration::from_secs(self.configuration.get_dst_udp_connect_timeout()),
+            Duration::from_secs(PROXY_CONFIG.get_dst_udp_connect_timeout()),
             dst_udp_socket.connect(dst_socket_addrs.as_slice()),
         )
         .await
@@ -87,7 +85,7 @@ where
             },
             Err(_) => {
                 error!("Udp handler {handler_key} fail to connect destination udp socket because of timeout.");
-                return Err(ProxyError::Network(NetworkError::Timeout(self.configuration.get_dst_udp_connect_timeout())));
+                return Err(ProxyError::Network(NetworkError::Timeout(PROXY_CONFIG.get_dst_udp_connect_timeout())));
             },
         };
         if let Err(e) = dst_udp_socket.send(&udp_data).await {
@@ -97,12 +95,7 @@ where
         let mut dst_recv_buf = Vec::new();
         loop {
             let mut buf = [0u8; 65535];
-            let data_size = match timeout(
-                Duration::from_secs(self.configuration.get_dst_udp_recv_timeout()),
-                dst_udp_socket.recv(&mut buf),
-            )
-            .await
-            {
+            let data_size = match timeout(Duration::from_secs(PROXY_CONFIG.get_dst_udp_recv_timeout()), dst_udp_socket.recv(&mut buf)).await {
                 Ok(Ok(0)) => {
                     debug!("Complete read from destination udp socket.");
                     break;
@@ -114,7 +107,7 @@ where
                 },
                 Err(_) => {
                     error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of timeout");
-                    return Err(ProxyError::Network(NetworkError::Timeout(self.configuration.get_dst_udp_recv_timeout())));
+                    return Err(ProxyError::Network(NetworkError::Timeout(PROXY_CONFIG.get_dst_udp_recv_timeout())));
                 },
             };
             let buf = &buf[0..data_size];

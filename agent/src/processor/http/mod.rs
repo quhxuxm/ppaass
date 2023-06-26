@@ -19,7 +19,7 @@ use tracing::{debug, error};
 use url::Url;
 
 use crate::{
-    config::AgentServerConfig,
+    config::AGENT_CONFIG,
     error::{AgentError, ConversionError, DecoderError, EncoderError, NetworkError},
     pool::ProxyConnectionPool,
     processor::{http::codec::HttpCodec, ClientDataRelayInfo, ClientProtocolProcessor},
@@ -41,9 +41,7 @@ pub(crate) struct HttpClientProcessor {
 }
 
 impl HttpClientProcessor {
-    pub(crate) async fn exec(
-        self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>, initial_buf: BytesMut,
-    ) -> Result<(), AgentError> {
+    pub(crate) async fn exec(self, proxy_connection_pool: Arc<ProxyConnectionPool>, initial_buf: BytesMut) -> Result<(), AgentError> {
         let client_tcp_stream = self.client_tcp_stream;
         let src_address = self.src_address;
         let mut framed_parts = FramedParts::new(client_tcp_stream, HttpCodec::default());
@@ -79,7 +77,7 @@ impl HttpClientProcessor {
             port: target_port,
         };
 
-        let user_token = configuration
+        let user_token = AGENT_CONFIG
             .get_user_token()
             .clone()
             .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
@@ -142,7 +140,6 @@ impl HttpClientProcessor {
             user_token,
             payload_encryption,
             proxy_connection,
-            configuration,
             init_data,
         })
         .await?;

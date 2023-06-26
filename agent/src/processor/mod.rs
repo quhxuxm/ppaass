@@ -10,7 +10,7 @@ use std::{
 
 use self::{http::HttpClientProcessor, socks::Socks5ClientProcessor};
 use crate::{
-    config::AgentServerConfig,
+    config::AGENT_CONFIG,
     error::{AgentError, NetworkError},
     pool::ProxyConnectionPool,
 };
@@ -48,7 +48,6 @@ where
     user_token: String,
     payload_encryption: PpaassMessagePayloadEncryption,
     proxy_connection: PpaassConnection<TcpStream, R, I>,
-    configuration: Arc<AgentServerConfig>,
     init_data: Option<Vec<u8>>,
 }
 
@@ -66,7 +65,7 @@ pub(crate) enum ClientProtocolProcessor {
 }
 
 impl ClientProtocolProcessor {
-    pub(crate) async fn exec(self, proxy_connection_pool: Arc<ProxyConnectionPool>, configuration: Arc<AgentServerConfig>) -> Result<(), AgentError> {
+    pub(crate) async fn exec(self, proxy_connection_pool: Arc<ProxyConnectionPool>) -> Result<(), AgentError> {
         match self {
             ClientProtocolProcessor::Http {
                 client_tcp_stream,
@@ -74,7 +73,7 @@ impl ClientProtocolProcessor {
                 initial_buf,
             } => {
                 let http_flow = HttpClientProcessor::new(client_tcp_stream, src_address.clone());
-                http_flow.exec(proxy_connection_pool, configuration, initial_buf).await?;
+                http_flow.exec(proxy_connection_pool, initial_buf).await?;
             },
             ClientProtocolProcessor::Socks5 {
                 client_tcp_stream,
@@ -82,7 +81,7 @@ impl ClientProtocolProcessor {
                 initial_buf,
             } => {
                 let socks5_flow = Socks5ClientProcessor::new(client_tcp_stream, src_address.clone());
-                socks5_flow.exec(proxy_connection_pool, configuration, initial_buf).await?;
+                socks5_flow.exec(proxy_connection_pool, initial_buf).await?;
             },
         }
         Ok(())
@@ -97,13 +96,12 @@ impl ClientProtocolProcessor {
 
         let src_address = info.src_address;
         let dst_address = info.dst_address;
-        let configuration = info.configuration;
-        let proxy_relay_timeout = configuration.get_proxy_relay_timeout();
-        let client_relay_timeout = configuration.get_client_relay_timeout();
+        let proxy_relay_timeout = AGENT_CONFIG.get_proxy_relay_timeout();
+        let client_relay_timeout = AGENT_CONFIG.get_client_relay_timeout();
         let payload_encryption = info.payload_encryption;
         let mut proxy_connection = info.proxy_connection;
         let user_token = info.user_token;
-        let client_io_framed = Framed::with_capacity(client_tcp_stream, BytesCodec::new(), configuration.get_client_receive_buffer_size());
+        let client_io_framed = Framed::with_capacity(client_tcp_stream, BytesCodec::new(), AGENT_CONFIG.get_client_receive_buffer_size());
         let (client_io_write, client_io_read) = client_io_framed.split::<BytesMut>();
         let (mut client_io_write, client_io_read) = (
             ClientConnectionWrite::new(src_address.clone(), client_io_write),

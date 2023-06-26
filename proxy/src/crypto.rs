@@ -2,10 +2,9 @@ use std::{
     collections::HashMap,
     fs::{read_dir, File},
     path::Path,
-    sync::Arc,
 };
 
-use crate::config::ProxyServerConfig;
+use crate::config::PROXY_CONFIG;
 
 use anyhow::anyhow;
 use ppaass_common::{RsaCrypto, RsaCryptoFetcher, RsaError};
@@ -18,9 +17,9 @@ pub(crate) struct ProxyServerRsaCryptoFetcher {
 }
 
 impl ProxyServerRsaCryptoFetcher {
-    pub(crate) fn new(configuration: Arc<ProxyServerConfig>) -> Result<Self, RsaError> {
+    pub(crate) fn new() -> Result<Self, RsaError> {
         let mut result = Self { cache: HashMap::new() };
-        let rsa_dir_path = configuration.get_rsa_dir();
+        let rsa_dir_path = PROXY_CONFIG.get_rsa_dir();
         let rsa_dir = read_dir(&rsa_dir_path).map_err(|e| RsaError::Other(anyhow!(e)))?;
         rsa_dir.for_each(|entry| {
             let Ok(entry) = entry else{

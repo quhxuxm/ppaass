@@ -2,7 +2,6 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::{
     net::{SocketAddr, ToSocketAddrs},
-    sync::Arc,
     time::Duration,
 };
 
@@ -29,7 +28,7 @@ use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelect
 
 use crate::{
     common::ProxyServerPayloadEncryptionSelector,
-    config::ProxyServerConfig,
+    config::PROXY_CONFIG,
     error::{NetworkError, ProxyError},
 };
 
@@ -55,7 +54,6 @@ where
 {
     handler_key: TcpHandlerKey,
     agent_connection: PpaassConnection<T, R, I>,
-    configuration: Arc<ProxyServerConfig>,
 }
 
 impl<T, R, I> TcpHandler<T, R, I>
@@ -64,11 +62,11 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    async fn init_dst_connection(handler_key: &TcpHandlerKey, configuration: Arc<ProxyServerConfig>) -> Result<DstConnection<TcpStream>, ProxyError> {
+    async fn init_dst_connection(handler_key: &TcpHandlerKey) -> Result<DstConnection<TcpStream>, ProxyError> {
         let dst_socket_address = handler_key.dst_address.to_socket_addrs()?.collect::<Vec<SocketAddr>>();
 
         let dst_tcp_stream = match timeout(
-            Duration::from_secs(configuration.get_dst_connect_timeout()),
+            Duration::from_secs(PROXY_CONFIG.get_dst_connect_timeout()),
             TcpStream::connect(dst_socket_address.as_slice()),
         )
         .await
@@ -91,7 +89,7 @@ where
         };
         dst_tcp_stream.set_nodelay(true)?;
         dst_tcp_stream.set_linger(None)?;
-        let dst_connection = DstConnection::new(dst_tcp_stream, configuration.get_dst_tcp_buffer_size());
+        let dst_connection = DstConnection::new(dst_tcp_stream, PROXY_CONFIG.get_dst_tcp_buffer_size());
         Ok(dst_connection)
     }
 
@@ -104,10 +102,10 @@ where
     pub(crate) async fn exec(self) -> Result<(), ProxyError> {
         let handler_key = self.handler_key;
         let mut agent_connection = self.agent_connection;
-        let dst_relay_timeout = self.configuration.get_dst_relay_timeout();
-        let agent_relay_timeout = self.configuration.get_agent_relay_timeout();
+        let dst_relay_timeout = PROXY_CONFIG.get_dst_relay_timeout();
+        let agent_relay_timeout = PROXY_CONFIG.get_agent_relay_timeout();
 
-        let dst_connection = match Self::init_dst_connection(&handler_key, self.configuration).await {
+        let dst_connection = match Self::init_dst_connection(&handler_key).await {
             Ok(dst_read_and_write) => dst_read_and_write,
             Err(e) => {
                 let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&handler_key.user_token, Some(generate_uuid().into_bytes()));

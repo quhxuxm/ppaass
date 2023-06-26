@@ -7,7 +7,7 @@ use tokio_util::codec::{Decoder, Framed, FramedParts};
 use tracing::{debug, error};
 
 use crate::{
-    config::AgentServerConfig,
+    config::AGENT_CONFIG,
     error::{AgentError, DecoderError},
     SOCKS_V4, SOCKS_V5,
 };
@@ -46,10 +46,8 @@ impl Decoder for SwitchClientProtocolDecoder {
 pub(crate) struct ClientProtocolDispatcher;
 
 impl ClientProtocolDispatcher {
-    pub(crate) async fn dispatch(
-        client_tcp_stream: TcpStream, client_socket_address: SocketAddr, agent_config: &AgentServerConfig,
-    ) -> Result<ClientProtocolProcessor, AgentError> {
-        let mut client_message_framed = Framed::with_capacity(client_tcp_stream, SwitchClientProtocolDecoder, agent_config.get_client_receive_buffer_size());
+    pub(crate) async fn dispatch(client_tcp_stream: TcpStream, client_socket_address: SocketAddr) -> Result<ClientProtocolProcessor, AgentError> {
+        let mut client_message_framed = Framed::with_capacity(client_tcp_stream, SwitchClientProtocolDecoder, AGENT_CONFIG.get_client_receive_buffer_size());
         let client_protocol = match client_message_framed.next().await {
             Some(Ok(client_protocol)) => client_protocol,
             Some(Err(e)) => {
