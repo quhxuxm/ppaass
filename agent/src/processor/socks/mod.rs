@@ -20,7 +20,7 @@ use crate::{
     processor::{
         socks::{
             codec::{Socks5AuthCommandContentCodec, Socks5InitCommandContentCodec},
-            message::{Socks5AuthCommandResultContent, Socks5InitCommandResultContent, Socks5InitCommandType},
+            message::{Socks5AuthCommandResult, Socks5InitCommandResult, Socks5InitCommandType},
         },
         ClientDataRelayInfo, ClientProtocolProcessor,
     },
@@ -60,7 +60,7 @@ impl Socks5ClientProcessor {
             "Client tcp connection [{src_address}] start socks5 authenticate process, authenticate methods in request: {:?}",
             auth_message.methods
         );
-        let auth_response = Socks5AuthCommandResultContent::new(message::Socks5AuthMethod::NoAuthenticationRequired);
+        let auth_response = Socks5AuthCommandResult::new(message::Socks5AuthMethod::NoAuthenticationRequired);
         auth_framed.send(auth_response).await.map_err(EncoderError::Socks5)?;
         let FramedParts { io: client_tcp_stream, .. } = auth_framed.into_parts();
         let mut init_framed = Framed::new(client_tcp_stream, Socks5InitCommandContentCodec::default());
@@ -129,7 +129,7 @@ impl Socks5ClientProcessor {
                 return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
             },
         }
-        let socks5_init_success_result = Socks5InitCommandResultContent::new(Socks5InitCommandResultStatus::Succeeded, Some(dst_address.clone().try_into()?));
+        let socks5_init_success_result = Socks5InitCommandResult::new(Socks5InitCommandResultStatus::Succeeded, Some(dst_address.clone().try_into()?));
         init_framed.send(socks5_init_success_result).await.map_err(EncoderError::Socks5)?;
         let FramedParts { io: client_tcp_stream, .. } = init_framed.into_parts();
         debug!("Client tcp connection [{src_address}] success to do sock5 handshake begin to relay, tcp loop key: [{tcp_loop_key}].");

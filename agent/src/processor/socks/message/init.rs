@@ -76,13 +76,13 @@ impl From<Socks5InitCommandResultStatus> for u8 {
 }
 
 #[derive(Debug, Constructor)]
-pub(crate) struct Socks5InitCommandContent {
+pub(crate) struct Socks5InitCommand {
     pub(crate) request_type: Socks5InitCommandType,
     pub(crate) dst_address: Socks5Address,
 }
 
 #[derive(Debug, Constructor)]
-pub(crate) struct Socks5InitCommandResultContent {
+pub(crate) struct Socks5InitCommandResult {
     pub(crate) status: Socks5InitCommandResultStatus,
     pub(crate) bind_address: Option<Socks5Address>,
 }

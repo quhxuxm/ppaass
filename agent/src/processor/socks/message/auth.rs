@@ -38,11 +38,11 @@ impl From<Socks5AuthMethod> for u8 {
 }
 
 #[derive(Debug, Constructor)]
-pub(crate) struct Socks5AuthCommandContent {
+pub(crate) struct Socks5AuthCommand {
     pub(crate) methods: Vec<Socks5AuthMethod>,
 }
 
 #[derive(Debug, Constructor)]
-pub(crate) struct Socks5AuthCommandResultContent {
+pub(crate) struct Socks5AuthCommandResult {
     pub(crate) method: Socks5AuthMethod,
 }
