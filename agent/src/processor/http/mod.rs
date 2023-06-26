@@ -1,7 +1,5 @@
 pub(crate) mod codec;
 
-use std::sync::Arc;
-
 use bytecodec::{bytes::BytesEncoder, EncodeExt};
 
 use bytes::BytesMut;
@@ -21,7 +19,7 @@ use url::Url;
 use crate::{
     config::AGENT_CONFIG,
     error::{AgentError, ConversionError, DecoderError, EncoderError, NetworkError},
-    pool::ProxyConnectionPool,
+    pool::PROXY_CONNECTION_POOL,
     processor::{http::codec::HttpCodec, ClientDataRelayInfo, ClientProtocolProcessor},
     AgentServerPayloadEncryptionTypeSelector,
 };
@@ -41,7 +39,7 @@ pub(crate) struct HttpClientProcessor {
 }
 
 impl HttpClientProcessor {
-    pub(crate) async fn exec(self, proxy_connection_pool: Arc<ProxyConnectionPool>, initial_buf: BytesMut) -> Result<(), AgentError> {
+    pub(crate) async fn exec(self, initial_buf: BytesMut) -> Result<(), AgentError> {
         let client_tcp_stream = self.client_tcp_stream;
         let src_address = self.src_address;
         let mut framed_parts = FramedParts::new(client_tcp_stream, HttpCodec::default());
@@ -86,7 +84,7 @@ impl HttpClientProcessor {
         let tcp_init_request =
             PpaassMessageGenerator::generate_tcp_init_request(&user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
 
-        let mut proxy_connection = proxy_connection_pool.take_connection().await?;
+        let mut proxy_connection = PROXY_CONNECTION_POOL.take_connection().await?;
 
         debug!(
             "Client tcp connection [{src_address}] take proxy connectopn [{}] to do proxy",

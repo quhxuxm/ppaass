@@ -1,6 +1,7 @@
 use std::{fmt::Debug, str::FromStr};
 use std::{net::SocketAddr, time::Duration};
 
+use lazy_static::lazy_static;
 use tokio::{net::TcpStream, time::timeout};
 
 use log::{debug, error};
@@ -14,13 +15,17 @@ use crate::{
     error::{AgentError, NetworkError},
 };
 
+lazy_static! {
+    pub(crate) static ref PROXY_CONNECTION_POOL: ProxyConnectionPool = ProxyConnectionPool::new().expect("Fail to initialize proxy connection pool.");
+}
+
 #[derive(Debug)]
 pub(crate) struct ProxyConnectionPool {
     proxy_addresses: Vec<SocketAddr>,
 }
 
 impl ProxyConnectionPool {
-    pub(crate) async fn new() -> Result<Self, AgentError> {
+    pub(crate) fn new() -> Result<Self, AgentError> {
         let proxy_addresses_configuration = AGENT_CONFIG
             .get_proxy_addresses()
             .expect("Fail to parse proxy addresses from configuration file");
@@ -32,7 +37,6 @@ impl ProxyConnectionPool {
             error!("No available proxy address for runtime to use.");
             panic!("No available proxy address for runtime to use.")
         }
-
         Ok(Self { proxy_addresses })
     }
 

@@ -1,9 +1,9 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::net::SocketAddr;
 
 use log::{debug, error, info};
 use tokio::net::{TcpListener, TcpStream};
 
-use crate::{config::AGENT_CONFIG, error::NetworkError, pool::ProxyConnectionPool};
+use crate::{config::AGENT_CONFIG, error::NetworkError};
 use crate::{error::AgentError, processor::dispatcher::ClientProtocolDispatcher};
 
 #[derive(Debug, Default)]
@@ -25,7 +25,8 @@ impl AgentServer {
         info!("Agent server start to serve request on address: {agent_server_bind_addr}.");
 
         let tcp_listener = TcpListener::bind(&agent_server_bind_addr).await.map_err(NetworkError::Io)?;
-        let proxy_connection_pool = Arc::new(ProxyConnectionPool::new().await?);
+        // let proxy_connection_pool = Box::new(ProxyConnectionPool::new().await?);
+        // let proxy_connection_pool: &'static ProxyConnectionPool = Box::leak(proxy_connection_pool);
         loop {
             let (client_tcp_stream, client_socket_address) = match Self::accept_client_connection(&tcp_listener).await {
                 Ok(accept_result) => accept_result,
@@ -35,7 +36,6 @@ impl AgentServer {
                 },
             };
             debug!("Accept client tcp connection on address: {}", client_socket_address);
-            let proxy_connection_pool = proxy_connection_pool.clone();
             tokio::spawn(async move {
                 let processor = match ClientProtocolDispatcher::dispatch(client_tcp_stream, client_socket_address).await {
                     Err(e) => {
@@ -46,7 +46,7 @@ impl AgentServer {
                     },
                     Ok(v) => v,
                 };
-                if let Err(e) = processor.exec(proxy_connection_pool).await {
+                if let Err(e) = processor.exec().await {
                     error!("Client tcp connection [{client_socket_address}] fail to execute client flow because of error: {e:?}");
                     return;
                 };

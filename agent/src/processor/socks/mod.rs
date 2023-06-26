@@ -7,7 +7,7 @@ use ppaass_common::{
 };
 
 use log::{debug, error};
-use std::sync::Arc;
+
 use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, FramedParts};
 
@@ -16,7 +16,7 @@ use self::message::Socks5InitCommandResultStatus;
 use crate::{
     config::AGENT_CONFIG,
     error::{AgentError, DecoderError, EncoderError, NetworkError},
-    pool::ProxyConnectionPool,
+    pool::PROXY_CONNECTION_POOL,
     processor::{
         socks::{
             codec::{Socks5AuthCommandContentCodec, Socks5InitCommandContentCodec},
@@ -45,7 +45,7 @@ impl Socks5ClientProcessor {
         }
     }
 
-    pub(crate) async fn exec(self, proxy_connection_pool: Arc<ProxyConnectionPool>, initial_buf: BytesMut) -> Result<(), AgentError> {
+    pub(crate) async fn exec(self, initial_buf: BytesMut) -> Result<(), AgentError> {
         let client_tcp_stream = self.client_tcp_stream;
         let src_address = self.src_address;
         let mut auth_framed_parts = FramedParts::new(client_tcp_stream, Socks5AuthCommandContentCodec::default());
@@ -78,7 +78,7 @@ impl Socks5ClientProcessor {
             Socks5InitCommandType::Bind => todo!(),
             Socks5InitCommandType::UdpAssociate => todo!(),
             Socks5InitCommandType::Connect => {
-                Self::handle_connect_command(src_address, init_message.dst_address.into(), proxy_connection_pool, init_framed).await?;
+                Self::handle_connect_command(src_address, init_message.dst_address.into(), init_framed).await?;
             },
         }
 
@@ -86,8 +86,7 @@ impl Socks5ClientProcessor {
     }
 
     async fn handle_connect_command(
-        src_address: PpaassNetAddress, dst_address: PpaassNetAddress, proxy_connection_pool: Arc<ProxyConnectionPool>,
-        mut init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
+        src_address: PpaassNetAddress, dst_address: PpaassNetAddress, mut init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
     ) -> Result<(), AgentError> {
         let user_token = AGENT_CONFIG
             .get_user_token()
@@ -97,7 +96,7 @@ impl Socks5ClientProcessor {
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(&user_token, Some(generate_uuid().into_bytes()));
         let tcp_init_request =
             PpaassMessageGenerator::generate_tcp_init_request(&user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
-        let mut proxy_connection = proxy_connection_pool.take_connection().await?;
+        let mut proxy_connection = PROXY_CONNECTION_POOL.take_connection().await?;
 
         debug!(
             "Client tcp connection [{src_address}] take proxy connectopn [{}] to do proxy.",

@@ -3,7 +3,6 @@ pub(crate) mod dispatcher;
 use std::{
     fmt::{Debug, Display},
     pin::Pin,
-    sync::Arc,
     task::{Context, Poll},
     time::Duration,
 };
@@ -13,7 +12,6 @@ use crate::{
     config::AGENT_CONFIG,
     crypto::AgentServerRsaCryptoFetcher,
     error::{AgentError, NetworkError},
-    pool::ProxyConnectionPool,
 };
 
 use bytes::BytesMut;
@@ -63,7 +61,7 @@ pub(crate) enum ClientProtocolProcessor {
 }
 
 impl ClientProtocolProcessor {
-    pub(crate) async fn exec(self, proxy_connection_pool: Arc<ProxyConnectionPool>) -> Result<(), AgentError> {
+    pub(crate) async fn exec(self) -> Result<(), AgentError> {
         match self {
             ClientProtocolProcessor::Http {
                 client_tcp_stream,
@@ -71,7 +69,7 @@ impl ClientProtocolProcessor {
                 initial_buf,
             } => {
                 let http_flow = HttpClientProcessor::new(client_tcp_stream, src_address.clone());
-                http_flow.exec(proxy_connection_pool, initial_buf).await?;
+                http_flow.exec(initial_buf).await?;
             },
             ClientProtocolProcessor::Socks5 {
                 client_tcp_stream,
@@ -79,7 +77,7 @@ impl ClientProtocolProcessor {
                 initial_buf,
             } => {
                 let socks5_flow = Socks5ClientProcessor::new(client_tcp_stream, src_address.clone());
-                socks5_flow.exec(proxy_connection_pool, initial_buf).await?;
+                socks5_flow.exec(initial_buf).await?;
             },
         }
         Ok(())
