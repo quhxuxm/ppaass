@@ -5,7 +5,7 @@ use rsa::{
     Pkcs1v15Encrypt,
 };
 use rsa::{RsaPrivateKey, RsaPublicKey};
-use std::{fmt::Debug, path::Path};
+use std::{fmt::Debug, path::Path, sync::Arc};
 use std::{fs, io::Read};
 
 use crate::RsaError;
@@ -22,6 +22,15 @@ const DEFAULT_PROXY_PUBLIC_KEY_PATH: &str = "ProxyPublicKey.pem";
 pub trait RsaCryptoFetcher {
     /// Fetch the rsa crypto by user token
     fn fetch(&self, user_token: impl AsRef<str>) -> Result<Option<&RsaCrypto>, RsaError>;
+}
+
+impl<T> RsaCryptoFetcher for Arc<T>
+where
+    T: RsaCryptoFetcher,
+{
+    fn fetch(&self, user_token: impl AsRef<str>) -> Result<Option<&RsaCrypto>, RsaError> {
+        self.as_ref().fetch(user_token)
+    }
 }
 
 /// The util to do RSA encryption and decryption.
