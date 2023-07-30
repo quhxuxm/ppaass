@@ -6,7 +6,7 @@ appenders:
     kind: file
     path: "log/ppaass-agent.log"
     encoder:
-      pattern: "{d} - {m}{n}"
+      pattern: "{l} {d(%Y-%m-%d %H:%M:%S)} {L} {I} - {m}{n}"
 root:
   level: info
   appenders:

@@ -6,7 +6,7 @@ appenders:
     kind: file
     path: "log/ppaass-proxy.log"
     encoder:
-      pattern: "{d} - {m}{n}"
+      pattern: "{l} {d(%Y-%m-%d %H:%M:%S)} {L} {I} - {m}{n}"
 root:
   level: debug
   appenders:
