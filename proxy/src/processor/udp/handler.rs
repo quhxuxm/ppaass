@@ -54,6 +54,7 @@ where
     pub(crate) async fn exec(self, udp_data: Vec<u8>) -> Result<(), ProxyError> {
         let mut agent_connection = self.agent_connection;
         let handler_key = self.handler_key;
+        debug!("Udp handler {handler_key} receive agent udp data: {}", pretty_hex(&udp_data));
         let dst_udp_socket = match UdpSocket::bind("0.0.0.0:0").await {
             Ok(dst_udp_socket) => dst_udp_socket,
             Err(e) => {
