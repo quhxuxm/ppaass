@@ -8,12 +8,12 @@ appenders:
     encoder:
       pattern: "{l} {d(%Y-%m-%d#%H:%M:%S)} {f}:{L} - {m}{n}"
 root:
-  level: debug
+  level: error
   appenders:
     - file-appender
 loggers:
   main:
-    level: debug
+    level: error
     appenders:
       - file-appender
     additive: false
