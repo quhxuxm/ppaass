@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use anyhow::anyhow;
 use derive_more::{Constructor, Display};
 use futures::SinkExt;
 use ppaass_common::{generate_uuid, PpaassConnection, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher};
@@ -93,37 +94,27 @@ where
             error!("Udp handler {handler_key} fail to send data to udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
             return Err(ProxyError::Network(NetworkError::DestinationWrite(e)));
         };
-        let mut dst_recv_buf = Vec::new();
-        loop {
-            let mut buf = [0u8; 65535];
-            let data_size = match timeout(Duration::from_secs(PROXY_CONFIG.get_dst_udp_recv_timeout()), dst_udp_socket.recv(&mut buf)).await {
-                Ok(Ok(0)) => {
-                    debug!("Complete read from destination udp socket.");
-                    break;
-                },
-                Ok(Ok(data_size)) => data_size,
-                Ok(Err(e)) => {
-                    error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
-                    return Err(ProxyError::Network(NetworkError::DestinationRead(e)));
-                },
-                Err(_) => {
-                    error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of timeout");
-                    return Err(ProxyError::Network(NetworkError::Timeout(PROXY_CONFIG.get_dst_udp_recv_timeout())));
-                },
-            };
-            let buf = &buf[0..data_size];
-            dst_recv_buf.extend_from_slice(buf);
-            if data_size < 65535 {
-                break;
-            }
-        }
-        if dst_recv_buf.is_empty() {
-            debug!("Udp handler {handler_key} nothing received from destination: {dst_socket_addrs:?}");
-            return Ok(());
-        }
+
+        let mut udp_data = [0u8; 65535];
+        let udp_data = match timeout(Duration::from_secs(PROXY_CONFIG.get_dst_udp_recv_timeout()), dst_udp_socket.recv(&mut udp_data)).await {
+            Ok(Ok(0)) => {
+                error!("Udp handler {handler_key} nothing to receive from udp socket [{dst_socket_addrs:?}]");
+                return Err(ProxyError::Other(anyhow!("Nothing to receive from udp socket")));
+            },
+            Ok(Ok(data_size)) => &udp_data[..data_size],
+            Ok(Err(e)) => {
+                error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
+                return Err(ProxyError::Network(NetworkError::DestinationRead(e)));
+            },
+            Err(_) => {
+                error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of timeout");
+                return Err(ProxyError::Network(NetworkError::Timeout(PROXY_CONFIG.get_dst_udp_recv_timeout())));
+            },
+        };
+
         debug!(
             "Udp handler {handler_key} receive data from destination: {dst_socket_addrs:?}:\n{}\n",
-            pretty_hex(&dst_recv_buf)
+            pretty_hex(&udp_data)
         );
         let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&handler_key.user_token, Some(generate_uuid().into_bytes()));
         let udp_data_message = PpaassMessageGenerator::generate_udp_data(
@@ -131,7 +122,7 @@ where
             payload_encryption,
             handler_key.src_address.clone(),
             handler_key.dst_address.clone(),
-            dst_recv_buf.to_vec(),
+            udp_data.to_vec(),
         )?;
         if let Err(e) = agent_connection.send(udp_data_message).await {
             error!("Udp handler {handler_key} fail to send udp data from [{dst_socket_addrs:?}] to agent because of error: {e:?}");
