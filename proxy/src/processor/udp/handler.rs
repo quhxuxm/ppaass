@@ -73,24 +73,6 @@ where
             },
         };
         let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
-        // match timeout(
-        //     Duration::from_secs(PROXY_CONFIG.get_dst_udp_connect_timeout()),
-        //     dst_udp_socket.connect(dst_socket_addrs.as_slice()),
-        // )
-        // .await
-        // {
-        //     Ok(Ok(())) => {
-        //         debug!("Udp handler {handler_key} connect to destination udp socket success.")
-        //     },
-        //     Ok(Err(e)) => {
-        //         error!("Udp handler {handler_key} fail to connect destination udp socket because of error: {e:?}");
-        //         return Err(ProxyError::Network(NetworkError::DestinationConnect(e)));
-        //     },
-        //     Err(_) => {
-        //         error!("Udp handler {handler_key} fail to connect destination udp socket because of timeout.");
-        //         return Err(ProxyError::Network(NetworkError::Timeout(PROXY_CONFIG.get_dst_udp_connect_timeout())));
-        //     },
-        // };
         if let Err(e) = dst_udp_socket.send_to(&udp_data, dst_socket_addrs.as_slice()).await {
             error!("Udp handler {handler_key} fail to send data to udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
             return Err(ProxyError::Network(NetworkError::DestinationWrite(e)));
