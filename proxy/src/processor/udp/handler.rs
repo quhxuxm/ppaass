@@ -72,36 +72,41 @@ where
             },
         };
         let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
-        match timeout(
-            Duration::from_secs(PROXY_CONFIG.get_dst_udp_connect_timeout()),
-            dst_udp_socket.connect(dst_socket_addrs.as_slice()),
-        )
-        .await
-        {
-            Ok(Ok(())) => {
-                debug!("Udp handler {handler_key} connect to destination udp socket success.")
-            },
-            Ok(Err(e)) => {
-                error!("Udp handler {handler_key} fail to connect destination udp socket because of error: {e:?}");
-                return Err(ProxyError::Network(NetworkError::DestinationConnect(e)));
-            },
-            Err(_) => {
-                error!("Udp handler {handler_key} fail to connect destination udp socket because of timeout.");
-                return Err(ProxyError::Network(NetworkError::Timeout(PROXY_CONFIG.get_dst_udp_connect_timeout())));
-            },
-        };
-        if let Err(e) = dst_udp_socket.send(&udp_data).await {
+        // match timeout(
+        //     Duration::from_secs(PROXY_CONFIG.get_dst_udp_connect_timeout()),
+        //     dst_udp_socket.connect(dst_socket_addrs.as_slice()),
+        // )
+        // .await
+        // {
+        //     Ok(Ok(())) => {
+        //         debug!("Udp handler {handler_key} connect to destination udp socket success.")
+        //     },
+        //     Ok(Err(e)) => {
+        //         error!("Udp handler {handler_key} fail to connect destination udp socket because of error: {e:?}");
+        //         return Err(ProxyError::Network(NetworkError::DestinationConnect(e)));
+        //     },
+        //     Err(_) => {
+        //         error!("Udp handler {handler_key} fail to connect destination udp socket because of timeout.");
+        //         return Err(ProxyError::Network(NetworkError::Timeout(PROXY_CONFIG.get_dst_udp_connect_timeout())));
+        //     },
+        // };
+        if let Err(e) = dst_udp_socket.send_to(&udp_data, dst_socket_addrs.as_slice()).await {
             error!("Udp handler {handler_key} fail to send data to udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
             return Err(ProxyError::Network(NetworkError::DestinationWrite(e)));
         };
 
         let mut udp_data = [0u8; 65535];
-        let udp_data = match timeout(Duration::from_secs(PROXY_CONFIG.get_dst_udp_recv_timeout()), dst_udp_socket.recv(&mut udp_data)).await {
-            Ok(Ok(0)) => {
+        let udp_data = match timeout(
+            Duration::from_secs(PROXY_CONFIG.get_dst_udp_recv_timeout()),
+            dst_udp_socket.recv_from(&mut udp_data),
+        )
+        .await
+        {
+            Ok(Ok((0, _))) => {
                 error!("Udp handler {handler_key} nothing to receive from udp socket [{dst_socket_addrs:?}]");
                 return Err(ProxyError::Other(anyhow!("Nothing to receive from udp socket")));
             },
-            Ok(Ok(data_size)) => &udp_data[..data_size],
+            Ok(Ok((data_size, _))) => &udp_data[..data_size],
             Ok(Err(e)) => {
                 error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
                 return Err(ProxyError::Network(NetworkError::DestinationRead(e)));
