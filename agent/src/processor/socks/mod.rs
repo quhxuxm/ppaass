@@ -48,7 +48,7 @@ impl Socks5ClientProcessor {
     pub(crate) async fn exec(self, initial_buf: BytesMut) -> Result<(), AgentError> {
         let client_tcp_stream = self.client_tcp_stream;
         let src_address = self.src_address;
-        let mut auth_framed_parts = FramedParts::new(client_tcp_stream, Socks5AuthCommandContentCodec::default());
+        let mut auth_framed_parts = FramedParts::new(client_tcp_stream, Socks5AuthCommandContentCodec);
         auth_framed_parts.read_buf = initial_buf;
         let mut auth_framed = Framed::from_parts(auth_framed_parts);
         let auth_message = auth_framed
@@ -63,7 +63,7 @@ impl Socks5ClientProcessor {
         let auth_response = Socks5AuthCommandResult::new(message::Socks5AuthMethod::NoAuthenticationRequired);
         auth_framed.send(auth_response).await.map_err(EncoderError::Socks5)?;
         let FramedParts { io: client_tcp_stream, .. } = auth_framed.into_parts();
-        let mut init_framed = Framed::new(client_tcp_stream, Socks5InitCommandContentCodec::default());
+        let mut init_framed = Framed::new(client_tcp_stream, Socks5InitCommandContentCodec);
         let init_message = init_framed
             .next()
             .await
