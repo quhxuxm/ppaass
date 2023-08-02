@@ -75,7 +75,7 @@ where
 
         let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
         match timeout(
-            Duration::from_secs(PROXY_CONFIG.get_dst_connect_timeout()),
+            Duration::from_secs(PROXY_CONFIG.get_dst_udp_connect_timeout()),
             dst_udp_socket.connect(dst_socket_addrs.as_slice()),
         )
         .await
