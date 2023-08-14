@@ -1,7 +1,7 @@
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 
-use log::error;
 use tokio_util::codec::{Decoder, Encoder};
+use tracing::error;
 
 use crate::{
     error::{Socks5DecodeError, Socks5EncodeError},

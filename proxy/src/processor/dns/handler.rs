@@ -7,11 +7,11 @@ use crate::{
 use derive_more::{Constructor, Display};
 use dns_lookup::lookup_host;
 use futures::SinkExt;
-use log::{error, info};
 use ppaass_common::{dns::DnsLookupRequest, generate_uuid, PpaassConnection, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
 use std::{collections::HashMap, fmt::Debug};
 use std::{fmt::Display, net::IpAddr};
 use tokio::io::{AsyncRead, AsyncWrite};
+use tracing::{error, info};
 
 #[derive(Debug, Clone, Constructor, Display)]
 #[display(fmt = "[{}]#[{}]@DNS::[{}]", connection_id, user_token, agent_address)]

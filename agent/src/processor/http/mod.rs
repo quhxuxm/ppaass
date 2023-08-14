@@ -6,7 +6,6 @@ use bytes::BytesMut;
 use derive_more::Constructor;
 use futures::{SinkExt, StreamExt};
 use httpcodec::{BodyEncoder, HttpVersion, ReasonPhrase, RequestEncoder, Response, StatusCode};
-use log::{debug, error};
 use ppaass_common::{
     generate_uuid,
     tcp::{TcpInitResponse, TcpInitResponseType},
@@ -14,6 +13,7 @@ use ppaass_common::{
 };
 use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, FramedParts};
+use tracing::{debug, error};
 use url::Url;
 
 use crate::{

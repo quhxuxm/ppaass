@@ -6,7 +6,7 @@ use crate::{
 
 use std::net::SocketAddr;
 
-use log::{debug, error, info};
+use tracing::{debug, error, info};
 
 use tokio::net::{TcpListener, TcpStream};
 

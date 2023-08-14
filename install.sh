@@ -43,7 +43,7 @@ sudo chmod 777 ppaass
 cd /ppaass/sourcecode/ppaass
 sudo git pull
 
-cargo build --release
+RUSTFLAGS="--cfg tokio_unstable" cargo build --release
 
 # ps -ef | grep gradle | grep -v grep | awk '{print $2}' | xargs kill -9
 sudo cp -r /ppaass/sourcecode/ppaass/resources/ /ppaass/build/
