@@ -36,8 +36,8 @@ pub struct AgentConfig {
 }
 
 impl AgentConfig {
-    pub fn get_user_token(&self) -> &Option<String> {
-        &self.user_token
+    pub fn get_user_token(&self) -> Option<&str> {
+        self.user_token.as_deref()
     }
 
     pub fn get_proxy_addresses(&self) -> Option<&Vec<String>> {
@@ -52,8 +52,8 @@ impl AgentConfig {
         self.port.unwrap_or(80)
     }
 
-    pub fn get_rsa_dir(&self) -> Option<&String> {
-        self.rsa_dir.as_ref()
+    pub fn get_rsa_dir(&self) -> Option<&str> {
+        self.rsa_dir.as_deref()
     }
 
     pub fn get_worker_thread_number(&self) -> usize {

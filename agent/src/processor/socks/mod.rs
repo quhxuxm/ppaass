@@ -90,12 +90,11 @@ impl Socks5ClientProcessor {
     ) -> Result<(), AgentError> {
         let user_token = AGENT_CONFIG
             .get_user_token()
-            .clone()
             .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
 
-        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(&user_token, Some(generate_uuid().into_bytes()));
+        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(generate_uuid().into_bytes()));
         let tcp_init_request =
-            PpaassMessageGenerator::generate_tcp_init_request(&user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
+            PpaassMessageGenerator::generate_tcp_init_request(user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
         let mut proxy_connection = PROXY_CONNECTION_POOL.take_connection().await?;
 
         debug!(
