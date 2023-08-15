@@ -1,4 +1,4 @@
-fn_args_layout = "Compressed"
+fn_params_layout = "Compressed"
 match_arm_leading_pipes = "Preserve"
 match_block_trailing_comma = true
 tab_spaces = 4

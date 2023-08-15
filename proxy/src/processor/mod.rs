@@ -1,16 +1,8 @@
-use std::fmt::Debug;
+mod dns;
+mod tcp;
+mod udp;
 
-use anyhow::Result;
-use futures::StreamExt;
-
-use tokio::io::{AsyncRead, AsyncWrite};
-
-use tracing::{error, info};
-
-use ppaass_common::PpaassMessage;
-use ppaass_common::{dns::DnsLookupRequest, tcp::TcpInitRequest, udp::UdpData};
-use ppaass_common::{PpaassConnection, PpaassMessageAgentPayload, PpaassMessageAgentPayloadType, PpaassNetAddress};
-
+use self::tcp::{TcpHandler, TcpHandlerKey};
 use crate::{
     config::PROXY_CONFIG,
     crypto::{ProxyServerRsaCryptoFetcher, RSA_CRYPTO},
@@ -20,12 +12,14 @@ use crate::{
         udp::{UdpHandler, UdpHandlerKey},
     },
 };
-
-use self::tcp::{TcpHandler, TcpHandlerKey};
-
-mod dns;
-mod tcp;
-mod udp;
+use anyhow::Result;
+use futures::StreamExt;
+use ppaass_common::PpaassMessage;
+use ppaass_common::{dns::DnsLookupRequest, tcp::TcpInitRequest, udp::UdpData};
+use ppaass_common::{PpaassConnection, PpaassMessageAgentPayload, PpaassMessageAgentPayloadType, PpaassNetAddress};
+use std::fmt::Debug;
+use tokio::io::{AsyncRead, AsyncWrite};
+use tracing::{error, info};
 
 #[derive(Debug)]
 pub(crate) struct AgentConnectionProcessor<'r, T>

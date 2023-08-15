@@ -1,7 +1,6 @@
-use std::fs::read_to_string;
-
 use lazy_static::lazy_static;
 use serde_derive::{Deserialize, Serialize};
+use std::fs::read_to_string;
 
 lazy_static! {
     pub(crate) static ref PROXY_CONFIG: ProxyConfig = {
