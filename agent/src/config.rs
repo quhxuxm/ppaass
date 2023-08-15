@@ -30,7 +30,6 @@ pub struct AgentConfig {
     client_receive_buffer_size: Option<usize>,
     proxy_send_buffer_size: Option<usize>,
     connect_to_proxy_timeout: Option<u64>,
-
     proxy_relay_timeout: Option<u64>,
     client_relay_timeout: Option<u64>,
 }
