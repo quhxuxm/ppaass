@@ -16,15 +16,15 @@ use crate::{
 };
 
 lazy_static! {
-    pub(crate) static ref PROXY_CONNECTION_POOL: ProxyConnectionPool = ProxyConnectionPool::new().expect("Fail to initialize proxy connection pool.");
+    pub(crate) static ref PROXY_CONNECTION_FACTORY: ProxyConnectionFactory = ProxyConnectionFactory::new().expect("Fail to initialize proxy connection pool.");
 }
 
 #[derive(Debug)]
-pub(crate) struct ProxyConnectionPool {
+pub(crate) struct ProxyConnectionFactory {
     proxy_addresses: Vec<SocketAddr>,
 }
 
-impl ProxyConnectionPool {
+impl ProxyConnectionFactory {
     pub(crate) fn new() -> Result<Self, AgentError> {
         let proxy_addresses_configuration = AGENT_CONFIG
             .get_proxy_addresses()
@@ -40,7 +40,7 @@ impl ProxyConnectionPool {
         Ok(Self { proxy_addresses })
     }
 
-    pub(crate) async fn take_connection<'r>(&self) -> Result<PpaassConnection<'r, TcpStream, AgentServerRsaCryptoFetcher, String>, AgentError> {
+    pub(crate) async fn create_connection<'r>(&self) -> Result<PpaassConnection<'r, TcpStream, AgentServerRsaCryptoFetcher, String>, AgentError> {
         debug!("Take proxy connection from pool.");
         let proxy_tcp_stream = match timeout(
             Duration::from_secs(AGENT_CONFIG.get_connect_to_proxy_timeout()),

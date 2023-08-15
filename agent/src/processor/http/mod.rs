@@ -18,8 +18,8 @@ use url::Url;
 
 use crate::{
     config::AGENT_CONFIG,
+    connection::PROXY_CONNECTION_FACTORY,
     error::{AgentError, ConversionError, DecoderError, EncoderError, NetworkError},
-    pool::PROXY_CONNECTION_POOL,
     processor::{http::codec::HttpCodec, ClientDataRelayInfo, ClientProtocolProcessor},
     AgentServerPayloadEncryptionTypeSelector,
 };
@@ -83,10 +83,10 @@ impl HttpClientProcessor {
         let tcp_init_request =
             PpaassMessageGenerator::generate_tcp_init_request(user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
 
-        let mut proxy_connection = PROXY_CONNECTION_POOL.take_connection().await?;
+        let mut proxy_connection = PROXY_CONNECTION_FACTORY.create_connection().await?;
 
         debug!(
-            "Client tcp connection [{src_address}] take proxy connectopn [{}] to do proxy",
+            "Client tcp connection [{src_address}] take proxy connection [{}] to do proxy",
             proxy_connection.get_connection_id()
         );
         proxy_connection.send(tcp_init_request).await?;

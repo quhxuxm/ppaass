@@ -1,9 +1,9 @@
 pub(crate) mod config;
 pub(crate) mod server;
 
+pub(crate) mod connection;
 pub(crate) mod crypto;
 pub(crate) mod error;
-pub(crate) mod pool;
 pub(crate) mod processor;
 
 use anyhow::Result;

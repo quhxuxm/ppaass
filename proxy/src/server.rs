@@ -41,7 +41,6 @@ impl ProxyServer {
                 },
             };
             debug!("Proxy server success accept agent connection on address: {}", agent_socket_address);
-
             tokio::spawn(async move {
                 let agent_connection_processor = AgentConnectionProcessor::new(agent_tcp_stream, agent_socket_address.into());
                 agent_connection_processor.exec().await?;

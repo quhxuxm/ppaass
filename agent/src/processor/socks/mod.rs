@@ -15,8 +15,8 @@ use self::message::Socks5InitCommandResultStatus;
 
 use crate::{
     config::AGENT_CONFIG,
+    connection::PROXY_CONNECTION_FACTORY,
     error::{AgentError, DecoderError, EncoderError, NetworkError},
-    pool::PROXY_CONNECTION_POOL,
     processor::{
         socks::{
             codec::{Socks5AuthCommandContentCodec, Socks5InitCommandContentCodec},
@@ -95,7 +95,7 @@ impl Socks5ClientProcessor {
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(generate_uuid().into_bytes()));
         let tcp_init_request =
             PpaassMessageGenerator::generate_tcp_init_request(user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
-        let mut proxy_connection = PROXY_CONNECTION_POOL.take_connection().await?;
+        let mut proxy_connection = PROXY_CONNECTION_FACTORY.create_connection().await?;
 
         debug!(
             "Client tcp connection [{src_address}] take proxy connectopn [{}] to do proxy.",

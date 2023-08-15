@@ -11,9 +11,9 @@ use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::Framed;
 
-#[derive(Debug)]
 #[non_exhaustive]
 #[pin_project]
+#[derive(Debug)]
 pub struct PpaassConnection<'r, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
