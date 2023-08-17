@@ -43,7 +43,7 @@ fn main() -> Result<()> {
     let log_file_path = "ppaass-agent.log";
     let file_appender = tracing_appender::rolling::daily(log_dir_path, log_file_path);
     let (non_blocking, _appender_guard) = tracing_appender::non_blocking(file_appender);
-    let event_filter = Targets::new().with_targets(vec![("tokio", Level::TRACE), ("runtime", Level::TRACE), ("ppaass-agent", Level::ERROR)]);
+    let event_filter = Targets::new().with_targets(vec![("tokio", Level::ERROR), ("runtime", Level::ERROR), ("ppaass-agent", Level::ERROR)]);
     tracing_subscriber::registry()
         .with(console_subscriber)
         .with(
