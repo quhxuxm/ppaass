@@ -14,11 +14,10 @@ impl PpaassMessageGenerator {
     ) -> Result<PpaassMessage, CommonError> {
         let tcp_init_request = TcpInitRequest { src_address, dst_address };
         let payload = PpaassMessagePayload::Agent {
-            encryption,
             payload_type: PpaassMessageAgentPayloadType::TcpInitRequest,
             data: tcp_init_request.try_into()?,
         };
-        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), payload);
+        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
         Ok(message)
     }
 
@@ -33,11 +32,10 @@ impl PpaassMessageGenerator {
             response_type,
         };
         let payload = PpaassMessagePayload::Proxy {
-            encryption,
             payload_type: PpaassMessageProxyPayloadType::TcpInitResponse,
             data: tcp_init_response.try_into()?,
         };
-        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), payload);
+        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
         Ok(message)
     }
 
@@ -46,11 +44,10 @@ impl PpaassMessageGenerator {
     ) -> Result<PpaassMessage, CommonError> {
         let tcp_data = TcpData::new(src_address, dst_address, data);
         let payload = PpaassMessagePayload::Agent {
-            encryption,
             payload_type: PpaassMessageAgentPayloadType::TcpData,
             data: tcp_data.try_into()?,
         };
-        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), payload);
+        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
         Ok(message)
     }
 
@@ -59,11 +56,10 @@ impl PpaassMessageGenerator {
     ) -> Result<PpaassMessage, CommonError> {
         let tcp_data = TcpData::new(src_address, dst_address, data);
         let payload = PpaassMessagePayload::Proxy {
-            encryption,
             payload_type: PpaassMessageProxyPayloadType::TcpData,
             data: tcp_data.try_into()?,
         };
-        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), payload);
+        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
         Ok(message)
     }
 
@@ -72,11 +68,10 @@ impl PpaassMessageGenerator {
     ) -> Result<PpaassMessage, CommonError> {
         let udp_data: UdpData = UdpData::new(src_address, dst_address, data);
         let payload = PpaassMessagePayload::Agent {
-            encryption,
             payload_type: PpaassMessageAgentPayloadType::UdpData,
             data: udp_data.try_into()?,
         };
-        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), payload);
+        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
         Ok(message)
     }
 
@@ -85,11 +80,10 @@ impl PpaassMessageGenerator {
     ) -> Result<PpaassMessage, CommonError> {
         let udp_data: UdpData = UdpData::new(src_address, dst_address, data);
         let payload = PpaassMessagePayload::Proxy {
-            encryption,
             payload_type: PpaassMessageProxyPayloadType::UdpData,
             data: udp_data.try_into()?,
         };
-        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), payload);
+        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
         Ok(message)
     }
 }

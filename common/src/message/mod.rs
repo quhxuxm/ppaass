@@ -32,12 +32,10 @@ pub enum PpaassMessageProxyPayloadType {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum PpaassMessagePayload {
     Agent {
-        encryption: PpaassMessagePayloadEncryption,
         payload_type: PpaassMessageAgentPayloadType,
         data: Vec<u8>,
     },
     Proxy {
-        encryption: PpaassMessagePayloadEncryption,
         payload_type: PpaassMessageProxyPayloadType,
         data: Vec<u8>,
     },
@@ -48,6 +46,7 @@ pub enum PpaassMessagePayload {
 pub struct PpaassMessage {
     pub id: String,
     pub user_token: String,
+    pub encryption: PpaassMessagePayloadEncryption,
     pub payload: PpaassMessagePayload,
 }
 

@@ -123,28 +123,64 @@ where
             body_bytes.as_ref().try_into()?
         };
 
-        let PpaassMessage { id, user_token, payload } = encrypted_message;
+        let PpaassMessage {
+            id,
+            user_token,
+            encryption: payload_encryption,
+            payload,
+        } = encrypted_message;
 
         let rsa_crypto = self
             .rsa_crypto_fetcher
             .fetch(&user_token)
             .map_err(CryptoError::Rsa)?
             .ok_or(CryptoError::Rsa(RsaError::NotFound(user_token.clone())))?;
-        let decrypt_payload_bytes = match payload_encryption {
-            PpaassMessagePayloadEncryption::Plain => payload,
-            PpaassMessagePayloadEncryption::Aes(ref encryption_token) => {
-                let original_encryption_token = rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?;
-                decrypt_with_aes(&original_encryption_token, &payload).map_err(CryptoError::Aes)?
+
+        match payload {
+            PpaassMessagePayload::Agent { payload_type, data } => {
+                let decrypt_payload_bytes = match payload_encryption {
+                    PpaassMessagePayloadEncryption::Plain => data,
+                    PpaassMessagePayloadEncryption::Aes(ref encryption_token) => {
+                        let original_encryption_token = rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?;
+                        decrypt_with_aes(&original_encryption_token, &data).map_err(CryptoError::Aes)?
+                    },
+                    PpaassMessagePayloadEncryption::Blowfish(ref encryption_token) => {
+                        let original_encryption_token = rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?;
+                        decrypt_with_blowfish(&original_encryption_token, &data).map_err(CryptoError::Blowfish)?
+                    },
+                };
+
+                self.status = DecodeStatus::Head;
+                src.reserve(HEADER_LENGTH);
+                let descrypt_payload = PpaassMessagePayload::Agent {
+                    payload_type,
+                    data: decrypt_payload_bytes,
+                };
+                let message_framed = PpaassMessage::new(id, user_token, payload_encryption, descrypt_payload);
+                Ok(Some(message_framed))
             },
-            PpaassMessagePayloadEncryption::Blowfish(ref encryption_token) => {
-                let original_encryption_token = rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?;
-                decrypt_with_blowfish(&original_encryption_token, &payload).map_err(CryptoError::Blowfish)?
+            PpaassMessagePayload::Proxy { payload_type, data } => {
+                let decrypt_payload_bytes = match payload_encryption {
+                    PpaassMessagePayloadEncryption::Plain => data,
+                    PpaassMessagePayloadEncryption::Aes(ref encryption_token) => {
+                        let original_encryption_token = rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?;
+                        decrypt_with_aes(&original_encryption_token, &data).map_err(CryptoError::Aes)?
+                    },
+                    PpaassMessagePayloadEncryption::Blowfish(ref encryption_token) => {
+                        let original_encryption_token = rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?;
+                        decrypt_with_blowfish(&original_encryption_token, &data).map_err(CryptoError::Blowfish)?
+                    },
+                };
+                self.status = DecodeStatus::Head;
+                src.reserve(HEADER_LENGTH);
+                let descrypt_payload = PpaassMessagePayload::Proxy {
+                    payload_type,
+                    data: decrypt_payload_bytes,
+                };
+                let message_framed = PpaassMessage::new(id, user_token, payload_encryption, descrypt_payload);
+                Ok(Some(message_framed))
             },
-        };
-        self.status = DecodeStatus::Head;
-        src.reserve(HEADER_LENGTH);
-        let message_framed = PpaassMessage::new(id, user_token, payload_encryption, decrypt_payload_bytes);
-        Ok(Some(message_framed))
+        }
     }
 }
 
@@ -166,7 +202,7 @@ where
         let PpaassMessage {
             id,
             user_token,
-            payload_encryption,
+            encryption: payload_encryption,
             payload,
         } = original_message;
 
