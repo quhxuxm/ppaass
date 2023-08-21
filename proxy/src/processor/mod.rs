@@ -10,12 +10,12 @@ use crate::{
 };
 use anyhow::Result;
 use futures::StreamExt;
+use log::{error, info};
 use ppaass_common::PpaassMessage;
 use ppaass_common::{tcp::TcpInitRequest, udp::UdpData};
 use ppaass_common::{PpaassConnection, PpaassMessageAgentPayload, PpaassMessageAgentPayloadType, PpaassNetAddress};
 use std::fmt::Debug;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tracing::{error, info};
 
 #[derive(Debug)]
 pub(crate) struct AgentConnectionProcessor<'r, T>

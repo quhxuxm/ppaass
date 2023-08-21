@@ -6,7 +6,7 @@ use crate::{
 
 use std::net::SocketAddr;
 
-use tracing::{debug, error, info};
+use log::{debug, error, info};
 
 use tokio::net::{TcpListener, TcpStream};
 
@@ -26,11 +26,14 @@ impl ProxyServer {
     pub(crate) async fn start(&mut self) -> Result<(), ProxyError> {
         let port = PROXY_CONFIG.get_port();
         let server_bind_addr = if PROXY_CONFIG.get_ipv6() {
-            format!("::1:{port}")
+            format!("[::]:{port}")
         } else {
             format!("0.0.0.0:{port}")
         };
-        info!("Proxy server start to serve request on address: {server_bind_addr}.");
+        info!(
+            "Proxy server start to serve request on address(ip v6={}): {server_bind_addr}.",
+            PROXY_CONFIG.get_ipv6()
+        );
         let tcp_listener = TcpListener::bind(&server_bind_addr).await.map_err(NetworkError::PortBinding)?;
         loop {
             let (agent_tcp_stream, agent_socket_address) = match Self::accept_agent_connection(&tcp_listener).await {

@@ -9,13 +9,13 @@ use derive_more::{Constructor, Display};
 use futures::SinkExt;
 use ppaass_common::{generate_uuid, PpaassConnection, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher};
 
+use log::{debug, error};
 use pretty_hex::pretty_hex;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::UdpSocket,
     time::timeout,
 };
-use tracing::{debug, error};
 
 use crate::{
     common::ProxyServerPayloadEncryptionSelector,

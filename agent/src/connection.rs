@@ -4,7 +4,7 @@ use std::{net::SocketAddr, time::Duration};
 use lazy_static::lazy_static;
 use tokio::{net::TcpStream, time::timeout};
 
-use tracing::{debug, error};
+use log::{debug, error};
 
 use ppaass_common::generate_uuid;
 use ppaass_common::PpaassConnection;

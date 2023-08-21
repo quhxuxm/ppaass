@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
+use log::{debug, error, info};
 use tokio::net::{TcpListener, TcpStream};
-use tracing::{debug, error, info};
 
 use crate::{config::AGENT_CONFIG, error::NetworkError};
 use crate::{error::AgentError, processor::dispatcher::ClientProtocolDispatcher};

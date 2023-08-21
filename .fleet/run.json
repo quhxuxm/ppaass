@@ -1,0 +1,13 @@
+{
+    "configurations": [
+        {
+            "type": "cargo",
+            "name": "Run Agent",
+            "cargoArgs": [
+                "run",
+                "--bin",
+                "ppaass-agent"
+            ]
+        }
+    ]
+}

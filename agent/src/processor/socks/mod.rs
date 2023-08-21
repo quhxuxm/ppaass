@@ -6,7 +6,7 @@ use ppaass_common::{
     PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload, PpaassMessageProxyPayloadType, PpaassNetAddress,
 };
 
-use tracing::{debug, error};
+use log::{debug, error};
 
 use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, FramedParts};

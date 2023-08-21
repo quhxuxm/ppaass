@@ -27,7 +27,5 @@ thiserror = {workspace = true}
 tokio-stream = {workspace = true}
 chrono = {workspace = true}
 derive_more= {workspace = true}
-tracing = {workspace = true}
-console-subscriber = {workspace = true}
-tracing-subscriber={workspace = true,features = ["json", "time", "env-filter"] }
-tracing-appender = {workspace = true}
+log4rs = {workspace = true}
+log = {workspace = true}
