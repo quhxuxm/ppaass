@@ -23,7 +23,7 @@ pub struct AgentServerPayloadEncryptionTypeSelector;
 impl PpaassMessagePayloadEncryptionSelector for AgentServerPayloadEncryptionTypeSelector {}
 
 fn main() -> Result<()> {
-    log4rs::init_file("config/resources/ppaass-agent-log.yml", Default::default())?;
+    log4rs::init_file("resources/config/ppaass-agent-log.yml", Default::default())?;
 
     let agent_server_runtime = Builder::new_multi_thread()
         .enable_all()

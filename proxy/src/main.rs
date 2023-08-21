@@ -13,7 +13,7 @@ use log::{error, info};
 use tokio::runtime::Builder;
 
 fn main() -> Result<()> {
-    log4rs::init_file("config/resources/ppaass-proxy-log.yml", Default::default())?;
+    log4rs::init_file("resources/config/ppaass-proxy-log.yml", Default::default())?;
     let proxy_server_runtime = Builder::new_multi_thread()
         .enable_all()
         .thread_name("proxy-server-runtime")
