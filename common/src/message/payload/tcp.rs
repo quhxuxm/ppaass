@@ -4,7 +4,6 @@ use serde_derive::{Deserialize, Serialize};
 use crate::{CommonError, DeserializeError, PpaassNetAddress, SerializeError};
 
 #[derive(Serialize, Deserialize, Constructor)]
-
 pub struct TcpInitRequest {
     pub src_address: PpaassNetAddress,
     pub dst_address: PpaassNetAddress,
@@ -17,7 +16,6 @@ pub enum TcpInitResponseType {
 }
 
 #[derive(Serialize, Deserialize, Constructor)]
-
 pub struct TcpInitResponse {
     pub id: String,
     pub src_address: PpaassNetAddress,

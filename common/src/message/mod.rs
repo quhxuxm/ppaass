@@ -9,21 +9,46 @@ mod address;
 mod encryption;
 mod generator;
 mod payload;
-mod types;
 
 pub use address::*;
 pub use encryption::*;
 pub use generator::*;
 pub use payload::*;
-pub use types::*;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum PpaassMessageAgentPayloadType {
+    TcpInitRequest,
+    TcpData,
+    UdpData,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum PpaassMessageProxyPayloadType {
+    TcpInitResponse,
+    TcpData,
+    UdpData,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum PpaassMessagePayload {
+    Agent {
+        encryption: PpaassMessagePayloadEncryption,
+        payload_type: PpaassMessageAgentPayloadType,
+        data: Vec<u8>,
+    },
+    Proxy {
+        encryption: PpaassMessagePayloadEncryption,
+        payload_type: PpaassMessageProxyPayloadType,
+        data: Vec<u8>,
+    },
+}
 
 #[derive(Serialize, Deserialize, Debug, Constructor)]
 #[non_exhaustive]
 pub struct PpaassMessage {
     pub id: String,
     pub user_token: String,
-    pub payload_encryption: PpaassMessagePayloadEncryption,
-    pub payload: Vec<u8>,
+    pub payload: PpaassMessagePayload,
 }
 
 impl TryFrom<Vec<u8>> for PpaassMessage {

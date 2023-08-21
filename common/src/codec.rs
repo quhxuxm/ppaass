@@ -5,7 +5,8 @@ use std::{
 };
 
 use crate::{
-    decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_with_blowfish, CommonError, CryptoError, DecoderError, RsaCryptoFetcher, RsaError,
+    decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_with_blowfish, CommonError, CryptoError, DecoderError, PpaassMessagePayload,
+    RsaCryptoFetcher, RsaError,
 };
 use crate::{PpaassMessage, PpaassMessagePayloadEncryption};
 use anyhow::anyhow;
@@ -122,12 +123,7 @@ where
             body_bytes.as_ref().try_into()?
         };
 
-        let PpaassMessage {
-            id,
-            user_token,
-            payload_encryption,
-            payload,
-        } = encrypted_message;
+        let PpaassMessage { id, user_token, payload } = encrypted_message;
 
         let rsa_crypto = self
             .rsa_crypto_fetcher
