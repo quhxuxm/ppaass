@@ -1,7 +1,4 @@
-use std::collections::HashMap;
-
 use crate::{
-    dns::{DnsLookupRequest, DnsLookupResponse},
     generate_uuid,
     tcp::{TcpData, TcpInitRequest, TcpInitResponse, TcpInitResponseType},
     udp::UdpData,
@@ -51,24 +48,6 @@ impl PpaassMessageGenerator {
     ) -> Result<PpaassMessage, CommonError> {
         let udp_data: UdpData = UdpData::new(src_address, dst_address, data);
         let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::UdpData, udp_data.try_into()?);
-        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), payload_encryption, message_payload.try_into()?);
-        Ok(message)
-    }
-
-    pub fn generate_dns_lookup_request(
-        user_token: impl ToString, payload_encryption: PpaassMessagePayloadEncryption, request_id: u16, domain_names: Vec<String>,
-    ) -> Result<PpaassMessage, CommonError> {
-        let dns_lookup_request = DnsLookupRequest::new(request_id, domain_names);
-        let message_payload = PpaassMessageAgentPayload::new(PpaassMessageAgentPayloadType::DnsLookupRequest, dns_lookup_request.try_into()?);
-        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), payload_encryption, message_payload.try_into()?);
-        Ok(message)
-    }
-
-    pub fn generate_dns_lookup_response(
-        user_token: impl ToString, payload_encryption: PpaassMessagePayloadEncryption, request_id: u16, addresses: HashMap<String, Option<Vec<[u8; 4]>>>,
-    ) -> Result<PpaassMessage, CommonError> {
-        let dns_lookup_response = DnsLookupResponse::new(request_id, addresses);
-        let message_payload = PpaassMessageProxyPayload::new(PpaassMessageProxyPayloadType::DnsLookupResponse, dns_lookup_response.try_into()?);
         let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), payload_encryption, message_payload.try_into()?);
         Ok(message)
     }

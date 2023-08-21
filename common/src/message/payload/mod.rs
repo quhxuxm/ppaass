@@ -3,7 +3,6 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::{CommonError, DeserializeError, PpaassMessageAgentPayloadType, PpaassMessageProxyPayloadType, SerializeError};
 
-pub mod dns;
 pub mod tcp;
 pub mod udp;
 

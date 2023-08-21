@@ -1,4 +1,3 @@
-mod dns;
 mod tcp;
 mod udp;
 
@@ -7,15 +6,12 @@ use crate::{
     config::PROXY_CONFIG,
     crypto::{ProxyServerRsaCryptoFetcher, RSA_CRYPTO},
     error::ProxyError,
-    processor::{
-        dns::{DnsLookupHandler, DnsLookupHandlerKey},
-        udp::{UdpHandler, UdpHandlerKey},
-    },
+    processor::udp::{UdpHandler, UdpHandlerKey},
 };
 use anyhow::Result;
 use futures::StreamExt;
 use ppaass_common::PpaassMessage;
-use ppaass_common::{dns::DnsLookupRequest, tcp::TcpInitRequest, udp::UdpData};
+use ppaass_common::{tcp::TcpInitRequest, udp::UdpData};
 use ppaass_common::{PpaassConnection, PpaassMessageAgentPayload, PpaassMessageAgentPayloadType, PpaassNetAddress};
 use std::fmt::Debug;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -98,17 +94,6 @@ where
                 );
                 let udp_handler = UdpHandler::new(udp_handler_key, self.agent_connection);
                 udp_handler.exec(udp_raw_data).await?;
-                Ok(())
-            },
-            PpaassMessageAgentPayloadType::DnsLookupRequest => {
-                info!(
-                    "Agent connection {} receive dns lookup request from agent.",
-                    self.agent_connection.get_connection_id()
-                );
-                let dns_lookup_request: DnsLookupRequest = data.as_slice().try_into()?;
-                let dns_lookup_handler_key = DnsLookupHandlerKey::new(self.agent_connection.get_connection_id().to_string(), user_token, agent_address);
-                let dns_lookup_handler = DnsLookupHandler::new(dns_lookup_handler_key, self.agent_connection);
-                dns_lookup_handler.exec(dns_lookup_request).await?;
                 Ok(())
             },
         }
