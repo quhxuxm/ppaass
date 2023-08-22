@@ -1,89 +1,95 @@
 use crate::{
     generate_uuid,
-    tcp::{TcpData, TcpInitRequest, TcpInitResponse, TcpInitResponseType},
+    tcp::{AgentTcpData, AgentTcpInit, ProxyTcpInit, ProxyTcpInitResultType},
     udp::UdpData,
-    CommonError, PpaassMessage, PpaassMessageAgentPayloadType, PpaassMessagePayload, PpaassMessagePayloadEncryption, PpaassMessageProxyPayloadType,
-    PpaassNetAddress,
+    CommonError, PpaassAgentMessage, PpaassAgentMessagePayload, PpaassMessageAgentPayloadType, PpaassMessagePayloadEncryption, PpaassMessageProxyPayloadType,
+    PpaassNetAddress, PpaassProxyMessage, PpaassProxyMessagePayload,
 };
 
 pub struct PpaassMessageGenerator;
 
 impl PpaassMessageGenerator {
-    pub fn generate_agent_tcp_init_request(
+    /// Generate the agent tcp init message
+    pub fn generate_agent_tcp_init_message(
         user_token: impl ToString, src_address: PpaassNetAddress, dst_address: PpaassNetAddress, encryption: PpaassMessagePayloadEncryption,
-    ) -> Result<PpaassMessage, CommonError> {
-        let tcp_init_request = TcpInitRequest { src_address, dst_address };
-        let payload = PpaassMessagePayload::Agent {
-            payload_type: PpaassMessageAgentPayloadType::TcpInitRequest,
-            data: tcp_init_request.try_into()?,
+    ) -> Result<PpaassAgentMessage, CommonError> {
+        let tcp_init = AgentTcpInit { src_address, dst_address };
+        let payload = PpaassAgentMessagePayload {
+            payload_type: PpaassMessageAgentPayloadType::TcpInit,
+            data: tcp_init.try_into()?,
         };
-        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
+        let message = PpaassAgentMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
         Ok(message)
     }
 
-    pub fn generate_proxy_tcp_init_response(
+    /// Generate the proxy tcp init message
+    pub fn generate_proxy_tcp_init_message(
         id: String, user_token: impl ToString, src_address: PpaassNetAddress, dst_address: PpaassNetAddress, encryption: PpaassMessagePayloadEncryption,
-        response_type: TcpInitResponseType,
-    ) -> Result<PpaassMessage, CommonError> {
-        let tcp_init_response = TcpInitResponse {
-            id,
+        result_type: ProxyTcpInitResultType,
+    ) -> Result<PpaassProxyMessage, CommonError> {
+        let tcp_init = ProxyTcpInit {
+            id: generate_uuid(),
             src_address,
             dst_address,
-            response_type,
+            result_type,
         };
-        let payload = PpaassMessagePayload::Proxy {
-            payload_type: PpaassMessageProxyPayloadType::TcpInitResponse,
-            data: tcp_init_response.try_into()?,
+        let payload = PpaassProxyMessagePayload {
+            payload_type: PpaassMessageProxyPayloadType::TcpInit,
+            data: tcp_init.try_into()?,
         };
-        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
+        let message = PpaassProxyMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
         Ok(message)
     }
 
-    pub fn generate_agent_tcp_data(
+    /// Generate the agent tcp data message
+    pub fn generate_agent_tcp_data_message(
         user_token: impl ToString, encryption: PpaassMessagePayloadEncryption, src_address: PpaassNetAddress, dst_address: PpaassNetAddress, data: Vec<u8>,
-    ) -> Result<PpaassMessage, CommonError> {
-        let tcp_data = TcpData::new(src_address, dst_address, data);
-        let payload = PpaassMessagePayload::Agent {
+    ) -> Result<PpaassAgentMessage, CommonError> {
+        let tcp_data = AgentTcpData::new(src_address, dst_address, data);
+        let payload = PpaassAgentMessagePayload {
             payload_type: PpaassMessageAgentPayloadType::TcpData,
             data: tcp_data.try_into()?,
         };
-        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
+        let message = PpaassAgentMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
         Ok(message)
     }
 
-    pub fn generate_proxy_tcp_data(
+    /// Generate the proxy tcp data message
+    pub fn generate_proxy_tcp_data_message(
         user_token: impl ToString, encryption: PpaassMessagePayloadEncryption, src_address: PpaassNetAddress, dst_address: PpaassNetAddress, data: Vec<u8>,
-    ) -> Result<PpaassMessage, CommonError> {
-        let tcp_data = TcpData::new(src_address, dst_address, data);
-        let payload = PpaassMessagePayload::Proxy {
+    ) -> Result<PpaassProxyMessage, CommonError> {
+        let tcp_data = AgentTcpData::new(src_address, dst_address, data);
+        let payload = PpaassProxyMessagePayload {
             payload_type: PpaassMessageProxyPayloadType::TcpData,
             data: tcp_data.try_into()?,
         };
-        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
+        let message = PpaassProxyMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
         Ok(message)
     }
 
-    pub fn generate_agent_udp_data(
+    /// Generate the agent udp data message
+    pub fn generate_agent_udp_data_message(
         user_token: impl ToString, encryption: PpaassMessagePayloadEncryption, src_address: PpaassNetAddress, dst_address: PpaassNetAddress, data: Vec<u8>,
-    ) -> Result<PpaassMessage, CommonError> {
+    ) -> Result<PpaassAgentMessage, CommonError> {
         let udp_data: UdpData = UdpData::new(src_address, dst_address, data);
-        let payload = PpaassMessagePayload::Agent {
+        let payload = PpaassAgentMessagePayload {
             payload_type: PpaassMessageAgentPayloadType::UdpData,
             data: udp_data.try_into()?,
         };
-        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
+        let message = PpaassAgentMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
         Ok(message)
     }
 
-    pub fn generate_proxy_udp_data(
+    /// Generate the proxy udp data message
+    pub fn generate_proxy_udp_data_message(
         user_token: impl ToString, encryption: PpaassMessagePayloadEncryption, src_address: PpaassNetAddress, dst_address: PpaassNetAddress, data: Vec<u8>,
-    ) -> Result<PpaassMessage, CommonError> {
+    ) -> Result<PpaassProxyMessage, CommonError> {
         let udp_data: UdpData = UdpData::new(src_address, dst_address, data);
-        let payload = PpaassMessagePayload::Proxy {
+        let payload = PpaassProxyMessagePayload {
             payload_type: PpaassMessageProxyPayloadType::UdpData,
             data: udp_data.try_into()?,
         };
-        let message = PpaassMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
+        let message = PpaassProxyMessage::new(generate_uuid(), user_token.to_string(), encryption, payload);
         Ok(message)
     }
 }

@@ -4,7 +4,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use crate::{codec::PpaassMessageCodec, CommonError, PpaassMessage, RsaCryptoFetcher};
+use crate::{codec::proxy::PpaassProxyConnectionCodec, CommonError, PpaassAgentMessage, PpaassProxyMessage, RsaCryptoFetcher};
 
 use futures::{Sink, Stream};
 use pin_project::pin_project;
@@ -13,30 +13,29 @@ use tokio_util::codec::Framed;
 
 #[non_exhaustive]
 #[pin_project]
-#[derive(Debug)]
-pub struct PpaassConnection<'r, T, R, I>
+pub struct PpaassProxyConnection<'r, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
     #[pin]
-    inner: Framed<T, PpaassMessageCodec<'r, R>>,
+    inner: Framed<T, PpaassProxyConnectionCodec<'r, R>>,
     connection_id: I,
 }
 
-impl<'r, T, R, I> PpaassConnection<'r, T, R, I>
+impl<'r, T, R, I> PpaassProxyConnection<'r, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
-    pub fn new<'a>(connection_id: I, stream: T, rsa_crypto_fetcher: &'a R, compress: bool, buffer_size: usize) -> PpaassConnection<'r, T, R, I>
+    pub fn new<'a>(connection_id: I, stream: T, rsa_crypto_fetcher: &'a R, compress: bool, buffer_size: usize) -> PpaassProxyConnection<'r, T, R, I>
     where
         'a: 'r,
     {
-        let ppaass_message_codec = PpaassMessageCodec::new(compress, rsa_crypto_fetcher);
-        let inner = Framed::with_capacity(stream, ppaass_message_codec, buffer_size);
+        let agent_connection_codec = PpaassProxyConnectionCodec::new(compress, rsa_crypto_fetcher);
+        let inner = Framed::with_capacity(stream, agent_connection_codec, buffer_size);
         Self { inner, connection_id }
     }
 
@@ -45,7 +44,7 @@ where
     }
 }
 
-impl<T, R, I> Sink<PpaassMessage> for PpaassConnection<'_, T, R, I>
+impl<T, R, I> Sink<PpaassAgentMessage> for PpaassProxyConnection<'_, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
@@ -58,7 +57,7 @@ where
         this.inner.poll_ready(cx)
     }
 
-    fn start_send(self: Pin<&mut Self>, item: PpaassMessage) -> Result<(), Self::Error> {
+    fn start_send(self: Pin<&mut Self>, item: PpaassAgentMessage) -> Result<(), Self::Error> {
         let this = self.project();
         this.inner.start_send(item)
     }
@@ -74,13 +73,13 @@ where
     }
 }
 
-impl<T, R, I> Stream for PpaassConnection<'_, T, R, I>
+impl<T, R, I> Stream for PpaassProxyConnection<'_, T, R, I>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
-    type Item = Result<PpaassMessage, CommonError>;
+    type Item = Result<PpaassProxyMessage, CommonError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();

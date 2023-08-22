@@ -17,40 +17,27 @@ pub use payload::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum PpaassMessageAgentPayloadType {
-    TcpInitRequest,
+    TcpInit,
     TcpData,
     UdpData,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum PpaassMessageProxyPayloadType {
-    TcpInitResponse,
-    TcpData,
-    UdpData,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum PpaassMessagePayload {
-    Agent {
-        payload_type: PpaassMessageAgentPayloadType,
-        data: Vec<u8>,
-    },
-    Proxy {
-        payload_type: PpaassMessageProxyPayloadType,
-        data: Vec<u8>,
-    },
+pub struct PpaassAgentMessagePayload {
+    pub payload_type: PpaassMessageAgentPayloadType,
+    pub data: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Constructor)]
 #[non_exhaustive]
-pub struct PpaassMessage {
+pub struct PpaassAgentMessage {
     pub id: String,
     pub user_token: String,
     pub encryption: PpaassMessagePayloadEncryption,
-    pub payload: PpaassMessagePayload,
+    pub payload: PpaassAgentMessagePayload,
 }
 
-impl TryFrom<Vec<u8>> for PpaassMessage {
+impl TryFrom<Vec<u8>> for PpaassAgentMessage {
     type Error = CommonError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
@@ -58,7 +45,7 @@ impl TryFrom<Vec<u8>> for PpaassMessage {
     }
 }
 
-impl TryFrom<&[u8]> for PpaassMessage {
+impl TryFrom<&[u8]> for PpaassAgentMessage {
     type Error = CommonError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
@@ -66,10 +53,56 @@ impl TryFrom<&[u8]> for PpaassMessage {
     }
 }
 
-impl TryFrom<PpaassMessage> for Vec<u8> {
+impl TryFrom<PpaassAgentMessage> for Vec<u8> {
     type Error = CommonError;
 
-    fn try_from(value: PpaassMessage) -> Result<Self, Self::Error> {
+    fn try_from(value: PpaassAgentMessage) -> Result<Self, Self::Error> {
+        bincode::serialize(&value).map_err(|e| CommonError::Encoder(SerializeError::PpaassMessage(e).into()))
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum PpaassMessageProxyPayloadType {
+    TcpInit,
+    TcpData,
+    UdpData,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PpaassProxyMessagePayload {
+    pub payload_type: PpaassMessageProxyPayloadType,
+    pub data: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Constructor)]
+#[non_exhaustive]
+pub struct PpaassProxyMessage {
+    pub id: String,
+    pub user_token: String,
+    pub encryption: PpaassMessagePayloadEncryption,
+    pub payload: PpaassProxyMessagePayload,
+}
+
+impl TryFrom<Vec<u8>> for PpaassProxyMessage {
+    type Error = CommonError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessage(e).into()))
+    }
+}
+
+impl TryFrom<&[u8]> for PpaassProxyMessage {
+    type Error = CommonError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        bincode::deserialize(value).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessage(e).into()))
+    }
+}
+
+impl TryFrom<PpaassProxyMessage> for Vec<u8> {
+    type Error = CommonError;
+
+    fn try_from(value: PpaassProxyMessage) -> Result<Self, Self::Error> {
         bincode::serialize(&value).map_err(|e| CommonError::Encoder(SerializeError::PpaassMessage(e).into()))
     }
 }

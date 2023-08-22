@@ -22,7 +22,9 @@ use futures::{
 };
 use log::error;
 use pin_project::pin_project;
-use ppaass_common::{tcp::TcpData, CommonError, PpaassConnection, PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassNetAddress};
+use ppaass_common::{
+    proxy::PpaassProxyConnection, tcp::AgentTcpData, CommonError, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassNetAddress, PpaassProxyMessage,
+};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpStream,
@@ -43,7 +45,7 @@ where
     dst_address: PpaassNetAddress,
     user_token: String,
     payload_encryption: PpaassMessagePayloadEncryption,
-    proxy_connection: PpaassConnection<'r, TcpStream, AgentServerRsaCryptoFetcher, I>,
+    proxy_connection: PpaassProxyConnection<'r, TcpStream, AgentServerRsaCryptoFetcher, I>,
     init_data: Option<Vec<u8>>,
 }
 
@@ -107,8 +109,13 @@ impl ClientProtocolProcessor {
         let init_data = info.init_data;
 
         if let Some(init_data) = init_data {
-            let agent_message =
-                PpaassMessageGenerator::generate_tcp_data(&user_token, payload_encryption.clone(), src_address.clone(), dst_address.clone(), init_data)?;
+            let agent_message = PpaassMessageGenerator::generate_agent_tcp_data_message(
+                &user_token,
+                payload_encryption.clone(),
+                src_address.clone(),
+                dst_address.clone(),
+                init_data,
+            )?;
             proxy_connection.send(agent_message).await?;
         }
 
@@ -118,7 +125,7 @@ impl ClientProtocolProcessor {
             if let Err(e) = TokioStreamExt::map_while(client_io_read.timeout(Duration::from_secs(client_relay_timeout)), |client_message| {
                 let client_message = client_message.ok()?;
                 let client_message = client_message.ok()?;
-                let tcp_data = PpaassMessageGenerator::generate_tcp_data(
+                let tcp_data = PpaassMessageGenerator::generate_agent_tcp_data_message(
                     user_token.clone(),
                     payload_encryption.clone(),
                     src_address.clone(),
@@ -141,8 +148,8 @@ impl ClientProtocolProcessor {
         tokio::spawn(async move {
             if let Err(e) = TokioStreamExt::map_while(proxy_connection_read.timeout(Duration::from_secs(proxy_relay_timeout)), |proxy_message| {
                 let proxy_message = proxy_message.ok()?;
-                let PpaassMessage { payload, .. } = proxy_message.ok()?;
-                let TcpData { data, .. } = payload.as_slice().try_into().ok()?;
+                let PpaassProxyMessage { payload, .. } = proxy_message.ok()?;
+                let AgentTcpData { data, .. } = payload.data.try_into().ok()?;
                 Some(Ok(BytesMut::from_iter(data)))
             })
             .forward(&mut client_io_write)
