@@ -20,9 +20,10 @@ use log::{debug, error};
 use tokio_stream::StreamExt as TokioStreamExt;
 
 use ppaass_common::{
+    agent::PpaassAgentConnection,
     generate_uuid,
-    tcp::{TcpData, TcpInitResponseType},
-    CommonError, PpaassConnection, PpaassMessage,
+    tcp::{AgentTcpData, ProxyTcpInitResultType},
+    CommonError, PpaassAgentMessage,
 };
 use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
 
@@ -45,7 +46,7 @@ pub(crate) struct TcpHandlerKey {
     dst_address: PpaassNetAddress,
 }
 
-#[derive(Debug, Constructor)]
+#[derive(Constructor)]
 #[non_exhaustive]
 pub(crate) struct TcpHandler<'r, T, I>
 where
@@ -54,7 +55,7 @@ where
     'r: 'static,
 {
     handler_key: TcpHandlerKey,
-    agent_connection: PpaassConnection<'r, T, ProxyServerRsaCryptoFetcher, I>,
+    agent_connection: PpaassAgentConnection<'r, T, ProxyServerRsaCryptoFetcher, I>,
 }
 
 impl<'r, T, I> TcpHandler<'r, T, I>
@@ -94,9 +95,9 @@ where
         Ok(dst_connection)
     }
 
-    fn unwrap_to_raw_tcp_data(message: PpaassMessage) -> Result<Vec<u8>, CommonError> {
-        let PpaassMessage { payload, .. } = message;
-        let TcpData { data, .. } = payload.try_into()?;
+    fn unwrap_to_raw_tcp_data(message: PpaassAgentMessage) -> Result<Vec<u8>, CommonError> {
+        let PpaassAgentMessage { payload, .. } = message;
+        let AgentTcpData { data, .. } = payload.data.try_into()?;
         Ok(data)
     }
 
@@ -110,26 +111,26 @@ where
             Ok(dst_read_and_write) => dst_read_and_write,
             Err(e) => {
                 let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&handler_key.user_token, Some(generate_uuid().into_bytes()));
-                let tcp_init_fail = PpaassMessageGenerator::generate_tcp_init_response(
+                let tcp_init_fail = PpaassMessageGenerator::generate_proxy_tcp_init_message(
                     handler_key.to_string(),
                     handler_key.user_token.clone(),
                     handler_key.src_address.clone(),
                     handler_key.dst_address.clone(),
                     payload_encryption,
-                    TcpInitResponseType::Fail,
+                    ProxyTcpInitResultType::Fail,
                 )?;
                 agent_connection.send(tcp_init_fail).await?;
                 return Err(e);
             },
         };
         let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&handler_key.user_token, Some(generate_uuid().into_bytes()));
-        let tcp_init_success_message = PpaassMessageGenerator::generate_tcp_init_response(
+        let tcp_init_success_message = PpaassMessageGenerator::generate_proxy_tcp_init_message(
             handler_key.to_string(),
             handler_key.user_token.clone(),
             handler_key.src_address.clone(),
             handler_key.dst_address.clone(),
             payload_encryption.clone(),
-            TcpInitResponseType::Success,
+            ProxyTcpInitResultType::Success,
         )?;
         agent_connection.send(tcp_init_success_message).await?;
         debug!("Tcp handler {handler_key} create destination connection success.");
@@ -158,7 +159,7 @@ where
             if let Err(e) = TokioStreamExt::map_while(dst_connection_read.timeout(Duration::from_secs(dst_relay_timeout)), |dst_message| {
                 let dst_message = dst_message.ok()?;
                 let dst_message = dst_message.ok()?;
-                let tcp_data_message = PpaassMessageGenerator::generate_tcp_data(
+                let tcp_data_message = PpaassMessageGenerator::generate_proxy_tcp_data_message(
                     handler_key.user_token.clone(),
                     payload_encryption.clone(),
                     handler_key.src_address.clone(),

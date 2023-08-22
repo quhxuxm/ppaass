@@ -2,8 +2,9 @@ use bytes::BytesMut;
 
 use futures::{SinkExt, StreamExt};
 use ppaass_common::{
-    tcp::{TcpInitResponse, TcpInitResponseType},
-    PpaassMessage, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayload, PpaassMessageProxyPayloadType, PpaassNetAddress,
+    tcp::{ProxyTcpInit, ProxyTcpInitResultType},
+    PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayloadType, PpaassNetAddress, PpaassProxyMessage,
+    PpaassProxyMessagePayload,
 };
 
 use log::{debug, error};
@@ -94,7 +95,7 @@ impl Socks5ClientProcessor {
 
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(generate_uuid().into_bytes()));
         let tcp_init_request =
-            PpaassMessageGenerator::generate_tcp_init_request(user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
+            PpaassMessageGenerator::generate_agent_tcp_init_message(user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
         let mut proxy_connection = PROXY_CONNECTION_FACTORY.create_connection().await?;
 
         debug!(
@@ -103,8 +104,11 @@ impl Socks5ClientProcessor {
         );
         proxy_connection.send(tcp_init_request).await?;
         let proxy_message = proxy_connection.next().await.ok_or(NetworkError::ConnectionExhausted)??;
-        let PpaassMessage { payload, user_token, .. } = proxy_message;
-        let PpaassMessageProxyPayload { payload_type, data } = payload.as_slice().try_into()?;
+        let PpaassProxyMessage {
+            payload: PpaassProxyMessagePayload { payload_type, data },
+            user_token,
+            ..
+        } = proxy_message;
         let tcp_init_response = match payload_type {
             PpaassMessageProxyPayloadType::TcpInit => data.as_slice().try_into()?,
             _ => {
@@ -112,17 +116,17 @@ impl Socks5ClientProcessor {
                 return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
             },
         };
-        let TcpInitResponse {
+        let ProxyTcpInit {
             id: tcp_loop_key,
             dst_address,
-            response_type,
+            result_type: response_type,
             ..
         } = tcp_init_response;
         match response_type {
-            TcpInitResponseType::Success => {
+            ProxyTcpInitResultType::Success => {
                 debug!("Client tcp connection [{src_address}] receive init tcp loop init response: {tcp_loop_key}");
             },
-            TcpInitResponseType::Fail => {
+            ProxyTcpInitResultType::Fail => {
                 error!("Client tcp connection [{src_address}] fail to do tcp loop init, tcp loop key: [{tcp_loop_key}]");
                 return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
             },

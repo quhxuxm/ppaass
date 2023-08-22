@@ -5,25 +5,24 @@ use self::tcp::{TcpHandler, TcpHandlerKey};
 use crate::{
     config::PROXY_CONFIG,
     crypto::{ProxyServerRsaCryptoFetcher, RSA_CRYPTO},
-    error::ProxyError,
+    error::{NetworkError, ProxyError},
     processor::udp::{UdpHandler, UdpHandlerKey},
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use futures::StreamExt;
 use log::{error, info};
-use ppaass_common::PpaassMessage;
-use ppaass_common::{tcp::TcpInitRequest, udp::UdpData};
-use ppaass_common::{PpaassConnection, PpaassMessageAgentPayload, PpaassMessageAgentPayloadType, PpaassNetAddress};
-use std::fmt::Debug;
+use ppaass_common::{agent::PpaassAgentConnection, CommonError, PpaassAgentMessage, PpaassAgentMessagePayload};
+use ppaass_common::{tcp::AgentTcpInit, udp::UdpData};
+use ppaass_common::{PpaassMessageAgentPayloadType, PpaassNetAddress};
+
 use tokio::io::{AsyncRead, AsyncWrite};
 
-#[derive(Debug)]
 pub(crate) struct AgentConnectionProcessor<'r, T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     'r: 'static,
 {
-    agent_connection: PpaassConnection<'r, T, ProxyServerRsaCryptoFetcher, String>,
+    agent_connection: PpaassAgentConnection<'r, T, ProxyServerRsaCryptoFetcher, String>,
     agent_address: PpaassNetAddress,
 }
 
@@ -33,7 +32,7 @@ where
     'r: 'static,
 {
     pub(crate) fn new(agent_tcp_stream: T, agent_address: PpaassNetAddress) -> AgentConnectionProcessor<'r, T> {
-        let agent_connection = PpaassConnection::new(
+        let agent_connection = PpaassAgentConnection::new(
             agent_address.to_string(),
             agent_tcp_stream,
             &*RSA_CRYPTO,
@@ -59,11 +58,18 @@ where
                 return Ok(());
             },
         };
-        let PpaassMessage { user_token, payload, .. } = agent_message;
-        let PpaassMessageAgentPayload { payload_type, data } = payload.as_slice().try_into()?;
+        let PpaassAgentMessage {
+            user_token,
+            payload: PpaassAgentMessagePayload { payload_type, data },
+            ..
+        } = agent_message;
+
         match payload_type {
+            PpaassMessageAgentPayloadType::TcpData => {
+                Err(NetworkError::AgentRead(CommonError::Other(anyhow!("Receive unexpected payload type from agent"))).into())
+            },
             PpaassMessageAgentPayloadType::TcpInit => {
-                let tcp_init_request: TcpInitRequest = data.as_slice().try_into()?;
+                let tcp_init_request: AgentTcpInit = data.as_slice().try_into()?;
                 let src_address = tcp_init_request.src_address;
                 let dst_address = tcp_init_request.dst_address;
                 let tcp_handler_key = TcpHandlerKey::new(

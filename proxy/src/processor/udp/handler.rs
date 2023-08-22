@@ -7,7 +7,9 @@ use std::{
 use anyhow::anyhow;
 use derive_more::{Constructor, Display};
 use futures::SinkExt;
-use ppaass_common::{generate_uuid, PpaassConnection, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher};
+use ppaass_common::{
+    agent::PpaassAgentConnection, generate_uuid, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher,
+};
 
 use log::{debug, error};
 use pretty_hex::pretty_hex;
@@ -33,7 +35,7 @@ pub(crate) struct UdpHandlerKey {
     dst_address: PpaassNetAddress,
 }
 
-#[derive(Debug, Constructor)]
+#[derive(Constructor)]
 #[non_exhaustive]
 pub(crate) struct UdpHandler<'r, T, R, I>
 where
@@ -42,7 +44,7 @@ where
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
     handler_key: UdpHandlerKey,
-    agent_connection: PpaassConnection<'r, T, R, I>,
+    agent_connection: PpaassAgentConnection<'r, T, R, I>,
 }
 
 impl<T, R, I> UdpHandler<'_, T, R, I>
@@ -122,7 +124,7 @@ where
             pretty_hex(&udp_data)
         );
         let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&handler_key.user_token, Some(generate_uuid().into_bytes()));
-        let udp_data_message = PpaassMessageGenerator::generate_udp_data(
+        let udp_data_message = PpaassMessageGenerator::generate_proxy_udp_data_message(
             handler_key.user_token.clone(),
             payload_encryption,
             handler_key.src_address.clone(),

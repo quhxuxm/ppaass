@@ -6,8 +6,7 @@ use tokio::{net::TcpStream, time::timeout};
 
 use log::{debug, error};
 
-use ppaass_common::generate_uuid;
-use ppaass_common::PpaassConnection;
+use ppaass_common::{generate_uuid, proxy::PpaassProxyConnection};
 
 use crate::{
     config::AGENT_CONFIG,
@@ -40,7 +39,7 @@ impl ProxyConnectionFactory {
         Ok(Self { proxy_addresses })
     }
 
-    pub(crate) async fn create_connection<'r>(&self) -> Result<PpaassConnection<'r, TcpStream, AgentServerRsaCryptoFetcher, String>, AgentError> {
+    pub(crate) async fn create_connection<'r>(&self) -> Result<PpaassProxyConnection<'r, TcpStream, AgentServerRsaCryptoFetcher, String>, AgentError> {
         debug!("Take proxy connection from pool.");
         let proxy_tcp_stream = match timeout(
             Duration::from_secs(AGENT_CONFIG.get_connect_to_proxy_timeout()),
@@ -60,7 +59,7 @@ impl ProxyConnectionFactory {
         };
         debug!("Success connect to proxy.");
         proxy_tcp_stream.set_nodelay(true).map_err(NetworkError::Io)?;
-        let proxy_connection = PpaassConnection::new(
+        let proxy_connection = PpaassProxyConnection::new(
             generate_uuid(),
             proxy_tcp_stream,
             &*RSA_CRYPTO,
