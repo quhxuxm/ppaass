@@ -28,7 +28,7 @@ impl PpaassMessageGenerator {
         result_type: ProxyTcpInitResultType,
     ) -> Result<PpaassProxyMessage, CommonError> {
         let tcp_init = ProxyTcpInit {
-            id: generate_uuid(),
+            id,
             src_address,
             dst_address,
             result_type,
