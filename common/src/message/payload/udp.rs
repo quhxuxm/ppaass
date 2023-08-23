@@ -6,8 +6,8 @@ use serde_derive::{Deserialize, Serialize};
 /// Udp data
 ///////////////////////////////
 
-#[derive(Serialize, Deserialize, Constructor)]
 #[non_exhaustive]
+#[derive(Serialize, Deserialize, Constructor)]
 pub struct UdpData {
     pub src_address: PpaassNetAddress,
     pub dst_address: PpaassNetAddress,

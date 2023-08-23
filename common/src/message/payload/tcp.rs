@@ -71,8 +71,8 @@ impl TryFrom<ProxyTcpInit> for Vec<u8> {
     }
 }
 
-#[derive(Serialize, Deserialize, Constructor)]
 #[non_exhaustive]
+#[derive(Serialize, Deserialize, Constructor)]
 pub struct AgentTcpData {
     pub src_address: PpaassNetAddress,
     pub dst_address: PpaassNetAddress,
@@ -103,8 +103,8 @@ impl TryFrom<AgentTcpData> for Vec<u8> {
     }
 }
 
-#[derive(Serialize, Deserialize, Constructor)]
 #[non_exhaustive]
+#[derive(Serialize, Deserialize, Constructor)]
 pub struct ProxyTcpData {
     pub src_address: PpaassNetAddress,
     pub dst_address: PpaassNetAddress,
