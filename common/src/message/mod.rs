@@ -28,8 +28,8 @@ pub struct PpaassAgentMessagePayload {
     pub data: Vec<u8>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Constructor)]
 #[non_exhaustive]
+#[derive(Serialize, Deserialize, Debug, Constructor)]
 pub struct PpaassAgentMessage {
     pub id: String,
     pub user_token: String,
@@ -74,8 +74,8 @@ pub struct PpaassProxyMessagePayload {
     pub data: Vec<u8>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Constructor)]
 #[non_exhaustive]
+#[derive(Serialize, Deserialize, Debug, Constructor)]
 pub struct PpaassProxyMessage {
     pub id: String,
     pub user_token: String,
