@@ -8,5 +8,5 @@ worker_thread_number = 128
 rsa_dir = "./resources/rsa/"
 dst_udp_recv_timeout=5
 dst_udp_connect_timeout=5
-agent_relay_timeout=1200
-dst_relay_timeout=1200
+agent_relay_timeout=120
+dst_relay_timeout=120
