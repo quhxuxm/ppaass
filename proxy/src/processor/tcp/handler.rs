@@ -108,7 +108,7 @@ where
         let agent_relay_timeout = PROXY_CONFIG.get_agent_relay_timeout();
 
         let dst_connection = match Self::init_dst_connection(&handler_key).await {
-            Ok(dst_read_and_write) => dst_read_and_write,
+            Ok(dst_connection) => dst_connection,
             Err(e) => {
                 let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&handler_key.user_token, Some(generate_uuid().into_bytes()));
                 let tcp_init_fail = PpaassMessageGenerator::generate_proxy_tcp_init_message(
