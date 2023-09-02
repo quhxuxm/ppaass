@@ -29,6 +29,8 @@ pub(crate) enum NetworkError {
     AgentRead(#[source] CommonError),
     #[error("Write data to agent fail because of error: {0:?}")]
     AgentWrite(#[source] CommonError),
+    #[error("Close agent connection fail because of error: {0:?}")]
+    AgentClose(#[source] CommonError),
     #[error("Bind port fail because of error: {0:?}")]
     PortBinding(#[source] StdIoError),
     #[error("Timeout in {0} seconds")]

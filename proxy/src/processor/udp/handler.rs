@@ -135,6 +135,10 @@ where
             error!("Udp handler {handler_key} fail to send udp data from [{dst_socket_addrs:?}] to agent because of error: {e:?}");
             return Err(ProxyError::Network(NetworkError::AgentWrite(e)));
         };
+        if let Err(e) = agent_connection.close().await {
+            error!("Udp handler {handler_key} fail to close agent connection for relay udp data to [{dst_socket_addrs:?}] because of error: {e:?}");
+            return Err(ProxyError::Network(NetworkError::AgentClose(e)));
+        };
         Ok(())
     }
 }
