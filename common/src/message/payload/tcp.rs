@@ -1,3 +1,4 @@
+use bytes::{Bytes, BytesMut};
 use derive_more::Constructor;
 use serde_derive::{Deserialize, Serialize};
 
@@ -23,6 +24,14 @@ pub struct ProxyTcpInit {
     pub result_type: ProxyTcpInitResultType,
 }
 
+impl TryFrom<Bytes> for AgentTcpInit {
+    type Error = CommonError;
+
+    fn try_from(value: Bytes) -> Result<Self, Self::Error> {
+        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::TcpInitRequest(e).into()))
+    }
+}
+
 impl TryFrom<Vec<u8>> for AgentTcpInit {
     type Error = CommonError;
 
@@ -44,6 +53,24 @@ impl TryFrom<AgentTcpInit> for Vec<u8> {
 
     fn try_from(value: AgentTcpInit) -> Result<Self, Self::Error> {
         bincode::serialize(&value).map_err(|e| CommonError::Encoder(SerializeError::TcpInitRequest(e).into()))
+    }
+}
+
+impl TryFrom<AgentTcpInit> for BytesMut {
+    type Error = CommonError;
+
+    fn try_from(value: AgentTcpInit) -> Result<Self, Self::Error> {
+        bincode::serialize(&value)
+            .map(BytesMut::from_iter)
+            .map_err(|e| CommonError::Encoder(SerializeError::TcpInitRequest(e).into()))
+    }
+}
+
+impl TryFrom<Bytes> for ProxyTcpInit {
+    type Error = CommonError;
+
+    fn try_from(value: Bytes) -> Result<Self, Self::Error> {
+        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::TcpInitResponse(e).into()))
     }
 }
 
@@ -71,12 +98,30 @@ impl TryFrom<ProxyTcpInit> for Vec<u8> {
     }
 }
 
+impl TryFrom<ProxyTcpInit> for BytesMut {
+    type Error = CommonError;
+
+    fn try_from(value: ProxyTcpInit) -> Result<Self, Self::Error> {
+        bincode::serialize(&value)
+            .map(BytesMut::from_iter)
+            .map_err(|e| CommonError::Encoder(SerializeError::TcpInitResponse(e).into()))
+    }
+}
+
 #[non_exhaustive]
 #[derive(Serialize, Deserialize, Constructor)]
 pub struct AgentTcpData {
     pub src_address: PpaassNetAddress,
     pub dst_address: PpaassNetAddress,
-    pub data: Vec<u8>,
+    pub data: Bytes,
+}
+
+impl TryFrom<Bytes> for AgentTcpData {
+    type Error = CommonError;
+
+    fn try_from(value: Bytes) -> Result<Self, Self::Error> {
+        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::TcpData(e).into()))
+    }
 }
 
 impl TryFrom<&[u8]> for AgentTcpData {
@@ -103,12 +148,22 @@ impl TryFrom<AgentTcpData> for Vec<u8> {
     }
 }
 
+impl TryFrom<AgentTcpData> for BytesMut {
+    type Error = CommonError;
+
+    fn try_from(value: AgentTcpData) -> Result<Self, Self::Error> {
+        bincode::serialize(&value)
+            .map(BytesMut::from_iter)
+            .map_err(|e| CommonError::Encoder(SerializeError::TcpData(e).into()))
+    }
+}
+
 #[non_exhaustive]
 #[derive(Serialize, Deserialize, Constructor)]
 pub struct ProxyTcpData {
     pub src_address: PpaassNetAddress,
     pub dst_address: PpaassNetAddress,
-    pub data: Vec<u8>,
+    pub data: Bytes,
 }
 
 impl TryFrom<&[u8]> for ProxyTcpData {
@@ -132,5 +187,15 @@ impl TryFrom<ProxyTcpData> for Vec<u8> {
 
     fn try_from(value: ProxyTcpData) -> Result<Self, Self::Error> {
         bincode::serialize(&value).map_err(|e| CommonError::Encoder(SerializeError::TcpData(e).into()))
+    }
+}
+
+impl TryFrom<ProxyTcpData> for BytesMut {
+    type Error = CommonError;
+
+    fn try_from(value: ProxyTcpData) -> Result<Self, Self::Error> {
+        bincode::serialize(&value)
+            .map(BytesMut::from_iter)
+            .map_err(|e| CommonError::Encoder(SerializeError::TcpData(e).into()))
     }
 }

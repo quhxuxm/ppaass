@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use derive_more::{Constructor, Display};
 use futures::StreamExt as FuturesStreamExt;
 use futures_util::SinkExt;
@@ -95,9 +95,9 @@ where
         Ok(dst_connection)
     }
 
-    fn unwrap_to_raw_tcp_data(message: PpaassAgentMessage) -> Result<Vec<u8>, CommonError> {
+    fn unwrap_to_raw_tcp_data(message: PpaassAgentMessage) -> Result<Bytes, CommonError> {
         let PpaassAgentMessage { payload, .. } = message;
-        let AgentTcpData { data, .. } = payload.data.try_into()?;
+        let AgentTcpData { data, .. } = payload.data.freeze().try_into()?;
         Ok(data)
     }
 
@@ -110,7 +110,7 @@ where
         let dst_connection = match Self::init_dst_connection(&handler_key).await {
             Ok(dst_connection) => dst_connection,
             Err(e) => {
-                let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&handler_key.user_token, Some(generate_uuid().into_bytes()));
+                let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&handler_key.user_token, Some(Bytes::from(generate_uuid().into_bytes())));
                 let tcp_init_fail = PpaassMessageGenerator::generate_proxy_tcp_init_message(
                     handler_key.to_string(),
                     handler_key.user_token.clone(),
@@ -123,7 +123,7 @@ where
                 return Err(e);
             },
         };
-        let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&handler_key.user_token, Some(generate_uuid().into_bytes()));
+        let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&handler_key.user_token, Some(Bytes::from(generate_uuid().into_bytes())));
         let tcp_init_success_message = PpaassMessageGenerator::generate_proxy_tcp_init_message(
             handler_key.to_string(),
             handler_key.user_token.clone(),
@@ -164,7 +164,7 @@ where
                     payload_encryption.clone(),
                     handler_key.src_address.clone(),
                     handler_key.dst_address.clone(),
-                    dst_message.to_vec(),
+                    dst_message.freeze(),
                 )
                 .ok()?;
                 Some(Ok(tcp_data_message))

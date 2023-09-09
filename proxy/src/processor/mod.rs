@@ -69,7 +69,7 @@ where
                 Err(NetworkError::AgentRead(CommonError::Other(anyhow!("Receive unexpected payload type from agent"))).into())
             },
             PpaassMessageAgentPayloadType::TcpInit => {
-                let tcp_init_request: AgentTcpInit = data.as_slice().try_into()?;
+                let tcp_init_request: AgentTcpInit = data.freeze().try_into()?;
                 let src_address = tcp_init_request.src_address;
                 let dst_address = tcp_init_request.dst_address;
                 let tcp_handler_key = TcpHandlerKey::new(
@@ -90,7 +90,7 @@ where
                     dst_address,
                     data: udp_raw_data,
                     ..
-                } = data.as_slice().try_into()?;
+                } = data.freeze().try_into()?;
                 let udp_handler_key = UdpHandlerKey::new(
                     self.agent_connection.get_connection_id().to_string(),
                     user_token,

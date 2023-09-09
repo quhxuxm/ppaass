@@ -1,5 +1,6 @@
 use crate::{CommonError, DeserializeError, SerializeError};
 
+use bytes::BytesMut;
 use derive_more::Constructor;
 use serde_derive::{Deserialize, Serialize};
 
@@ -25,7 +26,7 @@ pub enum PpaassMessageAgentPayloadType {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PpaassAgentMessagePayload {
     pub payload_type: PpaassMessageAgentPayloadType,
-    pub data: Vec<u8>,
+    pub data: BytesMut,
 }
 
 #[non_exhaustive]
@@ -71,7 +72,7 @@ pub enum PpaassMessageProxyPayloadType {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PpaassProxyMessagePayload {
     pub payload_type: PpaassMessageProxyPayloadType,
-    pub data: Vec<u8>,
+    pub data: BytesMut,
 }
 
 #[non_exhaustive]
@@ -83,10 +84,10 @@ pub struct PpaassProxyMessage {
     pub payload: PpaassProxyMessagePayload,
 }
 
-impl TryFrom<Vec<u8>> for PpaassProxyMessage {
+impl TryFrom<BytesMut> for PpaassProxyMessage {
     type Error = CommonError;
 
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+    fn try_from(value: BytesMut) -> Result<Self, Self::Error> {
         bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessage(e).into()))
     }
 }
@@ -99,10 +100,12 @@ impl TryFrom<&[u8]> for PpaassProxyMessage {
     }
 }
 
-impl TryFrom<PpaassProxyMessage> for Vec<u8> {
+impl TryFrom<PpaassProxyMessage> for BytesMut {
     type Error = CommonError;
 
     fn try_from(value: PpaassProxyMessage) -> Result<Self, Self::Error> {
-        bincode::serialize(&value).map_err(|e| CommonError::Encoder(SerializeError::PpaassMessage(e).into()))
+        bincode::serialize(&value)
+            .map(BytesMut::from_iter)
+            .map_err(|e| CommonError::Encoder(SerializeError::PpaassMessage(e).into()))
     }
 }

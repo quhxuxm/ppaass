@@ -2,7 +2,7 @@ pub(crate) mod codec;
 
 use bytecodec::{bytes::BytesEncoder, EncodeExt};
 
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use derive_more::Constructor;
 use futures::{SinkExt, StreamExt};
 use httpcodec::{BodyEncoder, HttpVersion, ReasonPhrase, RequestEncoder, Response, StatusCode};
@@ -80,7 +80,7 @@ impl HttpClientProcessor {
             .get_user_token()
             .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
 
-        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(generate_uuid().into_bytes()));
+        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(Bytes::from(generate_uuid().into_bytes())));
         let tcp_init_request =
             PpaassMessageGenerator::generate_agent_tcp_init_message(user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
 
@@ -101,7 +101,7 @@ impl HttpClientProcessor {
         } = proxy_message;
 
         let tcp_init_response = match payload_type {
-            PpaassMessageProxyPayloadType::TcpInit => data.as_slice().try_into()?,
+            PpaassMessageProxyPayloadType::TcpInit => data.freeze().try_into()?,
             _ => {
                 error!("Client tcp connection [{src_address}] receive invalid message from proxy, payload type: {payload_type:?}");
                 return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));

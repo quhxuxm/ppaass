@@ -14,7 +14,7 @@ use crate::{
     error::{AgentError, NetworkError},
 };
 
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use futures::StreamExt as FuturesStreamExt;
 use futures::{
     stream::{SplitSink, SplitStream},
@@ -106,15 +106,13 @@ impl ClientProtocolProcessor {
             ClientConnectionRead::new(src_address.clone(), client_io_read),
         );
 
-        let init_data = info.init_data;
-
-        if let Some(init_data) = init_data {
+        if let Some(init_data) = info.init_data {
             let agent_message = PpaassMessageGenerator::generate_agent_tcp_data_message(
                 &user_token,
                 payload_encryption.clone(),
                 src_address.clone(),
                 dst_address.clone(),
-                init_data,
+                Bytes::from(init_data),
             )?;
             proxy_connection.send(agent_message).await?;
         }
@@ -130,7 +128,7 @@ impl ClientProtocolProcessor {
                     payload_encryption.clone(),
                     src_address.clone(),
                     dst_address.clone(),
-                    client_message.to_vec(),
+                    client_message.freeze(),
                 )
                 .ok()?;
                 Some(Ok(tcp_data))
@@ -149,7 +147,7 @@ impl ClientProtocolProcessor {
             if let Err(e) = TokioStreamExt::map_while(proxy_connection_read.timeout(Duration::from_secs(proxy_relay_timeout)), |proxy_message| {
                 let proxy_message = proxy_message.ok()?;
                 let PpaassProxyMessage { payload, .. } = proxy_message.ok()?;
-                let AgentTcpData { data, .. } = payload.data.try_into().ok()?;
+                let AgentTcpData { data, .. } = payload.data.freeze().try_into().ok()?;
                 Some(Ok(BytesMut::from_iter(data)))
             })
             .forward(&mut client_io_write)
