@@ -38,6 +38,14 @@ pub struct PpaassAgentMessage {
     pub payload: PpaassAgentMessagePayload,
 }
 
+impl TryFrom<BytesMut> for PpaassAgentMessage {
+    type Error = CommonError;
+
+    fn try_from(value: BytesMut) -> Result<Self, Self::Error> {
+        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::PpaassMessage(e).into()))
+    }
+}
+
 impl TryFrom<Vec<u8>> for PpaassAgentMessage {
     type Error = CommonError;
 
@@ -59,6 +67,16 @@ impl TryFrom<PpaassAgentMessage> for Vec<u8> {
 
     fn try_from(value: PpaassAgentMessage) -> Result<Self, Self::Error> {
         bincode::serialize(&value).map_err(|e| CommonError::Encoder(SerializeError::PpaassMessage(e).into()))
+    }
+}
+
+impl TryFrom<PpaassAgentMessage> for BytesMut {
+    type Error = CommonError;
+
+    fn try_from(value: PpaassAgentMessage) -> Result<Self, Self::Error> {
+        bincode::serialize(&value)
+            .map(BytesMut::from_iter)
+            .map_err(|e| CommonError::Encoder(SerializeError::PpaassMessage(e).into()))
     }
 }
 

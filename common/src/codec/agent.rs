@@ -10,7 +10,6 @@ use crate::{
 use crate::{PpaassMessagePayloadEncryption, PpaassProxyMessage};
 use anyhow::anyhow;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use pretty_hex::*;
 
@@ -94,7 +93,7 @@ where
         let body_bytes = src.split_to(body_length as usize);
         trace!("Input message body bytes(compressed={compressed}):\n\n{}\n\n", pretty_hex(&body_bytes));
         let encrypted_message: PpaassAgentMessage = if compressed {
-            let mut gzip_decoder = GzDecoder::new(body_bytes.chunk());
+            let mut gzip_decoder = GzDecoder::new(body_bytes.reader());
             let mut decompressed_bytes = Vec::new();
             if let Err(e) = gzip_decoder.read_to_end(&mut decompressed_bytes) {
                 error!("Fail to decompress incoming message bytes because of error: {e:?}");
@@ -198,9 +197,10 @@ where
         );
         let result_bytes: BytesMut = message_to_encode.try_into()?;
         let result_bytes = if self.compress {
-            let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::fast());
+            let encoder_buf = BytesMut::new();
+            let mut gzip_encoder = GzEncoder::new(encoder_buf.writer(), Compression::fast());
             gzip_encoder.write_all(&result_bytes)?;
-            BytesMut::from_iter(gzip_encoder.finish()?)
+            gzip_encoder.finish()?.into_inner()
         } else {
             result_bytes
         };
