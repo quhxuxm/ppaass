@@ -166,6 +166,14 @@ pub struct ProxyTcpData {
     pub data: Bytes,
 }
 
+impl TryFrom<Bytes> for ProxyTcpData {
+    type Error = CommonError;
+
+    fn try_from(value: Bytes) -> Result<Self, Self::Error> {
+        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::TcpData(e).into()))
+    }
+}
+
 impl TryFrom<&[u8]> for ProxyTcpData {
     type Error = CommonError;
 
