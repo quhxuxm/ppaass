@@ -101,7 +101,7 @@ impl HttpClientProcessor {
         } = proxy_message;
 
         let tcp_init_response = match payload_type {
-            PpaassMessageProxyPayloadType::TcpInit => data.freeze().try_into()?,
+            PpaassMessageProxyPayloadType::TcpInit => data.try_into()?,
             _ => {
                 error!("Client tcp connection [{src_address}] receive invalid message from proxy, payload type: {payload_type:?}");
                 return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));

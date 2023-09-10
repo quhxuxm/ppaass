@@ -147,7 +147,7 @@ impl ClientProtocolProcessor {
             if let Err(e) = TokioStreamExt::map_while(proxy_connection_read.timeout(Duration::from_secs(proxy_relay_timeout)), |proxy_message| {
                 let proxy_message = proxy_message.ok()?;
                 let PpaassProxyMessage { payload, .. } = proxy_message.ok()?;
-                let AgentTcpData { data, .. } = payload.data.freeze().try_into().ok()?;
+                let AgentTcpData { data, .. } = payload.data.try_into().ok()?;
                 Some(Ok(BytesMut::from_iter(data)))
             })
             .forward(&mut client_io_write)

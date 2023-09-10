@@ -100,7 +100,7 @@ where
                 error!("Fail to decompress incoming message bytes because of error: {e:?}");
                 return Err(DecoderError::Io(e).into());
             };
-            let decompressed_bytes = BytesMut::from_iter(decompressed_bytes);
+            let decompressed_bytes = Bytes::from_iter(decompressed_bytes);
             trace!(
                 "Decompressed bytes will convert to PpaassMessage:\n{}\n",
                 pretty_hex::pretty_hex(&decompressed_bytes)
@@ -109,14 +109,14 @@ where
             encrypted_message
         } else {
             trace!("Raw bytes will convert to PpaassMessage:\n{}\n", pretty_hex::pretty_hex(&body_bytes));
-            body_bytes.as_ref().try_into()?
+            body_bytes.freeze().try_into()?
         };
 
         let PpaassProxyMessage {
             id,
             user_token,
             encryption: payload_encryption,
-            payload: mut encrypted_message_payload,
+            payload: encrypted_message_payload,
         } = encrypted_message;
 
         let rsa_crypto = self
@@ -126,10 +126,14 @@ where
             .ok_or(CryptoError::Rsa(RsaError::NotFound(user_token.clone())))?;
 
         let decrypt_payload_bytes = match payload_encryption {
-            PpaassMessagePayloadEncryption::Plain => BytesMut::from_iter(encrypted_message_payload.data),
+            PpaassMessagePayloadEncryption::Plain => encrypted_message_payload.data,
             PpaassMessagePayloadEncryption::Aes(ref encryption_token) => {
+                let mut encrypted_message_payload_data = BytesMut::from_iter(encrypted_message_payload.data);
+
                 let original_encryption_token = Bytes::from(rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?);
-                decrypt_with_aes(&original_encryption_token, &mut encrypted_message_payload.data).map_err(CryptoError::Aes)?
+                decrypt_with_aes(&original_encryption_token, &mut encrypted_message_payload_data)
+                    .map_err(CryptoError::Aes)?
+                    .freeze()
             },
         };
 
@@ -168,7 +172,7 @@ where
             id,
             user_token,
             encryption: payload_encryption,
-            payload: mut original_message_payload,
+            payload: original_message_payload,
         } = original_message;
 
         let rsa_crypto = self
@@ -178,11 +182,13 @@ where
             .ok_or(CryptoError::Rsa(RsaError::NotFound(user_token.clone())))?;
 
         let (encrypted_payload_bytes, encrypted_payload_encryption_type) = match payload_encryption {
-            PpaassMessagePayloadEncryption::Plain => (BytesMut::from_iter(original_message_payload.data), PpaassMessagePayloadEncryption::Plain),
+            PpaassMessagePayloadEncryption::Plain => (original_message_payload.data, PpaassMessagePayloadEncryption::Plain),
             PpaassMessagePayloadEncryption::Aes(ref original_token) => {
                 let encrypted_payload_encryption_token = Bytes::from(rsa_crypto.encrypt(original_token).map_err(CryptoError::Rsa)?);
-                let message_payload_data =
-                    encrypt_with_aes(original_token, &mut original_message_payload.data).map_err(|e| CommonError::Encoder(EncoderError::Crypto(e.into())))?;
+                let mut original_message_payload_data = BytesMut::from_iter(original_message_payload.data);
+                let message_payload_data = encrypt_with_aes(original_token, &mut original_message_payload_data)
+                    .map_err(|e| CommonError::Encoder(EncoderError::Crypto(e.into())))?
+                    .freeze();
                 (message_payload_data, PpaassMessagePayloadEncryption::Aes(encrypted_payload_encryption_token))
             },
         };
@@ -196,12 +202,12 @@ where
                 data: encrypted_payload_bytes,
             },
         );
-        let result_bytes: BytesMut = message_to_encode.try_into()?;
+        let result_bytes: Bytes = message_to_encode.try_into()?;
         let result_bytes = if self.compress {
             let encoder_buf = BytesMut::new();
             let mut gzip_encoder = GzEncoder::new(encoder_buf.writer(), Compression::fast());
             gzip_encoder.write_all(&result_bytes)?;
-            gzip_encoder.finish()?.into_inner()
+            gzip_encoder.finish()?.into_inner().freeze()
         } else {
             result_bytes
         };

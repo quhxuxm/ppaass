@@ -97,7 +97,7 @@ where
 
     fn unwrap_to_raw_tcp_data(message: PpaassAgentMessage) -> Result<Bytes, CommonError> {
         let PpaassAgentMessage { payload, .. } = message;
-        let AgentTcpData { data, .. } = payload.data.freeze().try_into()?;
+        let AgentTcpData { data, .. } = payload.data.try_into()?;
         Ok(data)
     }
 
