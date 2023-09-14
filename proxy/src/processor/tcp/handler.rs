@@ -136,27 +136,15 @@ where
         debug!("Tcp handler {handler_key} create destination connection success.");
         let (mut agent_connection_write, agent_connection_read) = agent_connection.split();
         let (mut dst_connection_write, dst_connection_read) = dst_connection.split();
-        {
-            let handler_key = handler_key.clone();
-            tokio::spawn(async move {
-                if let Err(e) = TokioStreamExt::map_while(agent_connection_read.timeout(Duration::from_secs(agent_relay_timeout)), |agent_message| {
-                    let agent_message = agent_message.ok()?;
-                    let agent_message = agent_message.ok()?;
-                    let raw_data = Self::unwrap_to_raw_tcp_data(agent_message).ok()?;
-                    Some(Ok(BytesMut::from_iter(raw_data)))
-                })
-                .forward(&mut dst_connection_write)
-                .await
-                {
-                    error!("Tcp handler {handler_key} fail to relay agent data to destination because of error: {e:?}");
-                    dst_connection_write.flush().await?;
-                    dst_connection_write.close().await?;
-                };
-                Ok::<_, NetworkError>(())
-            });
-        }
-        tokio::spawn(async move {
-            if let Err(e) = TokioStreamExt::map_while(dst_connection_read.timeout(Duration::from_secs(dst_relay_timeout)), |dst_message| {
+        let (_, _) = tokio::join!(
+            TokioStreamExt::map_while(agent_connection_read.timeout(Duration::from_secs(agent_relay_timeout)), |agent_message| {
+                let agent_message = agent_message.ok()?;
+                let agent_message = agent_message.ok()?;
+                let raw_data = Self::unwrap_to_raw_tcp_data(agent_message).ok()?;
+                Some(Ok(BytesMut::from_iter(raw_data)))
+            })
+            .forward(&mut dst_connection_write),
+            TokioStreamExt::map_while(dst_connection_read.timeout(Duration::from_secs(dst_relay_timeout)), |dst_message| {
                 let dst_message = dst_message.ok()?;
                 let dst_message = dst_message.ok()?;
                 let tcp_data_message = PpaassMessageGenerator::generate_proxy_tcp_data_message(
@@ -170,15 +158,7 @@ where
                 Some(Ok(tcp_data_message))
             })
             .forward(&mut agent_connection_write)
-            .await
-            {
-                error!("Tcp handler {handler_key} fail to relay destination data to agent because of error: {e:?}");
-                agent_connection_write.flush().await?;
-                agent_connection_write.close().await?;
-            }
-            Ok::<_, CommonError>(())
-        });
-
+        );
         Ok(())
     }
 }
