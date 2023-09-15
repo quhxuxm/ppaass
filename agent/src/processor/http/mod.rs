@@ -53,9 +53,9 @@ impl HttpClientProcessor {
         } else {
             let request_url = http_message.request_target().to_string();
             let mut http_data_encoder = RequestEncoder::<BodyEncoder<BytesEncoder>>::default();
-            let encode_result = http_data_encoder
+            let encode_result: Bytes = http_data_encoder
                 .encode_into_bytes(http_message)
-                .map_err(|e| AgentError::Encode(EncoderError::Http(e.into())))?;
+                .map_err(|e| AgentError::Encode(EncoderError::Http(e.into())))?.into();
             (request_url, Some(encode_result))
         };
 

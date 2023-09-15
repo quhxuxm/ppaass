@@ -46,7 +46,7 @@ where
     user_token: String,
     payload_encryption: PpaassMessagePayloadEncryption,
     proxy_connection: PpaassProxyConnection<'r, TcpStream, AgentServerRsaCryptoFetcher, I>,
-    init_data: Option<Vec<u8>>,
+    init_data: Option<Bytes>,
 }
 
 pub(crate) enum ClientProtocolProcessor {
@@ -112,7 +112,7 @@ impl ClientProtocolProcessor {
                 payload_encryption.clone(),
                 src_address.clone(),
                 dst_address.clone(),
-                Bytes::from(init_data),
+               init_data,
             )?;
             proxy_connection.send(agent_message).await?;
         }
