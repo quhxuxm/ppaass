@@ -112,7 +112,7 @@ impl ClientProtocolProcessor {
                 payload_encryption.clone(),
                 src_address.clone(),
                 dst_address.clone(),
-               init_data,
+                init_data,
             )?;
             proxy_connection.send(agent_message).await?;
         }
@@ -174,26 +174,26 @@ impl<T> Sink<BytesMut> for ClientConnectionWrite<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
-    type Error = AgentError;
+    type Error = NetworkError;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        this.client_bytes_framed_write.poll_ready(cx).map_err(|e| NetworkError::Io(e).into())
+        this.client_bytes_framed_write.poll_ready(cx).map_err(|e| NetworkError::General(e).into())
     }
 
     fn start_send(self: Pin<&mut Self>, item: BytesMut) -> Result<(), Self::Error> {
         let this = self.project();
-        this.client_bytes_framed_write.start_send(item).map_err(|e| NetworkError::Io(e).into())
+        this.client_bytes_framed_write.start_send(item).map_err(|e| NetworkError::General(e).into())
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        this.client_bytes_framed_write.poll_flush(cx).map_err(|e| NetworkError::Io(e).into())
+        this.client_bytes_framed_write.poll_flush(cx).map_err(|e| NetworkError::General(e).into())
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        this.client_bytes_framed_write.poll_close(cx).map_err(|e| NetworkError::Io(e).into())
+        this.client_bytes_framed_write.poll_close(cx).map_err(|e| NetworkError::General(e).into())
     }
 }
 
@@ -223,10 +223,10 @@ impl<T> Stream for ClientConnectionRead<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
-    type Item = Result<BytesMut, AgentError>;
+    type Item = Result<BytesMut, NetworkError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        this.client_bytes_framed_read.poll_next(cx).map_err(|e| NetworkError::Io(e).into())
+        this.client_bytes_framed_read.poll_next(cx).map_err(|e| NetworkError::General(e).into())
     }
 }

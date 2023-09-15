@@ -10,9 +10,9 @@ use crate::{error::AgentError, processor::dispatcher::ClientProtocolDispatcher};
 pub struct AgentServer {}
 
 impl AgentServer {
-    async fn accept_client_connection(tcp_listener: &TcpListener) -> Result<(TcpStream, SocketAddr), AgentError> {
-        let (client_tcp_stream, client_socket_address) = tcp_listener.accept().await.map_err(NetworkError::Io)?;
-        client_tcp_stream.set_nodelay(true).map_err(NetworkError::Io)?;
+    async fn accept_client_connection(tcp_listener: &TcpListener) -> Result<(TcpStream, SocketAddr), NetworkError> {
+        let (client_tcp_stream, client_socket_address) = tcp_listener.accept().await.map_err(NetworkError::AcceptConnection)?;
+        client_tcp_stream.set_nodelay(true).map_err(NetworkError::PropertyModification)?;
         Ok((client_tcp_stream, client_socket_address))
     }
 
@@ -23,10 +23,7 @@ impl AgentServer {
             format!("0.0.0.0:{}", AGENT_CONFIG.get_port())
         };
         info!("Agent server start to serve request on address: {agent_server_bind_addr}.");
-
-        let tcp_listener = TcpListener::bind(&agent_server_bind_addr).await.map_err(NetworkError::Io)?;
-        // let proxy_connection_pool = Box::new(ProxyConnectionPool::new().await?);
-        // let proxy_connection_pool: &'static ProxyConnectionPool = Box::leak(proxy_connection_pool);
+        let tcp_listener = TcpListener::bind(&agent_server_bind_addr).await.map_err(NetworkError::TcpBind)?;
         loop {
             let (client_tcp_stream, client_socket_address) = match Self::accept_client_connection(&tcp_listener).await {
                 Ok(accept_result) => accept_result,
