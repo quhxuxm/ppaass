@@ -21,13 +21,13 @@ impl AgentServerRsaCryptoFetcher {
         let rsa_dir_path = AGENT_CONFIG.get_rsa_dir().context("fail to get rsa directory from configuration file")?;
         let rsa_dir = std::fs::read_dir(rsa_dir_path).context("fail to read rsa directory")?;
         rsa_dir.for_each(|entry| {
-            let Ok(entry) =  entry else{
+            let Ok(entry) = entry else {
                 error!("fail to read {rsa_dir_path} directory because of error.");
                 return;
             };
             let user_token = entry.file_name();
             let user_token = user_token.to_str();
-            let Some(user_token) =  user_token else{
+            let Some(user_token) = user_token else {
                 error!("fail to read user_token from file name: {:?}", entry.file_name());
                 return;
             };

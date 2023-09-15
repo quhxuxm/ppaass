@@ -20,10 +20,10 @@ use futures::{
     stream::{SplitSink, SplitStream},
     Sink, SinkExt, Stream,
 };
-use log::error;
+
 use pin_project::pin_project;
 use ppaass_common::{
-    proxy::PpaassProxyConnection, tcp::AgentTcpData, CommonError, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassNetAddress, PpaassProxyMessage,
+    proxy::PpaassProxyConnection, tcp::AgentTcpData, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassNetAddress, PpaassProxyMessage,
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -119,8 +119,8 @@ impl ClientProtocolProcessor {
 
         let (mut proxy_connection_write, proxy_connection_read) = proxy_connection.split();
 
-        tokio::spawn(async move {
-            if let Err(e) = TokioStreamExt::map_while(client_io_read.timeout(Duration::from_secs(client_relay_timeout)), |client_message| {
+        let (_, _) = tokio::join!(
+            TokioStreamExt::map_while(client_io_read.timeout(Duration::from_secs(client_relay_timeout)), |client_message| {
                 let client_message = client_message.ok()?;
                 let client_message = client_message.ok()?;
                 let tcp_data = PpaassMessageGenerator::generate_agent_tcp_data_message(
@@ -133,32 +133,15 @@ impl ClientProtocolProcessor {
                 .ok()?;
                 Some(Ok(tcp_data))
             })
-            .forward(&mut proxy_connection_write)
-            .await
-            {
-                error!("Client connection fail to relay client data to proxy because of error: {e:?}");
-                proxy_connection_write.flush().await?;
-                proxy_connection_write.close().await?;
-            }
-            Ok::<_, CommonError>(())
-        });
-
-        tokio::spawn(async move {
-            if let Err(e) = TokioStreamExt::map_while(proxy_connection_read.timeout(Duration::from_secs(proxy_relay_timeout)), |proxy_message| {
+            .forward(&mut proxy_connection_write),
+            TokioStreamExt::map_while(proxy_connection_read.timeout(Duration::from_secs(proxy_relay_timeout)), |proxy_message| {
                 let proxy_message = proxy_message.ok()?;
                 let PpaassProxyMessage { payload, .. } = proxy_message.ok()?;
                 let AgentTcpData { data, .. } = payload.data.try_into().ok()?;
                 Some(Ok(BytesMut::from_iter(data)))
             })
             .forward(&mut client_io_write)
-            .await
-            {
-                error!("Client connection fail to relay proxy data to client because of error: {e:?}");
-                client_io_write.flush().await?;
-                client_io_write.close().await?;
-            }
-            Ok::<_, AgentError>(())
-        });
+        );
 
         Ok(())
     }
