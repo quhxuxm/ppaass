@@ -19,6 +19,7 @@ pub(crate) enum ClientProtocol {
     Http,
     /// The client side choose to use Socks5 proxy
     Socks5,
+    /// The client side choose to use Socks4 proxy
     Socks4,
 }
 
