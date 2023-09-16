@@ -52,7 +52,7 @@ where
 
     pub(crate) async fn exec(mut self) -> Result<(), ProxyError> {
         let agent_message = match timeout(Duration::from_secs(PROXY_CONFIG.get_agent_tcp_init_timeout()), self.agent_connection.next()).await {
-            Err(e) => return Err(NetworkError::Timeout(PROXY_CONFIG.get_agent_tcp_init_timeout()).into()),
+            Err(_) => return Err(NetworkError::Timeout(PROXY_CONFIG.get_agent_tcp_init_timeout()).into()),
             Ok(Some(agent_message)) => agent_message?,
             Ok(None) => {
                 error!(
