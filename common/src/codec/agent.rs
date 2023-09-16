@@ -4,13 +4,12 @@ use std::{
 };
 
 use crate::{
-    decrypt_with_aes, decrypt_with_blowfish, encrypt_with_aes, encrypt_with_blowfish, CommonError, CryptoError, DecoderError, PpaassAgentMessage,
-    PpaassAgentMessagePayload, PpaassProxyMessagePayload, RsaCryptoFetcher, RsaError,
+    decrypt_with_aes, encrypt_with_aes, CommonError, CryptoError, DecoderError, EncoderError, PpaassAgentMessage, PpaassAgentMessagePayload,
+    PpaassProxyMessagePayload, RsaCryptoFetcher, RsaError,
 };
 use crate::{PpaassMessagePayloadEncryption, PpaassProxyMessage};
 use anyhow::anyhow;
-use bytes::{Buf, BufMut, BytesMut};
-
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use pretty_hex::*;
 
@@ -94,12 +93,13 @@ where
         let body_bytes = src.split_to(body_length as usize);
         trace!("Input message body bytes(compressed={compressed}):\n\n{}\n\n", pretty_hex(&body_bytes));
         let encrypted_message: PpaassAgentMessage = if compressed {
-            let mut gzip_decoder = GzDecoder::new(body_bytes.chunk());
+            let mut gzip_decoder = GzDecoder::new(body_bytes.reader());
             let mut decompressed_bytes = Vec::new();
             if let Err(e) = gzip_decoder.read_to_end(&mut decompressed_bytes) {
                 error!("Fail to decompress incoming message bytes because of error: {e:?}");
                 return Err(DecoderError::Io(e).into());
             };
+            let decompressed_bytes = Bytes::from_iter(decompressed_bytes);
             trace!(
                 "Decompressed bytes will convert to PpaassMessage:\n{}\n",
                 pretty_hex::pretty_hex(&decompressed_bytes)
@@ -108,7 +108,7 @@ where
             encrypted_message
         } else {
             trace!("Raw bytes will convert to PpaassMessage:\n{}\n", pretty_hex::pretty_hex(&body_bytes));
-            body_bytes.as_ref().try_into()?
+            body_bytes.freeze().try_into()?
         };
 
         let PpaassAgentMessage {
@@ -127,12 +127,11 @@ where
         let decrypt_payload_bytes = match payload_encryption {
             PpaassMessagePayloadEncryption::Plain => encrypted_message_payload.data,
             PpaassMessagePayloadEncryption::Aes(ref encryption_token) => {
-                let original_encryption_token = rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?;
-                decrypt_with_aes(&original_encryption_token, &encrypted_message_payload.data).map_err(CryptoError::Aes)?
-            },
-            PpaassMessagePayloadEncryption::Blowfish(ref encryption_token) => {
-                let original_encryption_token = rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?;
-                decrypt_with_blowfish(&original_encryption_token, &encrypted_message_payload.data).map_err(CryptoError::Blowfish)?
+                let original_encryption_token = Bytes::from(rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?);
+                let mut encrypted_message_payload_data = BytesMut::from_iter(encrypted_message_payload.data);
+                decrypt_with_aes(&original_encryption_token, &mut encrypted_message_payload_data)
+                    .map_err(CryptoError::Aes)?
+                    .freeze()
             },
         };
 
@@ -183,17 +182,12 @@ where
         let (encrypted_payload_bytes, encrypted_payload_encryption_type) = match payload_encryption {
             PpaassMessagePayloadEncryption::Plain => (original_message_payload.data, PpaassMessagePayloadEncryption::Plain),
             PpaassMessagePayloadEncryption::Aes(ref original_token) => {
-                let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token).map_err(CryptoError::Rsa)?;
-                let encrypted_payload_bytes = encrypt_with_aes(original_token, &original_message_payload.data);
-                (encrypted_payload_bytes, PpaassMessagePayloadEncryption::Aes(encrypted_payload_encryption_token))
-            },
-            PpaassMessagePayloadEncryption::Blowfish(ref original_token) => {
-                let encrypted_payload_encryption_token = rsa_crypto.encrypt(original_token).map_err(CryptoError::Rsa)?;
-                let encrypted_payload_bytes = encrypt_with_blowfish(original_token, &original_message_payload.data);
-                (
-                    encrypted_payload_bytes,
-                    PpaassMessagePayloadEncryption::Blowfish(encrypted_payload_encryption_token),
-                )
+                let encrypted_payload_encryption_token = Bytes::from(rsa_crypto.encrypt(original_token).map_err(CryptoError::Rsa)?);
+                let mut original_message_payload_data = BytesMut::from_iter(original_message_payload.data);
+                let encrypted_data = encrypt_with_aes(original_token, &mut original_message_payload_data)
+                    .map_err(|e| CommonError::Encoder(EncoderError::Crypto(e.into())))?
+                    .freeze();
+                (encrypted_data, PpaassMessagePayloadEncryption::Aes(encrypted_payload_encryption_token))
             },
         };
 
@@ -206,11 +200,12 @@ where
                 data: encrypted_payload_bytes,
             },
         );
-        let result_bytes: Vec<u8> = message_to_encode.try_into()?;
+        let result_bytes: Bytes = message_to_encode.try_into()?;
         let result_bytes = if self.compress {
-            let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::fast());
+            let encoder_buf = BytesMut::new();
+            let mut gzip_encoder = GzEncoder::new(encoder_buf.writer(), Compression::fast());
             gzip_encoder.write_all(&result_bytes)?;
-            gzip_encoder.finish()?
+            gzip_encoder.finish()?.into_inner().freeze()
         } else {
             result_bytes
         };

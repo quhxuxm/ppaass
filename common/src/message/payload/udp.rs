@@ -1,4 +1,5 @@
 use crate::{CommonError, DeserializeError, PpaassNetAddress, SerializeError};
+use bytes::Bytes;
 use derive_more::Constructor;
 use serde_derive::{Deserialize, Serialize};
 
@@ -6,34 +7,28 @@ use serde_derive::{Deserialize, Serialize};
 /// Udp data
 ///////////////////////////////
 
-#[derive(Serialize, Deserialize, Constructor)]
 #[non_exhaustive]
+#[derive(Serialize, Deserialize, Constructor)]
 pub struct UdpData {
     pub src_address: PpaassNetAddress,
     pub dst_address: PpaassNetAddress,
-    pub data: Vec<u8>,
+    pub data: Bytes,
 }
 
-impl TryFrom<&[u8]> for UdpData {
+impl TryFrom<Bytes> for UdpData {
     type Error = CommonError;
 
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        bincode::deserialize(value).map_err(|e| CommonError::Decoder(DeserializeError::UdpData(e).into()))
-    }
-}
-
-impl TryFrom<Vec<u8>> for UdpData {
-    type Error = CommonError;
-
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+    fn try_from(value: Bytes) -> Result<Self, Self::Error> {
         bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::UdpData(e).into()))
     }
 }
 
-impl TryFrom<UdpData> for Vec<u8> {
+impl TryFrom<UdpData> for Bytes {
     type Error = CommonError;
 
     fn try_from(value: UdpData) -> Result<Self, Self::Error> {
-        bincode::serialize(&value).map_err(|e| CommonError::Encoder(SerializeError::UdpData(e).into()))
+        bincode::serialize(&value)
+            .map(Bytes::from)
+            .map_err(|e| CommonError::Encoder(SerializeError::UdpData(e).into()))
     }
 }

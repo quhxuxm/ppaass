@@ -1,4 +1,4 @@
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 
 use futures::{SinkExt, StreamExt};
 use ppaass_common::{
@@ -21,7 +21,7 @@ use crate::{
     processor::{
         socks::{
             codec::{Socks5AuthCommandContentCodec, Socks5InitCommandContentCodec},
-            message::{Socks5AuthCommandResult, Socks5InitCommandResult, Socks5InitCommandType},
+            message::{Socks5AuthCommandResult, Socks5AuthMethod, Socks5InitCommandResult, Socks5InitCommandType},
         },
         ClientDataRelayInfo, ClientProtocolProcessor,
     },
@@ -61,7 +61,7 @@ impl Socks5ClientProcessor {
             "Client tcp connection [{src_address}] start socks5 authenticate process, authenticate methods in request: {:?}",
             auth_message.methods
         );
-        let auth_response = Socks5AuthCommandResult::new(message::Socks5AuthMethod::NoAuthenticationRequired);
+        let auth_response = Socks5AuthCommandResult::new(Socks5AuthMethod::NoAuthenticationRequired);
         auth_framed.send(auth_response).await.map_err(EncoderError::Socks5)?;
         let FramedParts { io: client_tcp_stream, .. } = auth_framed.into_parts();
         let mut init_framed = Framed::new(client_tcp_stream, Socks5InitCommandContentCodec);
@@ -93,7 +93,7 @@ impl Socks5ClientProcessor {
             .get_user_token()
             .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
 
-        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(generate_uuid().into_bytes()));
+        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(Bytes::from(generate_uuid().into_bytes())));
         let tcp_init_request =
             PpaassMessageGenerator::generate_agent_tcp_init_message(user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
         let mut proxy_connection = PROXY_CONNECTION_FACTORY.create_connection().await?;
@@ -110,7 +110,7 @@ impl Socks5ClientProcessor {
             ..
         } = proxy_message;
         let tcp_init_response = match payload_type {
-            PpaassMessageProxyPayloadType::TcpInit => data.as_slice().try_into()?,
+            PpaassMessageProxyPayloadType::TcpInit => data.try_into()?,
             _ => {
                 error!("Client tcp connection [{src_address}] receive invalid message from proxy, payload type: {payload_type:?}");
                 return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));

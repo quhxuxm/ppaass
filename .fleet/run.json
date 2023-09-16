@@ -8,6 +8,28 @@
                 "--bin",
                 "ppaass-agent"
             ]
-        }
+        },
+        {
+            "type": "cargo",
+            "name": "Cargo format",
+            "cargoArgs": [
+                "fmt"
+            ],
+        },
+        {
+            "type": "cargo",
+            "name": "Cargo check",
+            "cargoArgs": [
+                "check"
+            ],
+        },
+        {
+            "type": "cargo",
+            "name": "Cargo release build",
+            "cargoArgs": [
+                "build",
+                "--release"
+            ],
+        },
     ]
 }

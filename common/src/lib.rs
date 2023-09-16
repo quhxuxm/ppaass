@@ -10,6 +10,7 @@ pub use error::*;
 pub use message::*;
 use uuid::Uuid;
 
+/// Generate a 32 byte length uuid.
 pub fn generate_uuid() -> String {
     let uuid_str = Uuid::new_v4().to_string();
     uuid_str.replace('-', "")

@@ -14,16 +14,16 @@ use crate::{
     error::{AgentError, NetworkError},
 };
 
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use futures::StreamExt as FuturesStreamExt;
 use futures::{
     stream::{SplitSink, SplitStream},
     Sink, SinkExt, Stream,
 };
-use log::error;
+
 use pin_project::pin_project;
 use ppaass_common::{
-    proxy::PpaassProxyConnection, tcp::AgentTcpData, CommonError, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassNetAddress, PpaassProxyMessage,
+    proxy::PpaassProxyConnection, tcp::AgentTcpData, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassNetAddress, PpaassProxyMessage,
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -46,7 +46,7 @@ where
     user_token: String,
     payload_encryption: PpaassMessagePayloadEncryption,
     proxy_connection: PpaassProxyConnection<'r, TcpStream, AgentServerRsaCryptoFetcher, I>,
-    init_data: Option<Vec<u8>>,
+    init_data: Option<Bytes>,
 }
 
 pub(crate) enum ClientProtocolProcessor {
@@ -106,9 +106,7 @@ impl ClientProtocolProcessor {
             ClientConnectionRead::new(src_address.clone(), client_io_read),
         );
 
-        let init_data = info.init_data;
-
-        if let Some(init_data) = init_data {
+        if let Some(init_data) = info.init_data {
             let agent_message = PpaassMessageGenerator::generate_agent_tcp_data_message(
                 &user_token,
                 payload_encryption.clone(),
@@ -121,8 +119,8 @@ impl ClientProtocolProcessor {
 
         let (mut proxy_connection_write, proxy_connection_read) = proxy_connection.split();
 
-        tokio::spawn(async move {
-            if let Err(e) = TokioStreamExt::map_while(client_io_read.timeout(Duration::from_secs(client_relay_timeout)), |client_message| {
+        let (_, _) = tokio::join!(
+            TokioStreamExt::map_while(client_io_read.timeout(Duration::from_secs(client_relay_timeout)), |client_message| {
                 let client_message = client_message.ok()?;
                 let client_message = client_message.ok()?;
                 let tcp_data = PpaassMessageGenerator::generate_agent_tcp_data_message(
@@ -130,37 +128,20 @@ impl ClientProtocolProcessor {
                     payload_encryption.clone(),
                     src_address.clone(),
                     dst_address.clone(),
-                    client_message.to_vec(),
+                    client_message.freeze(),
                 )
                 .ok()?;
                 Some(Ok(tcp_data))
             })
-            .forward(&mut proxy_connection_write)
-            .await
-            {
-                error!("Client connection fail to relay client data to proxy because of error: {e:?}");
-                proxy_connection_write.flush().await?;
-                proxy_connection_write.close().await?;
-            }
-            Ok::<_, CommonError>(())
-        });
-
-        tokio::spawn(async move {
-            if let Err(e) = TokioStreamExt::map_while(proxy_connection_read.timeout(Duration::from_secs(proxy_relay_timeout)), |proxy_message| {
+            .forward(&mut proxy_connection_write),
+            TokioStreamExt::map_while(proxy_connection_read.timeout(Duration::from_secs(proxy_relay_timeout)), |proxy_message| {
                 let proxy_message = proxy_message.ok()?;
                 let PpaassProxyMessage { payload, .. } = proxy_message.ok()?;
                 let AgentTcpData { data, .. } = payload.data.try_into().ok()?;
                 Some(Ok(BytesMut::from_iter(data)))
             })
             .forward(&mut client_io_write)
-            .await
-            {
-                error!("Client connection fail to relay proxy data to client because of error: {e:?}");
-                client_io_write.flush().await?;
-                client_io_write.close().await?;
-            }
-            Ok::<_, AgentError>(())
-        });
+        );
 
         Ok(())
     }
@@ -193,26 +174,26 @@ impl<T> Sink<BytesMut> for ClientConnectionWrite<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
-    type Error = AgentError;
+    type Error = NetworkError;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        this.client_bytes_framed_write.poll_ready(cx).map_err(|e| NetworkError::Io(e).into())
+        this.client_bytes_framed_write.poll_ready(cx).map_err(|e| NetworkError::General(e).into())
     }
 
     fn start_send(self: Pin<&mut Self>, item: BytesMut) -> Result<(), Self::Error> {
         let this = self.project();
-        this.client_bytes_framed_write.start_send(item).map_err(|e| NetworkError::Io(e).into())
+        this.client_bytes_framed_write.start_send(item).map_err(|e| NetworkError::General(e).into())
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        this.client_bytes_framed_write.poll_flush(cx).map_err(|e| NetworkError::Io(e).into())
+        this.client_bytes_framed_write.poll_flush(cx).map_err(|e| NetworkError::General(e).into())
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        this.client_bytes_framed_write.poll_close(cx).map_err(|e| NetworkError::Io(e).into())
+        this.client_bytes_framed_write.poll_close(cx).map_err(|e| NetworkError::General(e).into())
     }
 }
 
@@ -242,10 +223,10 @@ impl<T> Stream for ClientConnectionRead<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
-    type Item = Result<BytesMut, AgentError>;
+    type Item = Result<BytesMut, NetworkError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        this.client_bytes_framed_read.poll_next(cx).map_err(|e| NetworkError::Io(e).into())
+        this.client_bytes_framed_read.poll_next(cx).map_err(|e| NetworkError::General(e).into())
     }
 }

@@ -54,11 +54,11 @@ impl ProxyConnectionFactory {
             Ok(Ok(proxy_tcp_stream)) => proxy_tcp_stream,
             Ok(Err(e)) => {
                 error!("Fail connect to proxy because of error: {e:?}");
-                return Err(NetworkError::Io(e).into());
+                return Err(NetworkError::TcpConnect(e).into());
             },
         };
         debug!("Success connect to proxy.");
-        proxy_tcp_stream.set_nodelay(true).map_err(NetworkError::Io)?;
+        proxy_tcp_stream.set_nodelay(true).map_err(NetworkError::PropertyModification)?;
         let proxy_connection = PpaassProxyConnection::new(
             generate_uuid(),
             proxy_tcp_stream,

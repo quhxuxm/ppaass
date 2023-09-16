@@ -7,7 +7,7 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug proxy",
+            "name": "Debug executable 'ppaass-proxy'",
             "cargo": {
                 "args": [
                     "build",
@@ -25,20 +25,139 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug agent",
+            "name": "Debug unit tests in executable 'ppaass-proxy'",
             "cargo": {
                 "args": [
-                    "build",
-                    "--bin=ppaass-agent-windows",
-                    "--package=ppaass-agent-windows"
+                    "test",
+                    "--no-run",
+                    "--bin=ppaass-proxy",
+                    "--package=ppaass-proxy"
                 ],
                 "filter": {
-                    "name": "ppaass-agent-windows",
+                    "name": "ppaass-proxy",
                     "kind": "bin"
                 }
             },
             "args": [],
             "cwd": "${workspaceFolder}"
         },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'ppaass-common'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=ppaass-common"
+                ],
+                "filter": {
+                    "name": "ppaass-common",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "sourceLanguages": [
+                "rust"
+            ],
+            "sourceMap": {
+                "/rustc/5680fa18feaa87f3ff04063800aec256c3d4b4be": "C:/Users/quhxu/.rustup/toolchains/stable-x86_64-pc-windows-msvc/lib/rustlib/src/rust"
+            }
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'ppaass-agent'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=ppaass-agent",
+                    "--package=ppaass-agent"
+                ],
+                "filter": {
+                    "name": "ppaass-agent",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'ppaass-agent'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=ppaass-agent",
+                    "--package=ppaass-agent"
+                ],
+                "filter": {
+                    "name": "ppaass-agent",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'test'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=test",
+                    "--package=ppaass-agent"
+                ],
+                "filter": {
+                    "name": "test",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'ppaass-tool'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=ppaass-tool",
+                    "--package=ppaass-tool"
+                ],
+                "filter": {
+                    "name": "ppaass-tool",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'ppaass-tool'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=ppaass-tool",
+                    "--package=ppaass-tool"
+                ],
+                "filter": {
+                    "name": "ppaass-tool",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
     ]
 }

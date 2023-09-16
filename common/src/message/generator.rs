@@ -1,3 +1,5 @@
+use bytes::Bytes;
+
 use crate::{
     generate_uuid,
     tcp::{AgentTcpData, AgentTcpInit, ProxyTcpInit, ProxyTcpInitResultType},
@@ -43,7 +45,7 @@ impl PpaassMessageGenerator {
 
     /// Generate the agent tcp data message
     pub fn generate_agent_tcp_data_message(
-        user_token: impl ToString, encryption: PpaassMessagePayloadEncryption, src_address: PpaassNetAddress, dst_address: PpaassNetAddress, data: Vec<u8>,
+        user_token: impl ToString, encryption: PpaassMessagePayloadEncryption, src_address: PpaassNetAddress, dst_address: PpaassNetAddress, data: Bytes,
     ) -> Result<PpaassAgentMessage, CommonError> {
         let tcp_data = AgentTcpData::new(src_address, dst_address, data);
         let payload = PpaassAgentMessagePayload {
@@ -56,7 +58,7 @@ impl PpaassMessageGenerator {
 
     /// Generate the proxy tcp data message
     pub fn generate_proxy_tcp_data_message(
-        user_token: impl ToString, encryption: PpaassMessagePayloadEncryption, src_address: PpaassNetAddress, dst_address: PpaassNetAddress, data: Vec<u8>,
+        user_token: impl ToString, encryption: PpaassMessagePayloadEncryption, src_address: PpaassNetAddress, dst_address: PpaassNetAddress, data: Bytes,
     ) -> Result<PpaassProxyMessage, CommonError> {
         let tcp_data = AgentTcpData::new(src_address, dst_address, data);
         let payload = PpaassProxyMessagePayload {
@@ -69,7 +71,7 @@ impl PpaassMessageGenerator {
 
     /// Generate the agent udp data message
     pub fn generate_agent_udp_data_message(
-        user_token: impl ToString, encryption: PpaassMessagePayloadEncryption, src_address: PpaassNetAddress, dst_address: PpaassNetAddress, data: Vec<u8>,
+        user_token: impl ToString, encryption: PpaassMessagePayloadEncryption, src_address: PpaassNetAddress, dst_address: PpaassNetAddress, data: Bytes,
     ) -> Result<PpaassAgentMessage, CommonError> {
         let udp_data: UdpData = UdpData::new(src_address, dst_address, data);
         let payload = PpaassAgentMessagePayload {
@@ -82,7 +84,7 @@ impl PpaassMessageGenerator {
 
     /// Generate the proxy udp data message
     pub fn generate_proxy_udp_data_message(
-        user_token: impl ToString, encryption: PpaassMessagePayloadEncryption, src_address: PpaassNetAddress, dst_address: PpaassNetAddress, data: Vec<u8>,
+        user_token: impl ToString, encryption: PpaassMessagePayloadEncryption, src_address: PpaassNetAddress, dst_address: PpaassNetAddress, data: Bytes,
     ) -> Result<PpaassProxyMessage, CommonError> {
         let udp_data: UdpData = UdpData::new(src_address, dst_address, data);
         let payload = PpaassProxyMessagePayload {

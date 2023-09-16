@@ -1,6 +1,7 @@
+use std::fs::read_to_string;
+
 use lazy_static::lazy_static;
 use serde_derive::{Deserialize, Serialize};
-use std::fs::read_to_string;
 
 lazy_static! {
     pub(crate) static ref PROXY_CONFIG: ProxyConfig = {
@@ -32,6 +33,7 @@ pub(crate) struct ProxyConfig {
     dst_connect_timeout: Option<u64>,
     dst_relay_timeout: Option<u64>,
     agent_relay_timeout: Option<u64>,
+    agent_tcp_init_timeout: Option<u64>,
     dst_udp_recv_timeout: Option<u64>,
     dst_udp_connect_timeout: Option<u64>,
 }
@@ -80,5 +82,9 @@ impl ProxyConfig {
     }
     pub(crate) fn get_dst_udp_connect_timeout(&self) -> u64 {
         self.dst_udp_connect_timeout.unwrap_or(5)
+    }
+
+    pub(crate) fn get_agent_tcp_init_timeout(&self) -> u64 {
+        self.agent_tcp_init_timeout.unwrap_or(5)
     }
 }

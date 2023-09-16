@@ -38,7 +38,7 @@ sudo mkdir /ppaass/build/resources
 
 # Pull ppaass
 cd /ppaass/sourcecode
-sudo git clone -b dev https://github.com/quhxuxm/ppaass.git ppaass
+sudo git clone -b main https://github.com/quhxuxm/ppaass.git ppaass
 sudo chmod 777 ppaass
 cd /ppaass/sourcecode/ppaass
 sudo git pull

@@ -99,8 +99,16 @@ pub enum HttpDecodeError {
 
 #[derive(Debug, Error)]
 pub enum NetworkError {
-    #[error("IO error: {0:?}")]
-    Io(#[from] StdIoError),
+    #[error("Fail to accept client connection because of error: {0:?}")]
+    AcceptConnection(#[source] StdIoError),
+    #[error("Fail to modify connection property because of error: {0:?}")]
+    PropertyModification(#[source] StdIoError),
+    #[error("Fail to bind tcp listener because of error: {0:?}")]
+    TcpBind(#[source] StdIoError),
+    #[error("Fail to create tcp connection because of error: {0:?}")]
+    TcpConnect(#[source] StdIoError),
+    #[error("General I/O error happen: {0:?}")]
+    General(#[source] StdIoError),
     #[error("Timeout error: {0:?}")]
     Timeout(u64),
     #[error("Nothing read from connection")]

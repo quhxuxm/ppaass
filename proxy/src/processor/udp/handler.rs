@@ -5,6 +5,7 @@ use std::{
 };
 
 use anyhow::anyhow;
+use bytes::{Bytes, BytesMut};
 use derive_more::{Constructor, Display};
 use futures::SinkExt;
 use ppaass_common::{
@@ -53,7 +54,7 @@ where
     R: RsaCryptoFetcher + Send + Sync + 'static,
     I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
 {
-    pub(crate) async fn exec(self, udp_data: Vec<u8>) -> Result<(), ProxyError> {
+    pub(crate) async fn exec(self, udp_data: Bytes) -> Result<(), ProxyError> {
         let mut agent_connection = self.agent_connection;
         let handler_key = self.handler_key;
         debug!("Udp handler {handler_key} receive agent udp data: {}", pretty_hex(&udp_data));
@@ -123,17 +124,22 @@ where
             "Udp handler {handler_key} receive data from destination: {dst_socket_addrs:?}:\n{}\n",
             pretty_hex(&udp_data)
         );
-        let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&handler_key.user_token, Some(generate_uuid().into_bytes()));
+        let udp_data = BytesMut::from(udp_data);
+        let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&handler_key.user_token, Some(Bytes::from(generate_uuid().into_bytes())));
         let udp_data_message = PpaassMessageGenerator::generate_proxy_udp_data_message(
             handler_key.user_token.clone(),
             payload_encryption,
             handler_key.src_address.clone(),
             handler_key.dst_address.clone(),
-            udp_data.to_vec(),
+            udp_data.freeze(),
         )?;
         if let Err(e) = agent_connection.send(udp_data_message).await {
             error!("Udp handler {handler_key} fail to send udp data from [{dst_socket_addrs:?}] to agent because of error: {e:?}");
             return Err(ProxyError::Network(NetworkError::AgentWrite(e)));
+        };
+        if let Err(e) = agent_connection.close().await {
+            error!("Udp handler {handler_key} fail to close agent connection for relay udp data to [{dst_socket_addrs:?}] because of error: {e:?}");
+            return Err(ProxyError::Network(NetworkError::AgentClose(e)));
         };
         Ok(())
     }
