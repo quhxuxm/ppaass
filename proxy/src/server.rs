@@ -1,7 +1,7 @@
 use crate::{
     config::PROXY_CONFIG,
     error::{NetworkError, ProxyError},
-    processor::AgentConnectionProcessor,
+    processor::Transport,
 };
 
 use std::net::SocketAddr;
@@ -12,7 +12,7 @@ use tokio::net::{TcpListener, TcpStream};
 
 /// The ppaass proxy server.
 #[derive(Default)]
-pub(crate) struct ProxyServer {}
+pub(crate) struct ProxyServer;
 
 impl ProxyServer {
     async fn accept_agent_connection(tcp_listener: &TcpListener) -> Result<(TcpStream, SocketAddr), ProxyError> {
@@ -23,7 +23,7 @@ impl ProxyServer {
     }
 
     /// Start the proxy server instance.
-    pub(crate) async fn start(&mut self) -> Result<(), ProxyError> {
+    pub(crate) async fn start() -> Result<(), ProxyError> {
         let port = PROXY_CONFIG.get_port();
         let server_bind_addr = if PROXY_CONFIG.get_ipv6() {
             format!("[::]:{port}")
@@ -45,8 +45,8 @@ impl ProxyServer {
             };
             debug!("Proxy server success accept agent connection on address: {}", agent_socket_address);
             tokio::spawn(async move {
-                let agent_connection_processor = AgentConnectionProcessor::new(agent_tcp_stream, agent_socket_address.into());
-                agent_connection_processor.exec().await?;
+                let transport = Transport::new(agent_tcp_stream, agent_socket_address.into());
+                transport.exec().await?;
                 debug!("Complete execute agent connection [{agent_socket_address}].");
                 Ok::<_, ProxyError>(())
             });

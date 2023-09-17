@@ -178,22 +178,22 @@ where
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        this.client_bytes_framed_write.poll_ready(cx).map_err(|e| NetworkError::General(e).into())
+        this.client_bytes_framed_write.poll_ready(cx).map_err(NetworkError::General)
     }
 
     fn start_send(self: Pin<&mut Self>, item: BytesMut) -> Result<(), Self::Error> {
         let this = self.project();
-        this.client_bytes_framed_write.start_send(item).map_err(|e| NetworkError::General(e).into())
+        this.client_bytes_framed_write.start_send(item).map_err(NetworkError::General)
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        this.client_bytes_framed_write.poll_flush(cx).map_err(|e| NetworkError::General(e).into())
+        this.client_bytes_framed_write.poll_flush(cx).map_err(NetworkError::General)
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        this.client_bytes_framed_write.poll_close(cx).map_err(|e| NetworkError::General(e).into())
+        this.client_bytes_framed_write.poll_close(cx).map_err(NetworkError::General)
     }
 }
 
@@ -227,6 +227,6 @@ where
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        this.client_bytes_framed_read.poll_next(cx).map_err(|e| NetworkError::General(e).into())
+        this.client_bytes_framed_read.poll_next(cx).map_err(NetworkError::General)
     }
 }

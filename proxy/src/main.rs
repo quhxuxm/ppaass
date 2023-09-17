@@ -22,8 +22,7 @@ fn main() -> Result<()> {
 
     proxy_server_runtime.block_on(async {
         info!("Begin to start proxy server.");
-        let mut proxy_server = ProxyServer::default();
-        if let Err(e) = proxy_server.start().await {
+        if let Err(e) = ProxyServer::start().await {
             error!("Fail to start proxy server because of error: {e:?}");
             panic!("Fail to start proxy server because of error: {e:?}")
         }
