@@ -1,4 +1,6 @@
 pub(crate) mod dispatcher;
+mod http;
+mod socks;
 
 use std::{
     pin::Pin,
@@ -31,9 +33,6 @@ use tokio::{
 };
 use tokio_stream::StreamExt as TokioStreamExt;
 use tokio_util::codec::{BytesCodec, Framed};
-
-mod http;
-mod socks;
 
 #[non_exhaustive]
 pub(crate) struct ClientTransportDataRelayInfo {

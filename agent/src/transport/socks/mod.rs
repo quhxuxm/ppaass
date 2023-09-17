@@ -22,7 +22,7 @@ use crate::{
     config::AGENT_CONFIG,
     connection::PROXY_CONNECTION_FACTORY,
     error::{AgentError, DecoderError, EncoderError, NetworkError},
-    processor::{
+    transport::{
         socks::{
             codec::{Socks5AuthCommandContentCodec, Socks5InitCommandContentCodec},
             message::{Socks5AuthCommandResult, Socks5AuthMethod, Socks5InitCommandResult, Socks5InitCommandType},

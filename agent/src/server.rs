@@ -4,7 +4,7 @@ use log::{debug, error, info};
 use tokio::net::{TcpListener, TcpStream};
 
 use crate::{config::AGENT_CONFIG, error::NetworkError};
-use crate::{error::AgentError, processor::dispatcher::ClientTransportDispatcher};
+use crate::{error::AgentError, transport::dispatcher::ClientTransportDispatcher};
 
 #[derive(Debug, Default)]
 pub struct AgentServer {}

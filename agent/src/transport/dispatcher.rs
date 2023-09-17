@@ -10,7 +10,7 @@ use tokio_util::codec::{Decoder, Framed, FramedParts};
 use crate::{
     config::AGENT_CONFIG,
     error::{AgentError, DecoderError},
-    processor::{http::HttpClientTransport, socks::Socks5ClientTransport},
+    transport::{http::HttpClientTransport, socks::Socks5ClientTransport},
     SOCKS_V4, SOCKS_V5,
 };
 

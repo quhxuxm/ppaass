@@ -22,7 +22,7 @@ use crate::{
     config::AGENT_CONFIG,
     connection::PROXY_CONNECTION_FACTORY,
     error::{AgentError, ConversionError, DecoderError, EncoderError, NetworkError},
-    processor::{http::codec::HttpCodec, ClientTransport, ClientTransportDataRelayInfo},
+    transport::{http::codec::HttpCodec, ClientTransport, ClientTransportDataRelayInfo},
     AgentServerPayloadEncryptionTypeSelector,
 };
 
