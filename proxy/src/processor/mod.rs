@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
-use log::{error, info};
+use log::{debug, error};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::timeout;
 
@@ -17,29 +17,28 @@ use crate::{
     config::PROXY_CONFIG,
     crypto::{ProxyServerRsaCryptoFetcher, RSA_CRYPTO},
     error::{NetworkError, ProxyError},
-    processor::udp::{UdpHandler, UdpHandlerKey},
+    processor::udp::UdpHandler,
 };
 
-use self::tcp::{TcpHandler, TcpHandlerKey};
+use self::tcp::TcpHandler;
 
 mod tcp;
 mod udp;
 
-pub(crate) struct AgentConnectionProcessor<'r, T>
+pub(crate) struct Transport<'r, T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     'r: 'static,
 {
     agent_connection: PpaassAgentConnection<'r, T, ProxyServerRsaCryptoFetcher, String>,
-    agent_address: PpaassNetAddress,
 }
 
-impl<'r, T> AgentConnectionProcessor<'r, T>
+impl<'r, T> Transport<'r, T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     'r: 'static,
 {
-    pub(crate) fn new(agent_tcp_stream: T, agent_address: PpaassNetAddress) -> AgentConnectionProcessor<'r, T> {
+    pub(crate) fn new(agent_tcp_stream: T, agent_address: PpaassNetAddress) -> Transport<'r, T> {
         let agent_connection = PpaassAgentConnection::new(
             agent_address.to_string(),
             agent_tcp_stream,
@@ -47,19 +46,16 @@ where
             PROXY_CONFIG.get_compress(),
             PROXY_CONFIG.get_agent_recive_buffer_size(),
         );
-        Self {
-            agent_connection,
-            agent_address,
-        }
+        Self { agent_connection }
     }
 
     pub(crate) async fn exec(mut self) -> Result<(), ProxyError> {
-        let agent_message = match timeout(Duration::from_secs(PROXY_CONFIG.get_agent_tcp_init_timeout()), self.agent_connection.next()).await {
-            Err(_) => return Err(NetworkError::Timeout(PROXY_CONFIG.get_agent_tcp_init_timeout()).into()),
+        let agent_message = match timeout(Duration::from_secs(PROXY_CONFIG.get_agent_relay_timeout()), self.agent_connection.next()).await {
+            Err(_) => return Err(NetworkError::Timeout(PROXY_CONFIG.get_agent_relay_timeout()).into()),
             Ok(Some(agent_message)) => agent_message?,
             Ok(None) => {
                 error!(
-                    "Agent connection {} closed in agent side, close the proxy side also.",
+                    "Transport {} closed in agent side, close proxy side also.",
                     self.agent_connection.get_connection_id()
                 );
                 return Ok(());
@@ -79,19 +75,13 @@ where
                 let tcp_init_request: AgentTcpInit = data.try_into()?;
                 let src_address = tcp_init_request.src_address;
                 let dst_address = tcp_init_request.dst_address;
-                let tcp_handler_key = TcpHandlerKey::new(
-                    self.agent_connection.get_connection_id().to_string(),
-                    user_token,
-                    self.agent_address,
-                    src_address,
-                    dst_address,
-                );
-                let tcp_handler = TcpHandler::new(tcp_handler_key, self.agent_connection);
-                tcp_handler.exec().await?;
+                // Tcp handler will block the thread and continue to
+                // handle the agent connection in a loop
+                TcpHandler::exec(self.agent_connection, user_token, src_address, dst_address).await?;
                 Ok(())
             },
             PpaassMessageAgentProtocol::Udp(payload_type) => {
-                info!("Agent connection {} receive udp data from agent.", self.agent_connection.get_connection_id());
+                debug!("Agent connection {} receive udp data from agent.", self.agent_connection.get_connection_id());
                 if PpaassMessageAgentUdpPayloadType::Data != payload_type {
                     return Err(NetworkError::AgentRead(CommonError::Other(anyhow!("Invalid agent message payload type"))).into());
                 }
@@ -101,15 +91,9 @@ where
                     data: udp_raw_data,
                     ..
                 } = data.try_into()?;
-                let udp_handler_key = UdpHandlerKey::new(
-                    self.agent_connection.get_connection_id().to_string(),
-                    user_token,
-                    self.agent_address,
-                    src_address,
-                    dst_address,
-                );
-                let udp_handler = UdpHandler::new(udp_handler_key, self.agent_connection);
-                udp_handler.exec(udp_raw_data).await?;
+                // Udp handler will block the thread and continue to
+                // handle the agent connection in a loop
+                UdpHandler::exec(self.agent_connection, user_token, src_address, dst_address, udp_raw_data).await?;
                 Ok(())
             },
         }

@@ -6,14 +6,9 @@ use std::{
 
 use anyhow::anyhow;
 use bytes::{Bytes, BytesMut};
-use derive_more::{Constructor, Display};
 use futures::SinkExt;
-use ppaass_common::{
-    agent::PpaassAgentConnection, generate_uuid, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress, RsaCryptoFetcher,
-};
+use ppaass_common::{agent::PpaassAgentConnection, generate_uuid, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
 
-use log::{debug, error};
-use pretty_hex::pretty_hex;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::UdpSocket,
@@ -23,55 +18,31 @@ use tokio::{
 use crate::{
     common::ProxyServerPayloadEncryptionSelector,
     config::PROXY_CONFIG,
+    crypto::ProxyServerRsaCryptoFetcher,
     error::{NetworkError, ProxyError},
 };
 
-#[derive(Debug, Clone, Constructor, Display)]
-#[display(fmt = "[{}]#[{}]@UDP::[{}]::[{}=>{}]", connection_id, user_token, agent_address, src_address, dst_address)]
-pub(crate) struct UdpHandlerKey {
-    connection_id: String,
-    user_token: String,
-    agent_address: PpaassNetAddress,
-    src_address: PpaassNetAddress,
-    dst_address: PpaassNetAddress,
-}
+pub(crate) struct UdpHandler;
 
-#[derive(Constructor)]
-#[non_exhaustive]
-pub(crate) struct UdpHandler<'r, T, R, I>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
-{
-    handler_key: UdpHandlerKey,
-    agent_connection: PpaassAgentConnection<'r, T, R, I>,
-}
-
-impl<T, R, I> UdpHandler<'_, T, R, I>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
-    R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
-{
-    pub(crate) async fn exec(self, udp_data: Bytes) -> Result<(), ProxyError> {
-        let mut agent_connection = self.agent_connection;
-        let handler_key = self.handler_key;
-        debug!("Udp handler {handler_key} receive agent udp data: {}", pretty_hex(&udp_data));
+impl UdpHandler {
+    pub(crate) async fn exec<T, I, U>(
+        mut agent_connection: PpaassAgentConnection<'_, T, ProxyServerRsaCryptoFetcher, I>, user_token: U, src_address: PpaassNetAddress,
+        dst_address: PpaassNetAddress, udp_data: Bytes,
+    ) -> Result<(), ProxyError>
+    where
+        T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+        I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
+        U: ToString + AsRef<str> + Clone,
+    {
         let dst_udp_socket = match UdpSocket::bind("0.0.0.0:0").await {
             Ok(dst_udp_socket) => dst_udp_socket,
             Err(e) => {
-                error!("Udp handler {handler_key} fail to bind udp socket because of error: {e:?}");
                 return Err(ProxyError::Io(e));
             },
         };
-        let dst_socket_addrs = match handler_key.dst_address.to_socket_addrs() {
+        let dst_socket_addrs = match dst_address.to_socket_addrs() {
             Ok(dst_socket_addrs) => dst_socket_addrs,
             Err(e) => {
-                error!(
-                    "Udp handler {handler_key} fail to convert destination address [{}] because of error: {e:?}",
-                    handler_key.dst_address
-                );
                 return Err(ProxyError::Io(e));
             },
         };
@@ -84,61 +55,43 @@ where
         .await
         {
             Ok(Err(e)) => {
-                error!(
-                    "Udp handler {handler_key} udp socket fail connect to destination address [{}] because of error: {e:?}",
-                    handler_key.dst_address
-                );
                 return Err(ProxyError::Io(e));
             },
-            Ok(Ok(())) => {
-                debug!("Udp handler {handler_key} udp socket success connect to destination [{dst_socket_addrs:?}]");
-            },
+            Ok(Ok(())) => {},
             Err(_) => {
-                error!("Udp handler {handler_key} udp socket fail connect to destination [{dst_socket_addrs:?}] because of timeout");
                 return Err(ProxyError::Network(NetworkError::Timeout(PROXY_CONFIG.get_dst_connect_timeout())));
             },
         };
         if let Err(e) = dst_udp_socket.send(&udp_data).await {
-            error!("Udp handler {handler_key} fail to send data to udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
             return Err(ProxyError::Network(NetworkError::DestinationWrite(e)));
         };
 
         let mut udp_data = [0u8; 65535];
         let udp_data = match timeout(Duration::from_secs(PROXY_CONFIG.get_dst_udp_recv_timeout()), dst_udp_socket.recv(&mut udp_data)).await {
             Ok(Ok(0)) => {
-                error!("Udp handler {handler_key} nothing to receive from udp socket [{dst_socket_addrs:?}]");
                 return Err(ProxyError::Other(anyhow!("Nothing to receive from udp socket")));
             },
             Ok(Ok(data_size)) => &udp_data[..data_size],
             Ok(Err(e)) => {
-                error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of error: {e:?}");
                 return Err(ProxyError::Network(NetworkError::DestinationRead(e)));
             },
             Err(_) => {
-                error!("Udp handler {handler_key} fail to receive data from udp socket [{dst_socket_addrs:?}] because of timeout");
                 return Err(ProxyError::Network(NetworkError::Timeout(PROXY_CONFIG.get_dst_udp_recv_timeout())));
             },
         };
-
-        debug!(
-            "Udp handler {handler_key} receive data from destination: {dst_socket_addrs:?}:\n{}\n",
-            pretty_hex(&udp_data)
-        );
         let udp_data = BytesMut::from(udp_data);
-        let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&handler_key.user_token, Some(Bytes::from(generate_uuid().into_bytes())));
+        let payload_encryption = ProxyServerPayloadEncryptionSelector::select(user_token.as_ref(), Some(Bytes::from(generate_uuid().into_bytes())));
         let udp_data_message = PpaassMessageGenerator::generate_proxy_udp_data_message(
-            handler_key.user_token.clone(),
+            user_token.clone(),
             payload_encryption,
-            handler_key.src_address.clone(),
-            handler_key.dst_address.clone(),
+            src_address.clone(),
+            dst_address.clone(),
             udp_data.freeze(),
         )?;
         if let Err(e) = agent_connection.send(udp_data_message).await {
-            error!("Udp handler {handler_key} fail to send udp data from [{dst_socket_addrs:?}] to agent because of error: {e:?}");
             return Err(ProxyError::Network(NetworkError::AgentWrite(e)));
         };
         if let Err(e) = agent_connection.close().await {
-            error!("Udp handler {handler_key} fail to close agent connection for relay udp data to [{dst_socket_addrs:?}] because of error: {e:?}");
             return Err(ProxyError::Network(NetworkError::AgentClose(e)));
         };
         Ok(())
