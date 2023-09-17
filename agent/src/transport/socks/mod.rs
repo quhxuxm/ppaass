@@ -58,14 +58,14 @@ impl Socks5ClientTransport {
         proxy_connection.send(tcp_init_request).await?;
         let proxy_message = proxy_connection.next().await.ok_or(NetworkError::ConnectionExhausted)??;
         let PpaassProxyMessage {
-            payload: PpaassProxyMessagePayload { protocol: payload_type, data },
+            payload: PpaassProxyMessagePayload { protocol, data },
             user_token,
             ..
         } = proxy_message;
-        let tcp_init_response = match payload_type {
+        let tcp_init_response = match protocol {
             PpaassMessageProxyProtocol::Tcp(PpaassMessageProxyTcpPayloadType::Init) => data.try_into()?,
             _ => {
-                error!("Client tcp connection [{src_address}] receive invalid message from proxy, payload type: {payload_type:?}");
+                error!("Client tcp connection [{src_address}] receive invalid message from proxy, protocol: {protocol:?}");
                 return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
             },
         };
