@@ -10,8 +10,8 @@ use log::{debug, error};
 use ppaass_common::{
     generate_uuid,
     tcp::{ProxyTcpInit, ProxyTcpInitResultType},
-    PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayloadType, PpaassNetAddress, PpaassProxyMessage,
-    PpaassProxyMessagePayload,
+    PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyProtocol, PpaassMessageProxyTcpPayloadType, PpaassNetAddress,
+    PpaassProxyMessage, PpaassProxyMessagePayload,
 };
 use tokio::net::TcpStream;
 use tokio_util::codec::{Framed, FramedParts};
@@ -55,7 +55,8 @@ impl HttpClientProcessor {
             let mut http_data_encoder = RequestEncoder::<BodyEncoder<BytesEncoder>>::default();
             let encode_result: Bytes = http_data_encoder
                 .encode_into_bytes(http_message)
-                .map_err(|e| AgentError::Encode(EncoderError::Http(e.into())))?.into();
+                .map_err(|e| AgentError::Encode(EncoderError::Http(e.into())))?
+                .into();
             (request_url, Some(encode_result))
         };
 
@@ -95,15 +96,14 @@ impl HttpClientProcessor {
         let proxy_message = proxy_connection.next().await.ok_or(NetworkError::ConnectionExhausted)??;
 
         let PpaassProxyMessage {
-            payload: PpaassProxyMessagePayload { payload_type, data },
+            payload: PpaassProxyMessagePayload { protocol, data },
             user_token,
             ..
         } = proxy_message;
 
-        let tcp_init_response = match payload_type {
-            PpaassMessageProxyPayloadType::TcpInit => data.try_into()?,
+        let tcp_init_response = match protocol {
+            PpaassMessageProxyProtocol::Tcp(PpaassMessageProxyTcpPayloadType::Init) => data.try_into()?,
             _ => {
-                error!("Client tcp connection [{src_address}] receive invalid message from proxy, payload type: {payload_type:?}");
                 return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
             },
         };

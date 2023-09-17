@@ -3,8 +3,8 @@ use bytes::{Bytes, BytesMut};
 use futures::{SinkExt, StreamExt};
 use ppaass_common::{
     tcp::{ProxyTcpInit, ProxyTcpInitResultType},
-    PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyPayloadType, PpaassNetAddress, PpaassProxyMessage,
-    PpaassProxyMessagePayload,
+    PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyProtocol, PpaassMessageProxyTcpPayloadType, PpaassNetAddress,
+    PpaassProxyMessage, PpaassProxyMessagePayload,
 };
 
 use log::{debug, error};
@@ -105,12 +105,12 @@ impl Socks5ClientProcessor {
         proxy_connection.send(tcp_init_request).await?;
         let proxy_message = proxy_connection.next().await.ok_or(NetworkError::ConnectionExhausted)??;
         let PpaassProxyMessage {
-            payload: PpaassProxyMessagePayload { payload_type, data },
+            payload: PpaassProxyMessagePayload { protocol: payload_type, data },
             user_token,
             ..
         } = proxy_message;
         let tcp_init_response = match payload_type {
-            PpaassMessageProxyPayloadType::TcpInit => data.try_into()?,
+            PpaassMessageProxyProtocol::Tcp(PpaassMessageProxyTcpPayloadType::Init) => data.try_into()?,
             _ => {
                 error!("Client tcp connection [{src_address}] receive invalid message from proxy, payload type: {payload_type:?}");
                 return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));

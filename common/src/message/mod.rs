@@ -16,16 +16,26 @@ pub use encryption::*;
 pub use generator::*;
 pub use payload::*;
 
-#[derive(Serialize, Deserialize, Debug)]
-pub enum PpaassMessageAgentPayloadType {
-    TcpInit,
-    TcpData,
-    UdpData,
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub enum PpaassMessageAgentTcpPayloadType {
+    Init,
+    Data,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub enum PpaassMessageAgentUdpPayloadType {
+    Data,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub enum PpaassMessageAgentProtocol {
+    Tcp(PpaassMessageAgentTcpPayloadType),
+    Udp(PpaassMessageAgentUdpPayloadType),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PpaassAgentMessagePayload {
-    pub payload_type: PpaassMessageAgentPayloadType,
+    pub protocol: PpaassMessageAgentProtocol,
     pub data: Bytes,
 }
 
@@ -56,16 +66,26 @@ impl TryFrom<PpaassAgentMessage> for Bytes {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub enum PpaassMessageProxyPayloadType {
-    TcpInit,
-    TcpData,
-    UdpData,
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub enum PpaassMessageProxyTcpPayloadType {
+    Init,
+    Data,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub enum PpaassMessageProxyUdpPayloadType {
+    Data,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub enum PpaassMessageProxyProtocol {
+    Tcp(PpaassMessageProxyTcpPayloadType),
+    Udp(PpaassMessageProxyUdpPayloadType),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PpaassProxyMessagePayload {
-    pub payload_type: PpaassMessageProxyPayloadType,
+    pub protocol: PpaassMessageProxyProtocol,
     pub data: Bytes,
 }
 

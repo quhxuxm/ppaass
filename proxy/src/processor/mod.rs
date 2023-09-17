@@ -6,9 +6,12 @@ use log::{error, info};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::timeout;
 
-use ppaass_common::{agent::PpaassAgentConnection, CommonError, PpaassAgentMessage, PpaassAgentMessagePayload};
+use ppaass_common::{
+    agent::PpaassAgentConnection, CommonError, PpaassAgentMessage, PpaassAgentMessagePayload, PpaassMessageAgentTcpPayloadType,
+    PpaassMessageAgentUdpPayloadType,
+};
 use ppaass_common::{tcp::AgentTcpInit, udp::UdpData};
-use ppaass_common::{PpaassMessageAgentPayloadType, PpaassNetAddress};
+use ppaass_common::{PpaassMessageAgentProtocol, PpaassNetAddress};
 
 use crate::{
     config::PROXY_CONFIG,
@@ -64,15 +67,15 @@ where
         };
         let PpaassAgentMessage {
             user_token,
-            payload: PpaassAgentMessagePayload { payload_type, data },
+            payload: PpaassAgentMessagePayload { protocol, data },
             ..
         } = agent_message;
 
-        match payload_type {
-            PpaassMessageAgentPayloadType::TcpData => {
-                Err(NetworkError::AgentRead(CommonError::Other(anyhow!("Receive unexpected payload type from agent"))).into())
-            },
-            PpaassMessageAgentPayloadType::TcpInit => {
+        match protocol {
+            PpaassMessageAgentProtocol::Tcp(payload_type) => {
+                if PpaassMessageAgentTcpPayloadType::Init != payload_type {
+                    return Err(NetworkError::AgentRead(CommonError::Other(anyhow!("Invalid agent message payload type"))).into());
+                }
                 let tcp_init_request: AgentTcpInit = data.try_into()?;
                 let src_address = tcp_init_request.src_address;
                 let dst_address = tcp_init_request.dst_address;
@@ -87,8 +90,11 @@ where
                 tcp_handler.exec().await?;
                 Ok(())
             },
-            PpaassMessageAgentPayloadType::UdpData => {
+            PpaassMessageAgentProtocol::Udp(payload_type) => {
                 info!("Agent connection {} receive udp data from agent.", self.agent_connection.get_connection_id());
+                if PpaassMessageAgentUdpPayloadType::Data != payload_type {
+                    return Err(NetworkError::AgentRead(CommonError::Other(anyhow!("Invalid agent message payload type"))).into());
+                }
                 let UdpData {
                     src_address,
                     dst_address,

@@ -143,7 +143,7 @@ where
             user_token,
             payload_encryption,
             PpaassAgentMessagePayload {
-                payload_type: encrypted_message_payload.payload_type,
+                protocol: encrypted_message_payload.protocol,
                 data: decrypt_payload_bytes,
             },
         );
@@ -196,7 +196,7 @@ where
             user_token,
             encrypted_payload_encryption_type,
             PpaassProxyMessagePayload {
-                payload_type: original_message_payload.payload_type,
+                protocol: original_message_payload.protocol,
                 data: encrypted_payload_bytes,
             },
         );
