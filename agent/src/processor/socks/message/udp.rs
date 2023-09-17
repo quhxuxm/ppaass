@@ -9,7 +9,7 @@ use std::mem::size_of;
 pub(crate) struct Socks5UdpDataPacket {
     pub frag: u8,
     pub address: Socks5Address,
-    pub data: Vec<u8>,
+    pub data: Bytes,
 }
 
 impl TryFrom<Bytes> for Socks5UdpDataPacket {
@@ -29,13 +29,8 @@ impl TryFrom<Bytes> for Socks5UdpDataPacket {
             return Err(Socks5DecodeError::NoRemaining("No remaining to convert socks5 udp packet".to_string()));
         }
         let frag = src.get_u8();
-        let address: Socks5Address = (&mut src).try_into()?;
-        let data = src.copy_to_bytes(src.remaining());
-        Ok(Socks5UdpDataPacket {
-            frag,
-            address,
-            data: data.to_vec(),
-        })
+        let address = Socks5Address::parse(&mut src)?;
+        Ok(Socks5UdpDataPacket { frag, address, data: src })
     }
 }
 

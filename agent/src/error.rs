@@ -71,8 +71,18 @@ pub enum Socks5DecodeError {
     NoRemaining(String),
     #[error(transparent)]
     Conversion(#[from] ConversionError),
+    #[error(transparent)]
+    Parse(#[from] ParseError),
     #[error("IO error happen: {0:?}")]
     Io(#[from] StdIoError),
+}
+
+#[derive(Debug, Error)]
+pub enum ParseError {
+    #[error("Input exhausted: {0}")]
+    InputExhausted(String),
+    #[error("Invalid format: {0}")]
+    InvalidFormat(String),
 }
 
 #[derive(Debug, Error)]

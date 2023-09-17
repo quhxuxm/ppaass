@@ -65,8 +65,8 @@ impl Decoder for Socks5InitCommandContentCodec {
         }
         let request_type: Socks5InitCommandType = src.get_u8().try_into()?;
         src.get_u8();
-        let dest_address: Socks5Address = src.try_into()?;
-        Ok(Some(Socks5InitCommand::new(request_type, dest_address)))
+        let dst_address = Socks5Address::parse(src)?;
+        Ok(Some(Socks5InitCommand::new(request_type, dst_address)))
     }
 }
 
