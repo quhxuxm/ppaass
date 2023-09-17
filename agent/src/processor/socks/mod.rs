@@ -1,4 +1,8 @@
-use bytes::{Bytes, BytesMut};
+mod codec;
+mod message;
+
+use async_trait::async_trait;
+use bytes::Bytes;
 
 use futures::{SinkExt, StreamExt};
 use ppaass_common::{
@@ -23,72 +27,21 @@ use crate::{
             codec::{Socks5AuthCommandContentCodec, Socks5InitCommandContentCodec},
             message::{Socks5AuthCommandResult, Socks5AuthMethod, Socks5InitCommandResult, Socks5InitCommandType},
         },
-        ClientDataRelayInfo, ClientProtocolProcessor,
+        ClientTransport, ClientTransportDataRelayInfo,
     },
     AgentServerPayloadEncryptionTypeSelector,
 };
 
 use ppaass_common::generate_uuid;
 
-mod codec;
-mod message;
+use super::dispatcher::ClientTransportHandshakeInfo;
 
-pub(crate) struct Socks5ClientProcessor {
-    client_tcp_stream: TcpStream,
-    src_address: PpaassNetAddress,
-}
+pub(crate) struct Socks5ClientTransport;
 
-impl Socks5ClientProcessor {
-    pub(crate) fn new(client_tcp_stream: TcpStream, src_address: PpaassNetAddress) -> Self {
-        Self {
-            client_tcp_stream,
-            src_address,
-        }
-    }
-
-    pub(crate) async fn exec(self, initial_buf: BytesMut) -> Result<(), AgentError> {
-        let client_tcp_stream = self.client_tcp_stream;
-        let src_address = self.src_address;
-        let mut auth_framed_parts = FramedParts::new(client_tcp_stream, Socks5AuthCommandContentCodec);
-        auth_framed_parts.read_buf = initial_buf;
-        let mut auth_framed = Framed::from_parts(auth_framed_parts);
-        let auth_message = auth_framed
-            .next()
-            .await
-            .ok_or(NetworkError::ConnectionExhausted)?
-            .map_err(DecoderError::Socks5)?;
-        debug!(
-            "Client tcp connection [{src_address}] start socks5 authenticate process, authenticate methods in request: {:?}",
-            auth_message.methods
-        );
-        let auth_response = Socks5AuthCommandResult::new(Socks5AuthMethod::NoAuthenticationRequired);
-        auth_framed.send(auth_response).await.map_err(EncoderError::Socks5)?;
-        let FramedParts { io: client_tcp_stream, .. } = auth_framed.into_parts();
-        let mut init_framed = Framed::new(client_tcp_stream, Socks5InitCommandContentCodec);
-        let init_message = init_framed
-            .next()
-            .await
-            .ok_or(NetworkError::ConnectionExhausted)?
-            .map_err(DecoderError::Socks5)?;
-        debug!(
-            "Client tcp connection [{src_address}] start socks5 init process, command type: {:?}, destination address: {:?}",
-            init_message.request_type, init_message.dst_address
-        );
-
-        match init_message.request_type {
-            Socks5InitCommandType::Bind => todo!(),
-            Socks5InitCommandType::UdpAssociate => todo!(),
-            Socks5InitCommandType::Connect => {
-                Self::handle_connect_command(src_address, init_message.dst_address.into(), init_framed).await?;
-            },
-        }
-
-        Ok(())
-    }
-
+impl Socks5ClientTransport {
     async fn handle_connect_command(
         src_address: PpaassNetAddress, dst_address: PpaassNetAddress, mut init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
-    ) -> Result<(), AgentError> {
+    ) -> Result<ClientTransportDataRelayInfo, AgentError> {
         let user_token = AGENT_CONFIG
             .get_user_token()
             .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
@@ -135,7 +88,8 @@ impl Socks5ClientProcessor {
         init_framed.send(socks5_init_success_result).await.map_err(EncoderError::Socks5)?;
         let FramedParts { io: client_tcp_stream, .. } = init_framed.into_parts();
         debug!("Client tcp connection [{src_address}] success to do sock5 handshake begin to relay, tcp loop key: [{tcp_loop_key}].");
-        ClientProtocolProcessor::relay(ClientDataRelayInfo {
+        debug!("Client tcp connection [{src_address}] complete sock5 relay, tcp loop key: [{tcp_loop_key}].");
+        Ok(ClientTransportDataRelayInfo {
             client_tcp_stream,
             src_address: src_address.clone(),
             dst_address,
@@ -144,8 +98,49 @@ impl Socks5ClientProcessor {
             proxy_connection,
             init_data: None,
         })
-        .await?;
-        debug!("Client tcp connection [{src_address}] complete sock5 relay, tcp loop key: [{tcp_loop_key}].");
-        Ok(())
+    }
+}
+
+#[async_trait]
+impl ClientTransport for Socks5ClientTransport {
+    async fn handshake(&self, handshake_info: ClientTransportHandshakeInfo) -> Result<ClientTransportDataRelayInfo, AgentError> {
+        let ClientTransportHandshakeInfo {
+            client_tcp_stream,
+            src_address,
+            initial_buf,
+        } = handshake_info;
+        let mut auth_framed_parts = FramedParts::new(client_tcp_stream, Socks5AuthCommandContentCodec);
+        auth_framed_parts.read_buf = initial_buf;
+        let mut auth_framed = Framed::from_parts(auth_framed_parts);
+        let auth_message = auth_framed
+            .next()
+            .await
+            .ok_or(NetworkError::ConnectionExhausted)?
+            .map_err(DecoderError::Socks5)?;
+        debug!(
+            "Client tcp connection [{src_address}] start socks5 authenticate process, authenticate methods in request: {:?}",
+            auth_message.methods
+        );
+        let auth_response = Socks5AuthCommandResult::new(Socks5AuthMethod::NoAuthenticationRequired);
+        auth_framed.send(auth_response).await.map_err(EncoderError::Socks5)?;
+        let FramedParts { io: client_tcp_stream, .. } = auth_framed.into_parts();
+        let mut init_framed = Framed::new(client_tcp_stream, Socks5InitCommandContentCodec);
+        let init_message = init_framed
+            .next()
+            .await
+            .ok_or(NetworkError::ConnectionExhausted)?
+            .map_err(DecoderError::Socks5)?;
+        debug!(
+            "Client tcp connection [{src_address}] start socks5 init process, command type: {:?}, destination address: {:?}",
+            init_message.request_type, init_message.dst_address
+        );
+
+        let relay_info = match init_message.request_type {
+            Socks5InitCommandType::Bind => todo!(),
+            Socks5InitCommandType::UdpAssociate => todo!(),
+            Socks5InitCommandType::Connect => Self::handle_connect_command(src_address, init_message.dst_address.into(), init_framed).await?,
+        };
+
+        Ok(relay_info)
     }
 }

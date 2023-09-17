@@ -1,8 +1,9 @@
 pub(crate) mod codec;
 
+use async_trait::async_trait;
 use bytecodec::{bytes::BytesEncoder, EncodeExt};
 
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
 use derive_more::Constructor;
 use futures::{SinkExt, StreamExt};
 use httpcodec::{BodyEncoder, HttpVersion, ReasonPhrase, RequestEncoder, Response, StatusCode};
@@ -13,7 +14,7 @@ use ppaass_common::{
     PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyProtocol, PpaassMessageProxyTcpPayloadType, PpaassNetAddress,
     PpaassProxyMessage, PpaassProxyMessagePayload,
 };
-use tokio::net::TcpStream;
+
 use tokio_util::codec::{Framed, FramedParts};
 use url::Url;
 
@@ -21,9 +22,11 @@ use crate::{
     config::AGENT_CONFIG,
     connection::PROXY_CONNECTION_FACTORY,
     error::{AgentError, ConversionError, DecoderError, EncoderError, NetworkError},
-    processor::{http::codec::HttpCodec, ClientDataRelayInfo, ClientProtocolProcessor},
+    processor::{http::codec::HttpCodec, ClientTransport, ClientTransportDataRelayInfo},
     AgentServerPayloadEncryptionTypeSelector,
 };
+
+use super::dispatcher::ClientTransportHandshakeInfo;
 
 const HTTPS_SCHEMA: &str = "https";
 const SCHEMA_SEP: &str = "://";
@@ -34,15 +37,16 @@ const OK_CODE: u16 = 200;
 const CONNECTION_ESTABLISHED: &str = "Connection Established";
 
 #[derive(Debug, Constructor)]
-pub(crate) struct HttpClientProcessor {
-    client_tcp_stream: TcpStream,
-    src_address: PpaassNetAddress,
-}
+pub(crate) struct HttpClientTransport;
 
-impl HttpClientProcessor {
-    pub(crate) async fn exec(self, initial_buf: BytesMut) -> Result<(), AgentError> {
-        let client_tcp_stream = self.client_tcp_stream;
-        let src_address = self.src_address;
+#[async_trait]
+impl ClientTransport for HttpClientTransport {
+    async fn handshake(&self, handshake_info: ClientTransportHandshakeInfo) -> Result<ClientTransportDataRelayInfo, AgentError> {
+        let ClientTransportHandshakeInfo {
+            client_tcp_stream,
+            src_address,
+            initial_buf,
+        } = handshake_info;
         let mut framed_parts = FramedParts::new(client_tcp_stream, HttpCodec::default());
         framed_parts.read_buf = initial_buf;
         let mut http_framed = Framed::from_parts(framed_parts);
@@ -133,9 +137,8 @@ impl HttpClientProcessor {
             );
             http_framed.send(http_connect_success_response).await.map_err(EncoderError::Http)?;
         }
-
         let FramedParts { io: client_tcp_stream, .. } = http_framed.into_parts();
-        ClientProtocolProcessor::relay(ClientDataRelayInfo {
+        Ok(ClientTransportDataRelayInfo {
             client_tcp_stream,
             src_address,
             dst_address,
@@ -144,8 +147,5 @@ impl HttpClientProcessor {
             proxy_connection,
             init_data,
         })
-        .await?;
-
-        Ok(())
     }
 }

@@ -1,19 +1,19 @@
 pub(crate) mod dispatcher;
 
 use std::{
-    fmt::{Debug, Display},
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
 };
 
-use self::{http::HttpClientProcessor, socks::Socks5ClientProcessor};
+use self::dispatcher::ClientTransportHandshakeInfo;
 use crate::{
     config::AGENT_CONFIG,
     crypto::AgentServerRsaCryptoFetcher,
     error::{AgentError, NetworkError},
 };
 
+use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 use futures::StreamExt as FuturesStreamExt;
 use futures::{
@@ -36,69 +36,29 @@ mod http;
 mod socks;
 
 #[non_exhaustive]
-struct ClientDataRelayInfo<'r, I>
-where
-    I: ToString + Send + Sync + Clone + Display + Debug + 'static,
-{
+pub(crate) struct ClientTransportDataRelayInfo {
     client_tcp_stream: TcpStream,
     src_address: PpaassNetAddress,
     dst_address: PpaassNetAddress,
     user_token: String,
     payload_encryption: PpaassMessagePayloadEncryption,
-    proxy_connection: PpaassProxyConnection<'r, TcpStream, AgentServerRsaCryptoFetcher, I>,
+    proxy_connection: PpaassProxyConnection<'static, TcpStream, AgentServerRsaCryptoFetcher, String>,
     init_data: Option<Bytes>,
 }
 
-pub(crate) enum ClientProtocolProcessor {
-    Http {
-        client_tcp_stream: TcpStream,
-        src_address: PpaassNetAddress,
-        initial_buf: BytesMut,
-    },
-    Socks5 {
-        client_tcp_stream: TcpStream,
-        src_address: PpaassNetAddress,
-        initial_buf: BytesMut,
-    },
-}
+#[async_trait]
+pub(crate) trait ClientTransport {
+    async fn handshake(&self, handshake_info: ClientTransportHandshakeInfo) -> Result<ClientTransportDataRelayInfo, AgentError>;
 
-impl ClientProtocolProcessor {
-    pub(crate) async fn exec(self) -> Result<(), AgentError> {
-        match self {
-            ClientProtocolProcessor::Http {
-                client_tcp_stream,
-                src_address,
-                initial_buf,
-            } => {
-                let http_flow = HttpClientProcessor::new(client_tcp_stream, src_address.clone());
-                http_flow.exec(initial_buf).await?;
-            },
-            ClientProtocolProcessor::Socks5 {
-                client_tcp_stream,
-                src_address,
-                initial_buf,
-            } => {
-                let socks5_flow = Socks5ClientProcessor::new(client_tcp_stream, src_address.clone());
-                socks5_flow.exec(initial_buf).await?;
-            },
-        }
-        Ok(())
-    }
-
-    async fn relay<'r, I>(info: ClientDataRelayInfo<'r, I>) -> Result<(), AgentError>
-    where
-        I: ToString + Send + Sync + Clone + Display + Debug + 'static,
-        'r: 'static,
-    {
-        let client_tcp_stream = info.client_tcp_stream;
-
-        let src_address = info.src_address;
-        let dst_address = info.dst_address;
+    async fn relay(&self, relay_info: ClientTransportDataRelayInfo) -> Result<(), AgentError> {
+        let client_tcp_stream = relay_info.client_tcp_stream;
+        let src_address = relay_info.src_address;
+        let dst_address = relay_info.dst_address;
         let proxy_relay_timeout = AGENT_CONFIG.get_proxy_relay_timeout();
         let client_relay_timeout = AGENT_CONFIG.get_client_relay_timeout();
-        let payload_encryption = info.payload_encryption;
-        let mut proxy_connection = info.proxy_connection;
-        let user_token = info.user_token;
+        let payload_encryption = relay_info.payload_encryption;
+        let mut proxy_connection = relay_info.proxy_connection;
+        let user_token = relay_info.user_token;
         let client_io_framed = Framed::with_capacity(client_tcp_stream, BytesCodec::new(), AGENT_CONFIG.get_client_receive_buffer_size());
         let (client_io_write, client_io_read) = client_io_framed.split::<BytesMut>();
         let (mut client_io_write, client_io_read) = (
@@ -106,7 +66,7 @@ impl ClientProtocolProcessor {
             ClientConnectionRead::new(src_address.clone(), client_io_read),
         );
 
-        if let Some(init_data) = info.init_data {
+        if let Some(init_data) = relay_info.init_data {
             let agent_message = PpaassMessageGenerator::generate_agent_tcp_data_message(
                 &user_token,
                 payload_encryption.clone(),
