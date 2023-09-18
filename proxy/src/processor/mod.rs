@@ -2,13 +2,12 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
-use log::{debug, error};
+use log::error;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::timeout;
 
 use ppaass_common::{
-    agent::PpaassAgentConnection, CommonError, PpaassAgentMessage, PpaassAgentMessagePayload, PpaassMessageAgentTcpPayloadType,
-    PpaassMessageAgentUdpPayloadType,
+    agent::PpaassAgentConnection, PpaassAgentMessage, PpaassAgentMessagePayload, PpaassMessageAgentTcpPayloadType, PpaassMessageAgentUdpPayloadType,
 };
 use ppaass_common::{tcp::AgentTcpInit, udp::UdpData};
 use ppaass_common::{PpaassMessageAgentProtocol, PpaassNetAddress};
@@ -70,20 +69,17 @@ where
         match protocol {
             PpaassMessageAgentProtocol::Tcp(payload_type) => {
                 if PpaassMessageAgentTcpPayloadType::Init != payload_type {
-                    return Err(NetworkError::AgentRead(CommonError::Other(anyhow!("Invalid agent message payload type"))).into());
+                    return Err(anyhow!("Invalid tcp init payload type from agent message: {:?}", payload_type).into());
                 }
-                let tcp_init_request: AgentTcpInit = data.try_into()?;
-                let src_address = tcp_init_request.src_address;
-                let dst_address = tcp_init_request.dst_address;
+                let AgentTcpInit { src_address, dst_address } = data.try_into()?;
                 // Tcp handler will block the thread and continue to
                 // handle the agent connection in a loop
                 TcpHandler::exec(self.agent_connection, user_token, src_address, dst_address).await?;
                 Ok(())
             },
             PpaassMessageAgentProtocol::Udp(payload_type) => {
-                debug!("Agent connection {} receive udp data from agent.", self.agent_connection.get_connection_id());
                 if PpaassMessageAgentUdpPayloadType::Data != payload_type {
-                    return Err(NetworkError::AgentRead(CommonError::Other(anyhow!("Invalid agent message payload type"))).into());
+                    return Err(anyhow!("Invalid udp data payload type from agent message: {:?}", payload_type).into());
                 }
                 let UdpData {
                     src_address,
