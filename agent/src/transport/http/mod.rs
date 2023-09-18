@@ -22,11 +22,11 @@ use crate::{
     config::AGENT_CONFIG,
     connection::PROXY_CONNECTION_FACTORY,
     error::{AgentError, ConversionError, DecoderError, EncoderError, NetworkError},
-    transport::{http::codec::HttpCodec, ClientTransport, ClientTransportDataRelayInfo},
+    transport::{http::codec::HttpCodec, ClientTransportDataRelayInfo},
     AgentServerPayloadEncryptionTypeSelector,
 };
 
-use super::dispatcher::ClientTransportHandshakeInfo;
+use super::{dispatcher::ClientTransportHandshakeInfo, ClientTransportHandshake, ClientTransportRelay};
 
 const HTTPS_SCHEMA: &str = "https";
 const SCHEMA_SEP: &str = "://";
@@ -39,13 +39,17 @@ const CONNECTION_ESTABLISHED: &str = "Connection Established";
 #[derive(Debug, Constructor)]
 pub(crate) struct HttpClientTransport;
 
+impl ClientTransportRelay for HttpClientTransport {}
+
 #[async_trait]
-impl ClientTransport for HttpClientTransport {
-    async fn handshake(&self, handshake_info: ClientTransportHandshakeInfo) -> Result<ClientTransportDataRelayInfo, AgentError> {
+impl ClientTransportHandshake for HttpClientTransport {
+    async fn handshake(
+        &self, handshake_info: ClientTransportHandshakeInfo,
+    ) -> Result<(ClientTransportDataRelayInfo, Box<dyn ClientTransportRelay + Send + Sync>), AgentError> {
         let ClientTransportHandshakeInfo {
-            client_tcp_stream,
-            src_address,
             initial_buf,
+            src_address,
+            client_tcp_stream,
         } = handshake_info;
         let mut framed_parts = FramedParts::new(client_tcp_stream, HttpCodec::default());
         framed_parts.read_buf = initial_buf;
@@ -138,14 +142,17 @@ impl ClientTransport for HttpClientTransport {
             http_framed.send(http_connect_success_response).await.map_err(EncoderError::Http)?;
         }
         let FramedParts { io: client_tcp_stream, .. } = http_framed.into_parts();
-        Ok(ClientTransportDataRelayInfo {
-            client_tcp_stream,
-            src_address,
-            dst_address,
-            user_token,
-            payload_encryption,
-            proxy_connection,
-            init_data,
-        })
+        Ok((
+            ClientTransportDataRelayInfo {
+                client_tcp_stream,
+                src_address,
+                dst_address,
+                user_token,
+                payload_encryption,
+                proxy_connection,
+                init_data,
+            },
+            Box::new(Self),
+        ))
     }
 }

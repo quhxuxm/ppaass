@@ -130,13 +130,21 @@ pub(crate) struct ClientTransportDataRelayInfo {
 }
 
 #[async_trait]
-pub(crate) trait ClientTransport {
-    async fn handshake(&self, handshake_info: ClientTransportHandshakeInfo) -> Result<ClientTransportDataRelayInfo, AgentError>;
+pub(crate) trait ClientTransportHandshake {
+    async fn handshake(
+        &self, handshake_info: ClientTransportHandshakeInfo,
+    ) -> Result<(ClientTransportDataRelayInfo, Box<dyn ClientTransportRelay + Send + Sync>), AgentError>;
+}
 
+#[async_trait]
+pub(crate) trait ClientTransportRelay {
     async fn relay(&self, relay_info: ClientTransportDataRelayInfo) -> Result<(), AgentError> {
-        let client_tcp_stream = relay_info.client_tcp_stream;
-        let src_address = relay_info.src_address;
-        let dst_address = relay_info.dst_address;
+        let ClientTransportDataRelayInfo {
+            client_tcp_stream,
+            src_address,
+            dst_address,
+            ..
+        } = relay_info;
         let proxy_relay_timeout = AGENT_CONFIG.get_proxy_relay_timeout();
         let client_relay_timeout = AGENT_CONFIG.get_client_relay_timeout();
         let payload_encryption = relay_info.payload_encryption;

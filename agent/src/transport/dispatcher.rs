@@ -14,7 +14,7 @@ use crate::{
     SOCKS_V4, SOCKS_V5,
 };
 
-use super::ClientTransport;
+use super::ClientTransportHandshake;
 
 pub(crate) enum ClientProtocol {
     /// The client side choose to use HTTP proxy
@@ -57,7 +57,7 @@ pub(crate) struct ClientTransportDispatcher;
 impl ClientTransportDispatcher {
     pub(crate) async fn dispatch(
         client_tcp_stream: TcpStream, client_socket_address: SocketAddr,
-    ) -> Result<(ClientTransportHandshakeInfo, Box<dyn ClientTransport + Send + Sync>), AgentError> {
+    ) -> Result<(ClientTransportHandshakeInfo, Box<dyn ClientTransportHandshake + Send + Sync>), AgentError> {
         let mut client_message_framed = Framed::with_capacity(client_tcp_stream, SwitchClientProtocolDecoder, AGENT_CONFIG.get_client_receive_buffer_size());
         let client_protocol = match client_message_framed.next().await {
             Some(Ok(client_protocol)) => client_protocol,
@@ -83,8 +83,8 @@ impl ClientTransportDispatcher {
                 Ok((
                     ClientTransportHandshakeInfo {
                         client_tcp_stream,
-                        src_address: client_socket_address.into(),
                         initial_buf,
+                        src_address: client_socket_address.into(),
                     },
                     Box::new(Socks5ClientTransport),
                 ))

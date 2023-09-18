@@ -27,14 +27,14 @@ use crate::{
             codec::{Socks5AuthCommandContentCodec, Socks5InitCommandContentCodec},
             message::{Socks5AuthCommandResult, Socks5AuthMethod, Socks5InitCommandResult, Socks5InitCommandType},
         },
-        ClientTransport, ClientTransportDataRelayInfo,
+        ClientTransportDataRelayInfo, ClientTransportHandshake,
     },
     AgentServerPayloadEncryptionTypeSelector,
 };
 
 use ppaass_common::generate_uuid;
 
-use super::dispatcher::ClientTransportHandshakeInfo;
+use super::{dispatcher::ClientTransportHandshakeInfo, ClientTransportRelay};
 
 pub(crate) struct Socks5ClientTransport;
 
@@ -91,7 +91,7 @@ impl Socks5ClientTransport {
         debug!("Client tcp connection [{src_address}] complete sock5 relay, tcp loop key: [{tcp_loop_key}].");
         Ok(ClientTransportDataRelayInfo {
             client_tcp_stream,
-            src_address: src_address.clone(),
+            src_address,
             dst_address,
             user_token,
             payload_encryption,
@@ -101,13 +101,17 @@ impl Socks5ClientTransport {
     }
 }
 
+impl ClientTransportRelay for Socks5ClientTransport {}
+
 #[async_trait]
-impl ClientTransport for Socks5ClientTransport {
-    async fn handshake(&self, handshake_info: ClientTransportHandshakeInfo) -> Result<ClientTransportDataRelayInfo, AgentError> {
+impl ClientTransportHandshake for Socks5ClientTransport {
+    async fn handshake(
+        &self, handshake_info: ClientTransportHandshakeInfo,
+    ) -> Result<(ClientTransportDataRelayInfo, Box<dyn ClientTransportRelay + Send + Sync>), AgentError> {
         let ClientTransportHandshakeInfo {
-            client_tcp_stream,
-            src_address,
             initial_buf,
+            src_address,
+            client_tcp_stream,
         } = handshake_info;
         let mut auth_framed_parts = FramedParts::new(client_tcp_stream, Socks5AuthCommandContentCodec);
         auth_framed_parts.read_buf = initial_buf;
@@ -141,6 +145,6 @@ impl ClientTransport for Socks5ClientTransport {
             Socks5InitCommandType::Connect => Self::handle_connect_command(src_address, init_message.dst_address.into(), init_framed).await?,
         };
 
-        Ok(relay_info)
+        Ok((relay_info, Box::new(Self)))
     }
 }

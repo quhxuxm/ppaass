@@ -42,9 +42,9 @@ impl AgentServer {
     }
 
     async fn handle_client_connection(client_tcp_stream: TcpStream, client_socket_address: SocketAddr) -> Result<(), AgentError> {
-        let (handshake_info, transport) = ClientTransportDispatcher::dispatch(client_tcp_stream, client_socket_address).await?;
-        let relay_info = transport.handshake(handshake_info).await?;
-        transport.relay(relay_info).await?;
+        let (handshake_info, handshake) = ClientTransportDispatcher::dispatch(client_tcp_stream, client_socket_address).await?;
+        let (relay_info, relay) = handshake.handshake(handshake_info).await?;
+        relay.relay(relay_info).await?;
         debug!("Client transport [{client_socket_address}] complete to serve.");
         Ok(())
     }
