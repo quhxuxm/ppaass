@@ -19,6 +19,8 @@ pub enum AgentError {
     Configuration(String),
     #[error("Invalid proxy response error happen: {0:?}")]
     InvalidProxyResponse(String),
+    #[error("IO error happen: {0:?}")]
+    Io(#[from] StdIoError),
     #[error(transparent)]
     Other(#[from] AnyhowError),
 }
@@ -117,6 +119,8 @@ pub enum NetworkError {
     TcpBind(#[source] StdIoError),
     #[error("Fail to create tcp connection because of error: {0:?}")]
     TcpConnect(#[source] StdIoError),
+    #[error("Fail to receive client udp data because of error: {0:?}")]
+    ClientUdpRecv(#[source] StdIoError),
     #[error("General I/O error happen: {0:?}")]
     General(#[source] StdIoError),
     #[error("Timeout error: {0:?}")]

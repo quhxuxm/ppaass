@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use log::{debug, error, info};
 use tokio::net::{TcpListener, TcpStream};
 
-use crate::{config::AGENT_CONFIG, error::NetworkError};
+use crate::{config::AGENT_CONFIG, error::NetworkError, transport::ClientTransportDataRelayInfo};
 use crate::{error::AgentError, transport::dispatcher::ClientTransportDispatcher};
 
 #[derive(Debug, Default)]
@@ -44,7 +44,10 @@ impl AgentServer {
     async fn handle_client_connection(client_tcp_stream: TcpStream, client_socket_address: SocketAddr) -> Result<(), AgentError> {
         let (handshake_info, handshake) = ClientTransportDispatcher::dispatch(client_tcp_stream, client_socket_address).await?;
         let (relay_info, relay) = handshake.handshake(handshake_info).await?;
-        relay.relay(relay_info).await?;
+        match relay_info {
+            ClientTransportDataRelayInfo::Tcp(tcp_relay_info) => relay.tcp_relay(tcp_relay_info).await?,
+            ClientTransportDataRelayInfo::Udp(udp_relay_info) => relay.udp_relay(udp_relay_info).await?,
+        }
         debug!("Client transport [{client_socket_address}] complete to serve.");
         Ok(())
     }

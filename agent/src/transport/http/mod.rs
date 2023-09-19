@@ -22,7 +22,7 @@ use crate::{
     config::AGENT_CONFIG,
     connection::PROXY_CONNECTION_FACTORY,
     error::{AgentError, ConversionError, DecoderError, EncoderError, NetworkError},
-    transport::{http::codec::HttpCodec, ClientTransportDataRelayInfo},
+    transport::{http::codec::HttpCodec, ClientTransportDataRelayInfo, ClientTransportTcpDataRelay},
     AgentServerPayloadEncryptionTypeSelector,
 };
 
@@ -105,7 +105,6 @@ impl ClientTransportHandshake for HttpClientTransport {
 
         let PpaassProxyMessage {
             payload: PpaassProxyMessagePayload { protocol, data },
-            user_token,
             ..
         } = proxy_message;
 
@@ -143,15 +142,13 @@ impl ClientTransportHandshake for HttpClientTransport {
         }
         let FramedParts { io: client_tcp_stream, .. } = http_framed.into_parts();
         Ok((
-            ClientTransportDataRelayInfo {
+            ClientTransportDataRelayInfo::Tcp(ClientTransportTcpDataRelay {
                 client_tcp_stream,
                 src_address,
                 dst_address,
-                user_token,
-                payload_encryption,
                 proxy_connection,
                 init_data,
-            },
+            }),
             Box::new(Self),
         ))
     }

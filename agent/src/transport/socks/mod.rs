@@ -1,22 +1,26 @@
 mod codec;
 mod message;
 
+use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
 
 use futures::{SinkExt, StreamExt};
 use ppaass_common::{
     tcp::{ProxyTcpInit, ProxyTcpInitResultType},
-    PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyProtocol, PpaassMessageProxyTcpPayloadType, PpaassNetAddress,
-    PpaassProxyMessage, PpaassProxyMessagePayload,
+    PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyProtocol, PpaassMessageProxyTcpPayloadType,
+    PpaassMessageProxyUdpPayloadType, PpaassNetAddress, PpaassProxyMessage, PpaassProxyMessagePayload,
 };
 
 use log::{debug, error};
 
-use tokio::net::TcpStream;
+use tokio::{
+    io::AsyncReadExt,
+    net::{TcpStream, UdpSocket},
+};
 use tokio_util::codec::{Framed, FramedParts};
 
-use self::message::Socks5InitCommandResultStatus;
+use self::message::{Socks5InitCommandResultStatus, Socks5UdpDataPacket};
 
 use crate::{
     config::AGENT_CONFIG,
@@ -27,25 +31,169 @@ use crate::{
             codec::{Socks5AuthCommandContentCodec, Socks5InitCommandContentCodec},
             message::{Socks5AuthCommandResult, Socks5AuthMethod, Socks5InitCommandResult, Socks5InitCommandType},
         },
-        ClientTransportDataRelayInfo, ClientTransportHandshake,
+        ClientTransportDataRelayInfo, ClientTransportHandshake, ClientTransportTcpDataRelay,
     },
     AgentServerPayloadEncryptionTypeSelector,
 };
 
 use ppaass_common::generate_uuid;
 
-use super::{dispatcher::ClientTransportHandshakeInfo, ClientTransportRelay};
+use super::{dispatcher::ClientTransportHandshakeInfo, ClientTransportRelay, ClientTransportUdpDataRelay};
 
 pub(crate) struct Socks5ClientTransport;
 
+#[async_trait]
+impl ClientTransportRelay for Socks5ClientTransport {
+    async fn udp_relay(&self, udp_relay_info: ClientTransportUdpDataRelay) -> Result<(), AgentError> {
+        let ClientTransportUdpDataRelay {
+            client_tcp_stream,
+            client_udp_restrict_address,
+            agent_udp_socket,
+        } = udp_relay_info;
+        tokio::select! {
+            udp_relay_tcp_check_result = Self::check_udp_relay_tcp_connection(client_tcp_stream)=>{
+                Ok(udp_relay_tcp_check_result?)
+            },
+            udp_relay_result = Self::relay_udp_data(client_udp_restrict_address,agent_udp_socket)=>{
+                Ok(udp_relay_result?)
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl ClientTransportHandshake for Socks5ClientTransport {
+    async fn handshake(
+        &self, handshake_info: ClientTransportHandshakeInfo,
+    ) -> Result<(ClientTransportDataRelayInfo, Box<dyn ClientTransportRelay + Send + Sync>), AgentError> {
+        let ClientTransportHandshakeInfo {
+            initial_buf,
+            src_address,
+            client_tcp_stream,
+        } = handshake_info;
+        let mut client_auth_framed_parts = FramedParts::new(client_tcp_stream, Socks5AuthCommandContentCodec);
+        client_auth_framed_parts.read_buf = initial_buf;
+        let mut client_auth_framed = Framed::from_parts(client_auth_framed_parts);
+        let client_auth_command = client_auth_framed
+            .next()
+            .await
+            .ok_or(NetworkError::ConnectionExhausted)?
+            .map_err(DecoderError::Socks5)?;
+        debug!(
+            "Client tcp connection [{src_address}] start socks5 authenticate process, authenticate methods in request: {:?}",
+            client_auth_command.methods
+        );
+        let client_auth_response = Socks5AuthCommandResult::new(Socks5AuthMethod::NoAuthenticationRequired);
+        client_auth_framed.send(client_auth_response).await.map_err(EncoderError::Socks5)?;
+        let FramedParts { io: client_tcp_stream, .. } = client_auth_framed.into_parts();
+
+        let mut client_init_framed = Framed::new(client_tcp_stream, Socks5InitCommandContentCodec);
+        let client_init_command = client_init_framed
+            .next()
+            .await
+            .ok_or(NetworkError::ConnectionExhausted)?
+            .map_err(DecoderError::Socks5)?;
+        debug!(
+            "Client tcp connection [{src_address}] start socks5 init process, command type: {:?}, destination address: {:?}",
+            client_init_command.request_type, client_init_command.dst_address
+        );
+
+        let relay_info = match client_init_command.request_type {
+            Socks5InitCommandType::Bind => Self::handle_bind_command(src_address, client_init_command.dst_address.into(), client_init_framed).await?,
+            Socks5InitCommandType::UdpAssociate => Self::handle_udp_associate_command(client_init_command.dst_address.into(), client_init_framed).await?,
+            Socks5InitCommandType::Connect => Self::handle_connect_command(src_address, client_init_command.dst_address.into(), client_init_framed).await?,
+        };
+
+        Ok((relay_info, Box::new(Self)))
+    }
+}
+
 impl Socks5ClientTransport {
+    async fn check_udp_relay_tcp_connection(mut client_tcp_stream: TcpStream) -> Result<(), AgentError> {
+        let mut client_data_buf = [0u8; 1];
+        let size = client_tcp_stream.read(&mut client_data_buf).await?;
+        if size == 0 {
+            return Ok(());
+        }
+        todo!()
+    }
+    async fn relay_udp_data(client_udp_restrict_address: PpaassNetAddress, agent_udp_socket: UdpSocket) -> Result<(), AgentError> {
+        let user_token = AGENT_CONFIG
+            .get_user_token()
+            .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
+        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(Bytes::from(generate_uuid().into_bytes())));
+        loop {
+            let mut client_udp_buf = [0u8; 65535];
+            let (len, client_udp_address) = match agent_udp_socket.recv_from(&mut client_udp_buf).await {
+                Ok(len) => len,
+                Err(e) => return Err(NetworkError::ClientUdpRecv(e).into()),
+            };
+            let src_address: PpaassNetAddress = client_udp_address.into();
+            if client_udp_restrict_address != src_address {
+                continue;
+            }
+            let client_udp_buf = client_udp_buf[..len].to_vec();
+            let client_udp_bytes = Bytes::from_iter(client_udp_buf);
+            let client_socks5_udp_packet: Socks5UdpDataPacket = client_udp_bytes.try_into().map_err(DecoderError::Socks5)?;
+            let dst_address: PpaassNetAddress = client_socks5_udp_packet.address.into();
+            let agent_udp_message = PpaassMessageGenerator::generate_agent_udp_data_message(
+                user_token,
+                payload_encryption.clone(),
+                src_address.clone(),
+                dst_address.clone(),
+                client_socks5_udp_packet.data,
+            )?;
+            let mut proxy_connection = PROXY_CONNECTION_FACTORY.create_connection().await?;
+            proxy_connection.send(agent_udp_message).await?;
+            let proxy_udp_message = match proxy_connection.next().await {
+                Some(Ok(proxy_udp_message)) => proxy_udp_message,
+                Some(Err(e)) => return Err(e.into()),
+                None => return Ok(()),
+            };
+            let PpaassProxyMessage {
+                payload: PpaassProxyMessagePayload { protocol, data },
+                ..
+            } = proxy_udp_message;
+            if protocol != PpaassMessageProxyProtocol::Udp(PpaassMessageProxyUdpPayloadType::Data) {
+                return Err(AgentError::Other(anyhow!("Invalid proxy udp payload type")));
+            };
+
+            let agent_socks5_udp_packet = Socks5UdpDataPacket {
+                frag: 0,
+                address: src_address.try_into()?,
+                data,
+            };
+            let agent_socks5_udp_packet_bytes: Bytes = agent_socks5_udp_packet.into();
+            agent_udp_socket.send(&agent_socks5_udp_packet_bytes).await?;
+        }
+    }
+    async fn handle_bind_command(
+        src_address: PpaassNetAddress, dst_address: PpaassNetAddress, mut init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
+    ) -> Result<ClientTransportDataRelayInfo, AgentError> {
+        todo!()
+    }
+
+    async fn handle_udp_associate_command(
+        client_udp_restrict_address: PpaassNetAddress, mut init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
+    ) -> Result<ClientTransportDataRelayInfo, AgentError> {
+        let agent_udp_socket = UdpSocket::bind("0.0.0.0:0").await?;
+
+        let socks5_init_success_result = Socks5InitCommandResult::new(Socks5InitCommandResultStatus::Succeeded, Some(agent_udp_socket.local_addr()?.into()));
+        init_framed.send(socks5_init_success_result).await.map_err(EncoderError::Socks5)?;
+        let FramedParts { io: client_tcp_stream, .. } = init_framed.into_parts();
+        Ok(ClientTransportDataRelayInfo::Udp(ClientTransportUdpDataRelay {
+            agent_udp_socket,
+            client_tcp_stream,
+            client_udp_restrict_address,
+        }))
+    }
+
     async fn handle_connect_command(
         src_address: PpaassNetAddress, dst_address: PpaassNetAddress, mut init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
     ) -> Result<ClientTransportDataRelayInfo, AgentError> {
         let user_token = AGENT_CONFIG
             .get_user_token()
             .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
-
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(Bytes::from(generate_uuid().into_bytes())));
         let tcp_init_request =
             PpaassMessageGenerator::generate_agent_tcp_init_message(user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
@@ -59,7 +207,6 @@ impl Socks5ClientTransport {
         let proxy_message = proxy_connection.next().await.ok_or(NetworkError::ConnectionExhausted)??;
         let PpaassProxyMessage {
             payload: PpaassProxyMessagePayload { protocol, data },
-            user_token,
             ..
         } = proxy_message;
         let tcp_init_response = match protocol {
@@ -89,62 +236,12 @@ impl Socks5ClientTransport {
         let FramedParts { io: client_tcp_stream, .. } = init_framed.into_parts();
         debug!("Client tcp connection [{src_address}] success to do sock5 handshake begin to relay, tcp loop key: [{tcp_loop_key}].");
         debug!("Client tcp connection [{src_address}] complete sock5 relay, tcp loop key: [{tcp_loop_key}].");
-        Ok(ClientTransportDataRelayInfo {
+        Ok(ClientTransportDataRelayInfo::Tcp(ClientTransportTcpDataRelay {
             client_tcp_stream,
             src_address,
             dst_address,
-            user_token,
-            payload_encryption,
             proxy_connection,
             init_data: None,
-        })
-    }
-}
-
-impl ClientTransportRelay for Socks5ClientTransport {}
-
-#[async_trait]
-impl ClientTransportHandshake for Socks5ClientTransport {
-    async fn handshake(
-        &self, handshake_info: ClientTransportHandshakeInfo,
-    ) -> Result<(ClientTransportDataRelayInfo, Box<dyn ClientTransportRelay + Send + Sync>), AgentError> {
-        let ClientTransportHandshakeInfo {
-            initial_buf,
-            src_address,
-            client_tcp_stream,
-        } = handshake_info;
-        let mut auth_framed_parts = FramedParts::new(client_tcp_stream, Socks5AuthCommandContentCodec);
-        auth_framed_parts.read_buf = initial_buf;
-        let mut auth_framed = Framed::from_parts(auth_framed_parts);
-        let auth_message = auth_framed
-            .next()
-            .await
-            .ok_or(NetworkError::ConnectionExhausted)?
-            .map_err(DecoderError::Socks5)?;
-        debug!(
-            "Client tcp connection [{src_address}] start socks5 authenticate process, authenticate methods in request: {:?}",
-            auth_message.methods
-        );
-        let auth_response = Socks5AuthCommandResult::new(Socks5AuthMethod::NoAuthenticationRequired);
-        auth_framed.send(auth_response).await.map_err(EncoderError::Socks5)?;
-        let FramedParts { io: client_tcp_stream, .. } = auth_framed.into_parts();
-        let mut init_framed = Framed::new(client_tcp_stream, Socks5InitCommandContentCodec);
-        let init_message = init_framed
-            .next()
-            .await
-            .ok_or(NetworkError::ConnectionExhausted)?
-            .map_err(DecoderError::Socks5)?;
-        debug!(
-            "Client tcp connection [{src_address}] start socks5 init process, command type: {:?}, destination address: {:?}",
-            init_message.request_type, init_message.dst_address
-        );
-
-        let relay_info = match init_message.request_type {
-            Socks5InitCommandType::Bind => todo!(),
-            Socks5InitCommandType::UdpAssociate => todo!(),
-            Socks5InitCommandType::Connect => Self::handle_connect_command(src_address, init_message.dst_address.into(), init_framed).await?,
-        };
-
-        Ok((relay_info, Box::new(Self)))
+        }))
     }
 }

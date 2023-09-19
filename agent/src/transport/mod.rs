@@ -3,6 +3,7 @@ mod http;
 mod socks;
 
 use std::{
+    net::SocketAddr,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
@@ -13,6 +14,7 @@ use crate::{
     config::AGENT_CONFIG,
     crypto::AgentServerRsaCryptoFetcher,
     error::{AgentError, NetworkError},
+    AgentServerPayloadEncryptionTypeSelector,
 };
 
 use async_trait::async_trait;
@@ -25,11 +27,12 @@ use futures::{
 
 use pin_project::pin_project;
 use ppaass_common::{
-    proxy::PpaassProxyConnection, tcp::AgentTcpData, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassNetAddress, PpaassProxyMessage,
+    generate_uuid, proxy::PpaassProxyConnection, tcp::AgentTcpData, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress,
+    PpaassProxyMessage,
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite},
-    net::TcpStream,
+    net::{TcpStream, UdpSocket},
 };
 use tokio_stream::StreamExt as TokioStreamExt;
 use tokio_util::codec::{BytesCodec, Framed};
@@ -118,15 +121,25 @@ where
     }
 }
 
+pub(crate) enum ClientTransportDataRelayInfo {
+    Tcp(ClientTransportTcpDataRelay),
+    Udp(ClientTransportUdpDataRelay),
+}
+
 #[non_exhaustive]
-pub(crate) struct ClientTransportDataRelayInfo {
+pub(crate) struct ClientTransportTcpDataRelay {
     client_tcp_stream: TcpStream,
     src_address: PpaassNetAddress,
     dst_address: PpaassNetAddress,
-    user_token: String,
-    payload_encryption: PpaassMessagePayloadEncryption,
     proxy_connection: PpaassProxyConnection<'static, TcpStream, AgentServerRsaCryptoFetcher, String>,
     init_data: Option<Bytes>,
+}
+
+#[non_exhaustive]
+pub(crate) struct ClientTransportUdpDataRelay {
+    client_tcp_stream: TcpStream,
+    agent_udp_socket: UdpSocket,
+    client_udp_restrict_address: PpaassNetAddress,
 }
 
 #[async_trait]
@@ -138,28 +151,34 @@ pub(crate) trait ClientTransportHandshake {
 
 #[async_trait]
 pub(crate) trait ClientTransportRelay {
-    async fn relay(&self, relay_info: ClientTransportDataRelayInfo) -> Result<(), AgentError> {
-        let ClientTransportDataRelayInfo {
+    async fn udp_relay(&self, _udp_relay_info: ClientTransportUdpDataRelay) -> Result<(), AgentError> {
+        Ok(())
+    }
+
+    async fn tcp_relay(&self, tcp_relay_info: ClientTransportTcpDataRelay) -> Result<(), AgentError> {
+        let user_token = AGENT_CONFIG
+            .get_user_token()
+            .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
+        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(Bytes::from(generate_uuid().into_bytes())));
+        let ClientTransportTcpDataRelay {
             client_tcp_stream,
             src_address,
             dst_address,
-            ..
-        } = relay_info;
+            mut proxy_connection,
+            init_data,
+        } = tcp_relay_info;
+
         let proxy_relay_timeout = AGENT_CONFIG.get_proxy_relay_timeout();
         let client_relay_timeout = AGENT_CONFIG.get_client_relay_timeout();
-        let payload_encryption = relay_info.payload_encryption;
-        let mut proxy_connection = relay_info.proxy_connection;
-        let user_token = relay_info.user_token;
         let client_io_framed = Framed::with_capacity(client_tcp_stream, BytesCodec::new(), AGENT_CONFIG.get_client_receive_buffer_size());
         let (client_io_write, client_io_read) = client_io_framed.split::<BytesMut>();
         let (mut client_io_write, client_io_read) = (
             ClientConnectionWrite::new(src_address.clone(), client_io_write),
             ClientConnectionRead::new(src_address.clone(), client_io_read),
         );
-
-        if let Some(init_data) = relay_info.init_data {
+        if let Some(init_data) = init_data {
             let agent_message = PpaassMessageGenerator::generate_agent_tcp_data_message(
-                &user_token,
+                user_token,
                 payload_encryption.clone(),
                 src_address.clone(),
                 dst_address.clone(),
