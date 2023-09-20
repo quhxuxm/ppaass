@@ -1,6 +1,8 @@
 mod codec;
 mod message;
 
+use std::net::{SocketAddr, ToSocketAddrs};
+
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -12,7 +14,7 @@ use ppaass_common::{
     PpaassMessageProxyUdpPayloadType, PpaassNetAddress, PpaassProxyMessage, PpaassProxyMessagePayload,
 };
 
-use log::{debug, error};
+use log::{debug, error, info};
 
 use tokio::{
     io::AsyncReadExt,
@@ -114,8 +116,8 @@ impl Socks5ClientTransport {
         loop {
             let mut client_data_buf = [0u8; 1];
             let size = client_tcp_stream.read(&mut client_data_buf).await?;
-            debug!("Client udp associate tcp stream closed: {client_tcp_stream:?}");
             if size == 0 {
+                info!("Client udp associate tcp stream closed: {client_tcp_stream:?}");
                 return Ok(());
             }
         }
@@ -133,19 +135,19 @@ impl Socks5ClientTransport {
             };
             let src_address: PpaassNetAddress = client_udp_address.into();
             if client_udp_restrict_address != src_address {
-                debug!("The udp packet sent from client is from address: {src_address:}");
+                error!("The udp packet sent from client not valid, client udp restrict address: {client_udp_restrict_address}, src address: {src_address}");
                 continue;
             }
             let client_udp_buf = client_udp_buf[..len].to_vec();
             let client_udp_bytes = Bytes::from_iter(client_udp_buf);
-            let client_socks5_udp_packet: Socks5UdpDataPacket = client_udp_bytes.try_into().map_err(DecoderError::Socks5)?;
-            let dst_address: PpaassNetAddress = client_socks5_udp_packet.address.into();
+            let client_to_dst_socks5_udp_packet: Socks5UdpDataPacket = client_udp_bytes.try_into().map_err(DecoderError::Socks5)?;
+            let dst_address: PpaassNetAddress = client_to_dst_socks5_udp_packet.address.into();
             let agent_udp_message = PpaassMessageGenerator::generate_agent_udp_data_message(
                 user_token,
                 payload_encryption.clone(),
                 client_udp_restrict_address.clone(),
                 dst_address.clone(),
-                client_socks5_udp_packet.data,
+                client_to_dst_socks5_udp_packet.data,
             )?;
             let mut proxy_connection = PROXY_CONNECTION_FACTORY.create_connection().await?;
             proxy_connection.send(agent_udp_message).await?;
@@ -161,14 +163,15 @@ impl Socks5ClientTransport {
             if protocol != PpaassMessageProxyProtocol::Udp(PpaassMessageProxyUdpPayloadType::Data) {
                 return Err(AgentError::Other(anyhow!("Invalid proxy udp payload type")));
             };
-
-            let agent_socks5_udp_packet = Socks5UdpDataPacket {
+            debug!("Udp packet send from agent to client, dst_address: {dst_address}, src_address: {src_address}");
+            let agent_to_client_socks5_udp_packet = Socks5UdpDataPacket {
                 frag: 0,
-                address: src_address.try_into()?,
+                address: dst_address.clone().try_into()?,
                 data,
             };
-            let agent_socks5_udp_packet_bytes: Bytes = agent_socks5_udp_packet.into();
-            agent_udp_bind_socket.send(&agent_socks5_udp_packet_bytes).await?;
+            let agent_socks5_udp_packet_bytes: Bytes = agent_to_client_socks5_udp_packet.into();
+            let src_socket_address = src_address.to_socket_addrs()?.collect::<Vec<SocketAddr>>();
+            agent_udp_bind_socket.send_to(&agent_socks5_udp_packet_bytes, &src_socket_address[..]).await?;
         }
     }
 

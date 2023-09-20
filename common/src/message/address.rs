@@ -11,7 +11,7 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6, ToSocketAddrs},
 };
 
-#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, Display)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, Display)]
 pub enum PpaassNetAddress {
     #[display(fmt = "{:?}:{}", ip, port)]
     IpV4 { ip: [u8; 4], port: u16 },
@@ -19,6 +19,23 @@ pub enum PpaassNetAddress {
     IpV6 { ip: [u8; 16], port: u16 },
     #[display(fmt = "{}:{}", host, port)]
     Domain { host: String, port: u16 },
+}
+
+impl PartialEq for PpaassNetAddress {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::IpV4 { ip: l_ip, port: l_port }, Self::IpV4 { ip: r_ip, port: r_port }) => l_ip == r_ip && l_port == r_port,
+            (Self::IpV4 { ip: l_ip, port: l_port }, Self::Domain { host: r_host, port: r_port }) => {
+                format!("{}.{}.{}.{}", l_ip[0], l_ip[1], l_ip[2], l_ip[3]).eq(r_host) && l_port == r_port
+            },
+            (Self::IpV6 { ip: l_ip, port: l_port }, Self::IpV6 { ip: r_ip, port: r_port }) => l_ip == r_ip && l_port == r_port,
+            (Self::Domain { host: l_host, port: l_port }, Self::Domain { host: r_host, port: r_port }) => l_host == r_host && l_port == r_port,
+            (Self::Domain { host: l_host, port: l_port }, Self::IpV4 { ip: r_ip, port: r_port }) => {
+                format!("{}.{}.{}.{}", r_ip[0], r_ip[1], r_ip[2], r_ip[3]).eq(l_host) && l_port == r_port
+            },
+            _ => false,
+        }
+    }
 }
 
 pub struct SocketAddrIter {
