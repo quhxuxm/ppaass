@@ -3,7 +3,6 @@ mod http;
 mod socks;
 
 use std::{
-    net::SocketAddr,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
@@ -138,7 +137,7 @@ pub(crate) struct ClientTransportTcpDataRelay {
 #[non_exhaustive]
 pub(crate) struct ClientTransportUdpDataRelay {
     client_tcp_stream: TcpStream,
-    agent_udp_socket: UdpSocket,
+    agent_udp_bind_socket: UdpSocket,
     client_udp_restrict_address: PpaassNetAddress,
 }
 

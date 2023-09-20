@@ -48,13 +48,14 @@ impl ClientTransportRelay for Socks5ClientTransport {
         let ClientTransportUdpDataRelay {
             client_tcp_stream,
             client_udp_restrict_address,
-            agent_udp_socket,
+            agent_udp_bind_socket,
         } = udp_relay_info;
+        debug!("Agent begin to relay udp packet for client: {client_udp_restrict_address:?}");
         tokio::select! {
             udp_relay_tcp_check_result = Self::check_udp_relay_tcp_connection(client_tcp_stream)=>{
                 Ok(udp_relay_tcp_check_result?)
             },
-            udp_relay_result = Self::relay_udp_data(client_udp_restrict_address,agent_udp_socket)=>{
+            udp_relay_result = Self::relay_udp_data(client_udp_restrict_address,agent_udp_bind_socket)=>{
                 Ok(udp_relay_result?)
             }
         }
@@ -110,26 +111,29 @@ impl ClientTransportHandshake for Socks5ClientTransport {
 
 impl Socks5ClientTransport {
     async fn check_udp_relay_tcp_connection(mut client_tcp_stream: TcpStream) -> Result<(), AgentError> {
-        let mut client_data_buf = [0u8; 1];
-        let size = client_tcp_stream.read(&mut client_data_buf).await?;
-        if size == 0 {
-            return Ok(());
+        loop {
+            let mut client_data_buf = [0u8; 1];
+            let size = client_tcp_stream.read(&mut client_data_buf).await?;
+            debug!("Client udp associate tcp stream closed: {client_tcp_stream:?}");
+            if size == 0 {
+                return Ok(());
+            }
         }
-        todo!()
     }
-    async fn relay_udp_data(client_udp_restrict_address: PpaassNetAddress, agent_udp_socket: UdpSocket) -> Result<(), AgentError> {
+    async fn relay_udp_data(client_udp_restrict_address: PpaassNetAddress, agent_udp_bind_socket: UdpSocket) -> Result<(), AgentError> {
         let user_token = AGENT_CONFIG
             .get_user_token()
             .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(Bytes::from(generate_uuid().into_bytes())));
         loop {
             let mut client_udp_buf = [0u8; 65535];
-            let (len, client_udp_address) = match agent_udp_socket.recv_from(&mut client_udp_buf).await {
+            let (len, client_udp_address) = match agent_udp_bind_socket.recv_from(&mut client_udp_buf).await {
                 Ok(len) => len,
                 Err(e) => return Err(NetworkError::ClientUdpRecv(e).into()),
             };
             let src_address: PpaassNetAddress = client_udp_address.into();
             if client_udp_restrict_address != src_address {
+                debug!("The udp packet sent from client is from address: {src_address:}");
                 continue;
             }
             let client_udp_buf = client_udp_buf[..len].to_vec();
@@ -139,7 +143,7 @@ impl Socks5ClientTransport {
             let agent_udp_message = PpaassMessageGenerator::generate_agent_udp_data_message(
                 user_token,
                 payload_encryption.clone(),
-                src_address.clone(),
+                client_udp_restrict_address.clone(),
                 dst_address.clone(),
                 client_socks5_udp_packet.data,
             )?;
@@ -164,9 +168,11 @@ impl Socks5ClientTransport {
                 data,
             };
             let agent_socks5_udp_packet_bytes: Bytes = agent_socks5_udp_packet.into();
-            agent_udp_socket.send(&agent_socks5_udp_packet_bytes).await?;
+            agent_udp_bind_socket.send(&agent_socks5_udp_packet_bytes).await?;
         }
     }
+
+    #[allow(unused)]
     async fn handle_bind_command(
         src_address: PpaassNetAddress, dst_address: PpaassNetAddress, mut init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
     ) -> Result<ClientTransportDataRelayInfo, AgentError> {
@@ -176,13 +182,16 @@ impl Socks5ClientTransport {
     async fn handle_udp_associate_command(
         client_udp_restrict_address: PpaassNetAddress, mut init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
     ) -> Result<ClientTransportDataRelayInfo, AgentError> {
-        let agent_udp_socket = UdpSocket::bind("0.0.0.0:0").await?;
-
-        let socks5_init_success_result = Socks5InitCommandResult::new(Socks5InitCommandResultStatus::Succeeded, Some(agent_udp_socket.local_addr()?.into()));
+        debug!("Client do socks5 udp associate on restrict address: {client_udp_restrict_address:?}");
+        let agent_udp_bind_socket = UdpSocket::bind("0.0.0.0:0").await?;
+        debug!("Agent bind udp socket: {agent_udp_bind_socket:?}");
+        let socks5_init_success_result =
+            Socks5InitCommandResult::new(Socks5InitCommandResultStatus::Succeeded, Some(agent_udp_bind_socket.local_addr()?.into()));
         init_framed.send(socks5_init_success_result).await.map_err(EncoderError::Socks5)?;
+        debug!("Agent send socks5 udp associate response to client: {agent_udp_bind_socket:?}");
         let FramedParts { io: client_tcp_stream, .. } = init_framed.into_parts();
         Ok(ClientTransportDataRelayInfo::Udp(ClientTransportUdpDataRelay {
-            agent_udp_socket,
+            agent_udp_bind_socket,
             client_tcp_stream,
             client_udp_restrict_address,
         }))
