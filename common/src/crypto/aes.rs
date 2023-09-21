@@ -1,5 +1,4 @@
 use aes::Aes256;
-use anyhow::anyhow;
 use bytes::{Bytes, BytesMut};
 use cipher::{block_padding::Pkcs7, BlockEncryptMut};
 use cipher::{BlockDecryptMut, KeyInit};
@@ -21,19 +20,15 @@ pub fn encrypt_with_aes(encryption_token: &Bytes, target: &mut BytesMut) -> Resu
     let original_len = target.len();
     let padding_len = (original_len / BLOCK_SIZE + 1) * BLOCK_SIZE;
     target.extend(vec![0u8; padding_len - original_len]);
-    let encryptor = AesEncryptor::new(encryption_token[..].into());
-    encryptor
-        .encrypt_padded_mut::<PaddingMode>(target.as_mut(), original_len)
-        .map(BytesMut::from)
-        .map_err(|e| AesError::from(anyhow!(e)))
+    let enc = AesEncryptor::new(encryption_token[..].into());
+    let result = enc.encrypt_padded_mut::<PaddingMode>(target.as_mut(), original_len).map(BytesMut::from)?;
+    Ok(result)
 }
 
 pub fn decrypt_with_aes(encryption_token: &Bytes, target: &mut BytesMut) -> Result<BytesMut, AesError> {
-    let decryptor = AesDecryptor::new(encryption_token[..].into());
-    decryptor
-        .decrypt_padded_mut::<PaddingMode>(target.as_mut())
-        .map(BytesMut::from)
-        .map_err(|e| AesError::from(anyhow!(e)))
+    let dec = AesDecryptor::new(encryption_token[..].into());
+    let result = dec.decrypt_padded_mut::<PaddingMode>(target.as_mut()).map(BytesMut::from)?;
+    Ok(result)
 }
 
 #[test]

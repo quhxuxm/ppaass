@@ -9,7 +9,7 @@ use std::mem::size_of;
 pub(crate) struct Socks5UdpDataPacket {
     pub frag: u8,
     pub address: Socks5Address,
-    pub data: Vec<u8>,
+    pub data: Bytes,
 }
 
 impl TryFrom<Bytes> for Socks5UdpDataPacket {
@@ -29,13 +29,8 @@ impl TryFrom<Bytes> for Socks5UdpDataPacket {
             return Err(Socks5DecodeError::NoRemaining("No remaining to convert socks5 udp packet".to_string()));
         }
         let frag = src.get_u8();
-        let address: Socks5Address = (&mut src).try_into()?;
-        let data = src.copy_to_bytes(src.remaining());
-        Ok(Socks5UdpDataPacket {
-            frag,
-            address,
-            data: data.to_vec(),
-        })
+        let address = Socks5Address::parse(&mut src)?;
+        Ok(Socks5UdpDataPacket { frag, address, data: src })
     }
 }
 
@@ -47,43 +42,5 @@ impl From<Socks5UdpDataPacket> for Bytes {
         result.put::<Bytes>(packet.address.into());
         result.put(packet.data.as_ref());
         result.freeze()
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct UdpDiagram {
-    pub source_port: u16,
-    pub target_port: u16,
-    pub length: u16,
-    pub checksum: u16,
-    pub data: Bytes,
-}
-
-impl From<Bytes> for UdpDiagram {
-    fn from(mut bytes: Bytes) -> Self {
-        let source_port = bytes.get_u16();
-        let target_port = bytes.get_u16();
-        let length = bytes.get_u16();
-        let checksum = bytes.get_u16();
-        let data: Bytes = bytes.copy_to_bytes(length as usize);
-        Self {
-            source_port,
-            target_port,
-            length,
-            checksum,
-            data,
-        }
-    }
-}
-
-impl From<UdpDiagram> for Vec<u8> {
-    fn from(value: UdpDiagram) -> Self {
-        let mut result = BytesMut::new();
-        result.put_u16(value.source_port);
-        result.put_u16(value.target_port);
-        result.put_u16(value.length);
-        result.put_u16(value.checksum);
-        result.put_slice(value.data.chunk());
-        result.to_vec()
     }
 }

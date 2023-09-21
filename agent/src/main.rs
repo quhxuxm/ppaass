@@ -4,7 +4,7 @@ pub(crate) mod server;
 pub(crate) mod connection;
 pub(crate) mod crypto;
 pub(crate) mod error;
-pub(crate) mod processor;
+pub(crate) mod transport;
 
 use anyhow::Result;
 

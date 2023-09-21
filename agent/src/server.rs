@@ -3,8 +3,8 @@ use std::net::SocketAddr;
 use log::{debug, error, info};
 use tokio::net::{TcpListener, TcpStream};
 
-use crate::{config::AGENT_CONFIG, error::NetworkError};
-use crate::{error::AgentError, processor::dispatcher::ClientProtocolDispatcher};
+use crate::{config::AGENT_CONFIG, error::NetworkError, transport::ClientTransportDataRelayInfo};
+use crate::{error::AgentError, transport::dispatcher::ClientTransportDispatcher};
 
 #[derive(Debug, Default)]
 pub struct AgentServer {}
@@ -34,21 +34,21 @@ impl AgentServer {
             };
             debug!("Accept client tcp connection on address: {}", client_socket_address);
             tokio::spawn(async move {
-                let processor = match ClientProtocolDispatcher::dispatch(client_tcp_stream, client_socket_address).await {
-                    Err(e) => {
-                        error!(
-                            "Client tcp connection [{client_socket_address}] fail to dispatch client tcp connection to concrete flow because of error: {e:?}"
-                        );
-                        return;
-                    },
-                    Ok(v) => v,
+                if let Err(e) = Self::handle_client_connection(client_tcp_stream, client_socket_address).await {
+                    error!("Fail to handle client connection [{client_socket_address}] because of error: {e:?}")
                 };
-                if let Err(e) = processor.exec().await {
-                    error!("Client tcp connection [{client_socket_address}] fail to execute client flow because of error: {e:?}");
-                    return;
-                };
-                debug!("Client tcp connection [{client_socket_address}] complete to serve.")
             });
         }
+    }
+
+    async fn handle_client_connection(client_tcp_stream: TcpStream, client_socket_address: SocketAddr) -> Result<(), AgentError> {
+        let (handshake_info, handshake) = ClientTransportDispatcher::dispatch(client_tcp_stream, client_socket_address).await?;
+        let (relay_info, relay) = handshake.handshake(handshake_info).await?;
+        match relay_info {
+            ClientTransportDataRelayInfo::Tcp(tcp_relay_info) => relay.tcp_relay(tcp_relay_info).await?,
+            ClientTransportDataRelayInfo::Udp(udp_relay_info) => relay.udp_relay(udp_relay_info).await?,
+        }
+        debug!("Client transport [{client_socket_address}] complete to serve.");
+        Ok(())
     }
 }

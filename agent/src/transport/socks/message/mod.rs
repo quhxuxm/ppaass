@@ -13,14 +13,81 @@ mod udp;
 
 pub(crate) use auth::*;
 pub(crate) use init::*;
+pub(crate) use udp::*;
 
-use crate::error::ConversionError;
+use crate::error::{ConversionError, ParseError};
 
 #[derive(Debug, Clone)]
 pub(crate) enum Socks5Address {
     IpV4([u8; 4], u16),
     IpV6([u8; 16], u16),
     Domain(String, u16),
+}
+
+impl Socks5Address {
+    pub(crate) fn parse(input: &mut impl Buf) -> Result<Socks5Address, ParseError> {
+        if !input.has_remaining() {
+            return Err(ParseError::InputExhausted("Input bytes exhausted, remaing: 0".to_string()));
+        }
+        let address_type = input.get_u8();
+        let address = match address_type {
+            1 => {
+                if input.remaining() < 6 {
+                    return Err(ParseError::InputExhausted(format!(
+                        "Input bytes exhausted, remaing: {}, require: 6",
+                        input.remaining()
+                    )));
+                }
+                let mut addr_content = [0u8; 4];
+                addr_content.iter_mut().for_each(|item| {
+                    *item = input.get_u8();
+                });
+                let port = input.get_u16();
+                Socks5Address::IpV4(addr_content, port)
+            },
+            4 => {
+                if input.remaining() < 18 {
+                    return Err(ParseError::InputExhausted(format!(
+                        "Input bytes exhausted, remaing: {}, require: 18",
+                        input.remaining()
+                    )));
+                }
+                let mut addr_content = [0u8; 16];
+                addr_content.iter_mut().for_each(|item| {
+                    *item = input.get_u8();
+                });
+                let port = input.get_u16();
+                Socks5Address::IpV6(addr_content, port)
+            },
+            3 => {
+                if input.remaining() < 1 {
+                    return Err(ParseError::InputExhausted(format!(
+                        "Input bytes exhausted, remaing: {}, require: 1",
+                        input.remaining()
+                    )));
+                }
+                let domain_name_length = input.get_u8() as usize;
+                if input.remaining() < domain_name_length + 2 {
+                    return Err(ParseError::InputExhausted(format!(
+                        "Input bytes exhausted, remaing: {}, require: {}",
+                        input.remaining(),
+                        domain_name_length + 2
+                    )));
+                }
+                let domain_name_bytes = input.copy_to_bytes(domain_name_length);
+                let domain_name = match String::from_utf8_lossy(domain_name_bytes.chunk()).to_string().as_str() {
+                    "0" => "127.0.0.1".to_string(),
+                    v => v.to_string(),
+                };
+                let port = input.get_u16();
+                Socks5Address::Domain(domain_name, port)
+            },
+            unknown_addr_type => {
+                return Err(ParseError::InvalidFormat(format!("Invalid address type: {unknown_addr_type}")));
+            },
+        };
+        Ok(address)
+    }
 }
 
 impl TryFrom<Socks5Address> for SocketAddr {
@@ -56,6 +123,7 @@ impl TryFrom<Socks5Address> for SocketAddr {
         }
     }
 }
+
 impl From<SocketAddr> for Socks5Address {
     fn from(socket_addr: SocketAddr) -> Self {
         match socket_addr {
@@ -90,88 +158,6 @@ impl ToString for Socks5Address {
                 format!("{host}:{port}")
             },
         }
-    }
-}
-
-impl TryFrom<&mut Bytes> for Socks5Address {
-    type Error = ConversionError;
-    fn try_from(value: &mut Bytes) -> Result<Self, Self::Error> {
-        if !value.has_remaining() {
-            return Err(ConversionError::NoRemaining(
-                "No remaining bytes on converting bytes to socks5 address".to_string(),
-            ));
-        }
-        let address_type = value.get_u8();
-        let address = match address_type {
-            1 => {
-                if value.remaining() < 6 {
-                    return Err(ConversionError::NoRemaining(
-                        "No remaining bytes on converting bytes to socks5 address".to_string(),
-                    ));
-                }
-                let mut addr_content = [0u8; 4];
-                addr_content.iter_mut().for_each(|item| {
-                    *item = value.get_u8();
-                });
-                let port = value.get_u16();
-                Socks5Address::IpV4(addr_content, port)
-            },
-            4 => {
-                if value.remaining() < 18 {
-                    return Err(ConversionError::NoRemaining(
-                        "No remaining bytes on converting bytes to socks5 address".to_string(),
-                    ));
-                }
-                let mut addr_content = [0u8; 16];
-                addr_content.iter_mut().for_each(|item| {
-                    *item = value.get_u8();
-                });
-                let port = value.get_u16();
-                Socks5Address::IpV6(addr_content, port)
-            },
-            3 => {
-                if value.remaining() < 1 {
-                    return Err(ConversionError::NoRemaining(
-                        "No remaining bytes on converting bytes to socks5 address".to_string(),
-                    ));
-                }
-                let domain_name_length = value.get_u8() as usize;
-                if value.remaining() < domain_name_length + 2 {
-                    return Err(ConversionError::NoRemaining(
-                        "No remaining bytes on converting bytes to socks5 address".to_string(),
-                    ));
-                }
-                let domain_name_bytes = value.copy_to_bytes(domain_name_length);
-                let domain_name = match String::from_utf8_lossy(domain_name_bytes.chunk()).to_string().as_str() {
-                    "0" => "127.0.0.1".to_string(),
-                    v => v.to_string(),
-                };
-                let port = value.get_u16();
-                Socks5Address::Domain(domain_name, port)
-            },
-            unknown_addr_type => {
-                return Err(ConversionError::Format(format!("Invalid address type: {unknown_addr_type}")));
-            },
-        };
-        Ok(address)
-    }
-}
-
-impl TryFrom<Bytes> for Socks5Address {
-    type Error = ConversionError;
-
-    fn try_from(mut value: Bytes) -> Result<Self, Self::Error> {
-        let value_mut_ref = &mut value;
-        value_mut_ref.try_into()
-    }
-}
-
-impl TryFrom<&mut BytesMut> for Socks5Address {
-    type Error = ConversionError;
-
-    fn try_from(value: &mut BytesMut) -> Result<Self, Self::Error> {
-        let value = value.copy_to_bytes(value.len());
-        value.try_into()
     }
 }
 

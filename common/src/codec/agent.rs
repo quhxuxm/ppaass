@@ -3,18 +3,17 @@ use std::{
     mem::size_of,
 };
 
+use bytes::{Buf, BufMut, Bytes, BytesMut};
+use flate2::{read::GzDecoder, write::GzEncoder, Compression};
+use log::{error, trace};
+use pretty_hex::*;
+use tokio_util::codec::{Decoder, Encoder};
+
 use crate::{
     decrypt_with_aes, encrypt_with_aes, CommonError, CryptoError, DecoderError, EncoderError, PpaassAgentMessage, PpaassAgentMessagePayload,
     PpaassProxyMessagePayload, RsaCryptoFetcher, RsaError,
 };
 use crate::{PpaassMessagePayloadEncryption, PpaassProxyMessage};
-use anyhow::anyhow;
-use bytes::{Buf, BufMut, Bytes, BytesMut};
-use flate2::{read::GzDecoder, write::GzEncoder, Compression};
-use pretty_hex::*;
-
-use log::{error, trace};
-use tokio_util::codec::{Decoder, Encoder};
 
 use super::DecodeStatus;
 
@@ -66,7 +65,7 @@ where
                 }
                 let ppaass_flag = src.split_to(PPAASS_FLAG.len());
                 if !PPAASS_FLAG.eq(&ppaass_flag) {
-                    return Err(DecoderError::InvalidMessageFlag(anyhow!("The incoming message is not begin with {:?}", PPAASS_FLAG)).into());
+                    return Err(DecoderError::InvalidMessageFlag(format!("The incoming message is not begin with {:?}", PPAASS_FLAG)).into());
                 }
                 let compressed = src.get_u8() == 1;
                 let body_length = src.get_u64();

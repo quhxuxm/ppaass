@@ -19,6 +19,8 @@ pub enum AgentError {
     Configuration(String),
     #[error("Invalid proxy response error happen: {0:?}")]
     InvalidProxyResponse(String),
+    #[error("IO error happen: {0:?}")]
+    Io(#[from] StdIoError),
     #[error(transparent)]
     Other(#[from] AnyhowError),
 }
@@ -71,8 +73,18 @@ pub enum Socks5DecodeError {
     NoRemaining(String),
     #[error(transparent)]
     Conversion(#[from] ConversionError),
+    #[error(transparent)]
+    Parse(#[from] ParseError),
     #[error("IO error happen: {0:?}")]
     Io(#[from] StdIoError),
+}
+
+#[derive(Debug, Error)]
+pub enum ParseError {
+    #[error("Input exhausted: {0}")]
+    InputExhausted(String),
+    #[error("Invalid format: {0}")]
+    InvalidFormat(String),
 }
 
 #[derive(Debug, Error)]
@@ -107,6 +119,8 @@ pub enum NetworkError {
     TcpBind(#[source] StdIoError),
     #[error("Fail to create tcp connection because of error: {0:?}")]
     TcpConnect(#[source] StdIoError),
+    #[error("Fail to receive client udp data because of error: {0:?}")]
+    ClientUdpRecv(#[source] StdIoError),
     #[error("General I/O error happen: {0:?}")]
     General(#[source] StdIoError),
     #[error("Timeout error: {0:?}")]
