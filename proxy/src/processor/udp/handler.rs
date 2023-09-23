@@ -5,15 +5,15 @@ use std::{
 };
 
 use anyhow::anyhow;
-use bytes::{Bytes, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 use futures::SinkExt;
-use ppaass_common::{agent::PpaassAgentConnection, generate_uuid, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
-
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::UdpSocket,
     time::timeout,
 };
+
+use ppaass_common::{agent::PpaassAgentConnection, generate_uuid, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
 
 use crate::{
     common::ProxyServerPayloadEncryptionSelector,
@@ -21,6 +21,8 @@ use crate::{
     crypto::ProxyServerRsaCryptoFetcher,
     error::{NetworkError, ProxyError},
 };
+
+const MAX_UDP_PACKET_SIZE: usize = 65535;
 
 pub(crate) struct UdpHandler;
 
@@ -66,20 +68,32 @@ impl UdpHandler {
             return Err(ProxyError::Network(NetworkError::DestinationWrite(e)));
         };
 
-        let mut udp_data = [0u8; 65535];
-        let udp_data = match timeout(Duration::from_secs(PROXY_CONFIG.get_dst_udp_recv_timeout()), dst_udp_socket.recv(&mut udp_data)).await {
-            Ok(Ok(0)) => {
-                return Err(ProxyError::Other(anyhow!("Nothing to receive from udp socket")));
-            },
-            Ok(Ok(data_size)) => &udp_data[..data_size],
-            Ok(Err(e)) => {
-                return Err(ProxyError::Network(NetworkError::DestinationRead(e)));
-            },
-            Err(_) => {
-                return Err(ProxyError::Network(NetworkError::Timeout(PROXY_CONFIG.get_dst_udp_recv_timeout())));
-            },
-        };
-        let udp_data = BytesMut::from(udp_data);
+        let mut udp_data = BytesMut::new();
+        loop {
+            let mut udp_recv_buf = [0u8; MAX_UDP_PACKET_SIZE];
+            let udp_recv_buf = match timeout(
+                Duration::from_secs(PROXY_CONFIG.get_dst_udp_recv_timeout()),
+                dst_udp_socket.recv(&mut udp_recv_buf),
+            )
+            .await
+            {
+                Ok(Ok(0)) => {
+                    return Err(ProxyError::Other(anyhow!("Nothing to receive from udp socket")));
+                },
+                Ok(Ok(size)) => &udp_recv_buf[..size],
+                Ok(Err(e)) => {
+                    return Err(ProxyError::Network(NetworkError::DestinationRead(e)));
+                },
+                Err(_) => {
+                    return Err(ProxyError::Network(NetworkError::Timeout(PROXY_CONFIG.get_dst_udp_recv_timeout())));
+                },
+            };
+            udp_data.put(udp_recv_buf);
+            if udp_recv_buf.len() < MAX_UDP_PACKET_SIZE {
+                break;
+            }
+        }
+
         let payload_encryption = ProxyServerPayloadEncryptionSelector::select(user_token.as_ref(), Some(Bytes::from(generate_uuid().into_bytes())));
         let udp_data_message = PpaassMessageGenerator::generate_proxy_udp_data_message(
             user_token.clone(),
