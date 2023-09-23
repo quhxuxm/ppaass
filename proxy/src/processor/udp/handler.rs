@@ -71,7 +71,7 @@ impl UdpHandler {
         let mut udp_data = BytesMut::new();
         loop {
             let mut udp_recv_buf = [0u8; MAX_UDP_PACKET_SIZE];
-            let udp_recv_buf = match timeout(
+            let (udp_recv_buf, size) = match timeout(
                 Duration::from_secs(PROXY_CONFIG.get_dst_udp_recv_timeout()),
                 dst_udp_socket.recv(&mut udp_recv_buf),
             )
@@ -80,7 +80,7 @@ impl UdpHandler {
                 Ok(Ok(0)) => {
                     return Err(ProxyError::Other(anyhow!("Nothing to receive from udp socket")));
                 },
-                Ok(Ok(size)) => &udp_recv_buf[..size],
+                Ok(Ok(size)) => (&udp_recv_buf[..size], size),
                 Ok(Err(e)) => {
                     return Err(ProxyError::Network(NetworkError::DestinationRead(e)));
                 },
@@ -89,7 +89,7 @@ impl UdpHandler {
                 },
             };
             udp_data.put(udp_recv_buf);
-            if udp_recv_buf.len() < MAX_UDP_PACKET_SIZE {
+            if size < MAX_UDP_PACKET_SIZE {
                 break;
             }
         }
