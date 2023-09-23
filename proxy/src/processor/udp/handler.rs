@@ -23,6 +23,7 @@ use crate::{
 };
 
 const MAX_UDP_PACKET_SIZE: usize = 65535;
+const LOCAL_UDP_BIND_ADDR: &str = "0.0.0.0:0";
 
 pub(crate) struct UdpHandler;
 
@@ -36,7 +37,7 @@ impl UdpHandler {
         I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
         U: ToString + AsRef<str> + Clone,
     {
-        let dst_udp_socket = match UdpSocket::bind("0.0.0.0:0").await {
+        let dst_udp_socket = match UdpSocket::bind(LOCAL_UDP_BIND_ADDR).await {
             Ok(dst_udp_socket) => dst_udp_socket,
             Err(e) => {
                 return Err(ProxyError::Io(e));
