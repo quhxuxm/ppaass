@@ -193,7 +193,7 @@ pub(crate) trait ClientTransportRelay {
                 let client_message = client_message.ok()?;
                 let client_message = client_message.ok()?;
                 let tcp_data = PpaassMessageGenerator::generate_agent_tcp_data_message(
-                    user_token.clone(),
+                    user_token,
                     payload_encryption.clone(),
                     src_address.clone(),
                     dst_address.clone(),
