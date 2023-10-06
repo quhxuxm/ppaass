@@ -29,3 +29,4 @@ chrono = {workspace = true}
 derive_more= {workspace = true}
 log4rs = {workspace = true}
 log = {workspace = true}
+deadpool={workspace= true}

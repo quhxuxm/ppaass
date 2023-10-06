@@ -9,7 +9,6 @@ version = "0.1.0"
 anyhow = {workspace = true, features = ["backtrace"]}
 bytes = {workspace = true}
 chrono = {workspace = true}
-clap = {workspace = true, features = ["derive"]}
 futures = {workspace = true}
 futures-util = {workspace = true, features = ["std"]}
 ppaass-common = {path = "../common"}
