@@ -75,7 +75,7 @@
                 "args": [
                     "build",
                     "--bin=ppaass-agent",
-                    "--package=ppaass-agent"
+                    "--package=ppaass-agent",
                 ],
                 "filter": {
                     "name": "ppaass-agent",
