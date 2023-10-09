@@ -215,8 +215,22 @@ impl Socks5ClientTransport {
             "Client tcp connection [{src_address}] take proxy connectopn [{}] to do proxy.",
             proxy_connection.get_connection_id()
         );
-        proxy_connection.send(tcp_init_request).await?;
-        let proxy_message = proxy_connection.next().await.ok_or(NetworkError::ConnectionExhausted)??;
+        if let Err(e) = proxy_connection.send(tcp_init_request).await {
+            error!("Fail to send tcp init request to proxy in socks5 agent because of error: {e:?}");
+            return Err(e.into());
+        };
+
+        let proxy_message = match proxy_connection.next().await {
+            None => {
+                error!("Fail to receive tcp init response from proxy in socks5 agent because of connection exhausted");
+                return Err(NetworkError::ConnectionExhausted.into());
+            },
+            Some(Ok(proxy_message)) => proxy_message,
+            Some(Err(e)) => {
+                error!("Fail to receive tcp init response from proxy in socks5 agent because of error: {e:?}");
+                return Err(e.into());
+            },
+        };
         let PpaassProxyMessage {
             payload: PpaassProxyMessagePayload { protocol, data },
             ..

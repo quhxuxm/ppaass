@@ -63,7 +63,8 @@
                 "rust"
             ],
             "sourceMap": {
-                "/rustc/5680fa18feaa87f3ff04063800aec256c3d4b4be": "C:/Users/quhxu/.rustup/toolchains/stable-x86_64-pc-windows-msvc/lib/rustlib/src/rust"
+                "/rustc/5680fa18feaa87f3ff04063800aec256c3d4b4be": "C:/Users/quhxu/.rustup/toolchains/stable-x86_64-pc-windows-msvc/lib/rustlib/src/rust",
+                "/rustc/cc66ad468955717ab92600c770da8c1601a4ff33": "C:/Users/quhxu/.rustup/toolchains/stable-x86_64-pc-windows-msvc/lib/rustlib/src/rust",
             }
         },
         {
@@ -82,7 +83,14 @@
                 }
             },
             "args": [],
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "sourceLanguages": [
+                "rust"
+            ],
+            "sourceMap": {
+                "/rustc/5680fa18feaa87f3ff04063800aec256c3d4b4be": "C:/Users/quhxu/.rustup/toolchains/stable-x86_64-pc-windows-msvc/lib/rustlib/src/rust",
+                "/rustc/cc66ad468955717ab92600c770da8c1601a4ff33": "C:/Users/quhxu/.rustup/toolchains/stable-x86_64-pc-windows-msvc/lib/rustlib/src/rust",
+            }
         },
         {
             "type": "lldb",
