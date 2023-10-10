@@ -46,7 +46,7 @@ impl TcpHandler {
         {
             Err(_) => {
                 error!("Initialize tcp connection to destination timeout: {dst_address}");
-                return Err(ProxyError::Timeout(PROXY_CONFIG.get_dst_connect_timeout()).into());
+                return Err(ProxyError::Timeout(PROXY_CONFIG.get_dst_connect_timeout()));
             },
             Ok(dst_tcp_stream) => dst_tcp_stream.map_err(ProxyError::DestinationConnect)?,
         };
