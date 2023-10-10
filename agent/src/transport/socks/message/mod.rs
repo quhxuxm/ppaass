@@ -17,6 +17,10 @@ pub(crate) use udp::*;
 
 use crate::error::{ConversionError, ParseError};
 
+const IPV4_FLAG: u8 = 1;
+const IPV6_FLAG: u8 = 4;
+const DOMAIN_FLAG: u8 = 3;
+
 #[derive(Debug, Clone)]
 pub(crate) enum Socks5Address {
     IpV4([u8; 4], u16),
@@ -31,7 +35,7 @@ impl Socks5Address {
         }
         let address_type = input.get_u8();
         let address = match address_type {
-            1 => {
+            IPV4_FLAG => {
                 if input.remaining() < 6 {
                     return Err(ParseError::InputExhausted(format!(
                         "Input bytes exhausted, remaing: {}, require: 6",
@@ -45,7 +49,7 @@ impl Socks5Address {
                 let port = input.get_u16();
                 Socks5Address::IpV4(addr_content, port)
             },
-            4 => {
+            IPV6_FLAG => {
                 if input.remaining() < 18 {
                     return Err(ParseError::InputExhausted(format!(
                         "Input bytes exhausted, remaing: {}, require: 18",
@@ -59,7 +63,7 @@ impl Socks5Address {
                 let port = input.get_u16();
                 Socks5Address::IpV6(addr_content, port)
             },
-            3 => {
+            DOMAIN_FLAG => {
                 if input.remaining() < 1 {
                     return Err(ParseError::InputExhausted(format!(
                         "Input bytes exhausted, remaing: {}, require: 1",
@@ -166,17 +170,17 @@ impl From<Socks5Address> for Bytes {
         let mut result = BytesMut::new();
         match address {
             Socks5Address::IpV4(addr_content, port) => {
-                result.put_u8(1);
+                result.put_u8(IPV4_FLAG);
                 result.put_slice(&addr_content);
                 result.put_u16(port);
             },
             Socks5Address::IpV6(addr_content, port) => {
-                result.put_u8(4);
+                result.put_u8(IPV6_FLAG);
                 result.put_slice(&addr_content);
                 result.put_u16(port);
             },
             Socks5Address::Domain(addr_content, port) => {
-                result.put_u8(3);
+                result.put_u8(DOMAIN_FLAG);
                 result.put_u8(addr_content.len() as u8);
                 result.put_slice(addr_content.as_bytes());
                 result.put_u16(port);
