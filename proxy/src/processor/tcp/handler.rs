@@ -108,16 +108,14 @@ impl TcpHandler {
         let (_, _) = tokio::join!(
             // Forward agent data to proxy
             TokioStreamExt::map_while(agent_connection_read.timeout(Duration::from_secs(agent_relay_timeout)), |agent_message| {
-                let agent_message = agent_message.ok()?;
-                let agent_message = agent_message.ok()?;
+                let agent_message = agent_message.ok()?.ok()?;
                 let raw_data = Self::unwrap_to_raw_tcp_data(agent_message).ok()?;
                 Some(Ok(BytesMut::from_iter(raw_data)))
             })
             .forward(&mut dst_connection_write),
             // Forward proxy data to agent
             TokioStreamExt::map_while(dst_connection_read.timeout(Duration::from_secs(dst_relay_timeout)), |dst_message| {
-                let dst_message = dst_message.ok()?;
-                let dst_message = dst_message.ok()?;
+                let dst_message = dst_message.ok()?.ok()?;
                 let tcp_data_message = PpaassMessageGenerator::generate_proxy_tcp_data_message(
                     user_token.clone(),
                     payload_encryption.clone(),
