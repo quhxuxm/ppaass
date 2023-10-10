@@ -10,6 +10,7 @@ use bytes::{Bytes, BytesMut};
 use futures::StreamExt as FuturesStreamExt;
 use futures_util::SinkExt;
 
+use log::error;
 use tokio::time::timeout;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -26,12 +27,7 @@ use ppaass_common::{
 };
 use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
 
-use crate::{
-    common::ProxyServerPayloadEncryptionSelector,
-    config::PROXY_CONFIG,
-    crypto::ProxyServerRsaCryptoFetcher,
-    error::{NetworkError, ProxyError},
-};
+use crate::{common::ProxyServerPayloadEncryptionSelector, config::PROXY_CONFIG, crypto::ProxyServerRsaCryptoFetcher, error::ProxyError};
 
 use super::destination::DstConnection;
 
@@ -49,15 +45,13 @@ impl TcpHandler {
         .await
         {
             Err(_) => {
-                return Err(NetworkError::Timeout(PROXY_CONFIG.get_dst_connect_timeout()).into());
+                error!("Initialize tcp connection to destination timeout: {dst_address}");
+                return Err(ProxyError::Timeout(PROXY_CONFIG.get_dst_connect_timeout()).into());
             },
-            Ok(Ok(dst_tcp_stream)) => dst_tcp_stream,
-            Ok(Err(e)) => {
-                return Err(ProxyError::Network(NetworkError::DestinationConnect(e)));
-            },
+            Ok(dst_tcp_stream) => dst_tcp_stream.map_err(ProxyError::DestinationConnect)?,
         };
-        dst_tcp_stream.set_nodelay(true)?;
-        dst_tcp_stream.set_linger(None)?;
+        dst_tcp_stream.set_nodelay(true).map_err(ProxyError::DestinationConnectionConfig)?;
+        dst_tcp_stream.set_linger(None).map_err(ProxyError::DestinationConnectionConfig)?;
         let dst_connection = DstConnection::new(dst_tcp_stream, PROXY_CONFIG.get_dst_tcp_buffer_size());
         Ok(dst_connection)
     }
@@ -92,8 +86,9 @@ impl TcpHandler {
                     dst_address,
                     payload_encryption,
                     ProxyTcpInitResultType::Fail,
-                )?;
-                agent_connection.send(tcp_init_fail).await?;
+                )
+                .map_err(ProxyError::Common)?;
+                agent_connection.send(tcp_init_fail).await.map_err(ProxyError::AgentWrite)?;
                 return Err(e);
             },
         };
@@ -105,11 +100,13 @@ impl TcpHandler {
             dst_address.clone(),
             payload_encryption.clone(),
             ProxyTcpInitResultType::Success,
-        )?;
-        agent_connection.send(tcp_init_success_message).await?;
+        )
+        .map_err(ProxyError::Common)?;
+        agent_connection.send(tcp_init_success_message).await.map_err(ProxyError::AgentWrite)?;
         let (mut agent_connection_write, agent_connection_read) = agent_connection.split();
         let (mut dst_connection_write, dst_connection_read) = dst_connection.split();
         let (_, _) = tokio::join!(
+            // Forward agent data to proxy
             TokioStreamExt::map_while(agent_connection_read.timeout(Duration::from_secs(agent_relay_timeout)), |agent_message| {
                 let agent_message = agent_message.ok()?;
                 let agent_message = agent_message.ok()?;
@@ -117,6 +114,7 @@ impl TcpHandler {
                 Some(Ok(BytesMut::from_iter(raw_data)))
             })
             .forward(&mut dst_connection_write),
+            // Forward proxy data to agent
             TokioStreamExt::map_while(dst_connection_read.timeout(Duration::from_secs(dst_relay_timeout)), |dst_message| {
                 let dst_message = dst_message.ok()?;
                 let dst_message = dst_message.ok()?;

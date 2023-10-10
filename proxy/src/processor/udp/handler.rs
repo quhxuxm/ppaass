@@ -4,9 +4,9 @@ use std::{
     time::Duration,
 };
 
-use anyhow::anyhow;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::SinkExt;
+use log::error;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::UdpSocket,
@@ -15,12 +15,7 @@ use tokio::{
 
 use ppaass_common::{agent::PpaassAgentConnection, generate_uuid, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
 
-use crate::{
-    common::ProxyServerPayloadEncryptionSelector,
-    config::PROXY_CONFIG,
-    crypto::ProxyServerRsaCryptoFetcher,
-    error::{NetworkError, ProxyError},
-};
+use crate::{common::ProxyServerPayloadEncryptionSelector, config::PROXY_CONFIG, crypto::ProxyServerRsaCryptoFetcher, error::ProxyError};
 
 const MAX_UDP_PACKET_SIZE: usize = 65535;
 const LOCAL_UDP_BIND_ADDR: &str = "0.0.0.0:0";
@@ -37,18 +32,8 @@ impl UdpHandler {
         I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
         U: ToString + AsRef<str> + Clone,
     {
-        let dst_udp_socket = match UdpSocket::bind(LOCAL_UDP_BIND_ADDR).await {
-            Ok(dst_udp_socket) => dst_udp_socket,
-            Err(e) => {
-                return Err(ProxyError::Io(e));
-            },
-        };
-        let dst_socket_addrs = match dst_address.to_socket_addrs() {
-            Ok(dst_socket_addrs) => dst_socket_addrs,
-            Err(e) => {
-                return Err(ProxyError::Io(e));
-            },
-        };
+        let dst_udp_socket = UdpSocket::bind(LOCAL_UDP_BIND_ADDR).await?;
+        let dst_socket_addrs = dst_address.to_socket_addrs()?;
 
         let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
         match timeout(
@@ -57,18 +42,15 @@ impl UdpHandler {
         )
         .await
         {
-            Ok(Err(e)) => {
-                return Err(ProxyError::Io(e));
-            },
-            Ok(Ok(())) => {},
             Err(_) => {
-                return Err(ProxyError::Network(NetworkError::Timeout(PROXY_CONFIG.get_dst_connect_timeout())));
+                error!("Initialize udp socket to destination timeout: {dst_address}");
+                return Err(ProxyError::Timeout(PROXY_CONFIG.get_dst_connect_timeout()));
+            },
+            Ok(result) => {
+                result.map_err(ProxyError::DestinationConnect)?;
             },
         };
-        if let Err(e) = dst_udp_socket.send(&udp_data).await {
-            return Err(ProxyError::Network(NetworkError::DestinationWrite(e)));
-        };
-
+        dst_udp_socket.send(&udp_data).await.map_err(ProxyError::DestinationWrite)?;
         let mut udp_data = BytesMut::new();
         loop {
             let mut udp_recv_buf = [0u8; MAX_UDP_PACKET_SIZE];
@@ -78,15 +60,17 @@ impl UdpHandler {
             )
             .await
             {
-                Ok(Ok(0)) => {
-                    return Err(ProxyError::Other(anyhow!("Nothing to receive from udp socket")));
-                },
-                Ok(Ok(size)) => (&udp_recv_buf[..size], size),
-                Ok(Err(e)) => {
-                    return Err(ProxyError::Network(NetworkError::DestinationRead(e)));
-                },
                 Err(_) => {
-                    return Err(ProxyError::Network(NetworkError::Timeout(PROXY_CONFIG.get_dst_udp_recv_timeout())));
+                    error!("Receive udp data from destination timeout: {dst_address}");
+                    return Err(ProxyError::Timeout(PROXY_CONFIG.get_dst_udp_recv_timeout()));
+                },
+
+                Ok(Ok(0)) => {
+                    return Ok(());
+                },
+                Ok(size) => {
+                    let size = size.map_err(ProxyError::DestinationRead)?;
+                    (&udp_recv_buf[..size], size)
                 },
             };
             udp_data.put(udp_recv_buf);
@@ -102,13 +86,10 @@ impl UdpHandler {
             src_address.clone(),
             dst_address.clone(),
             udp_data.freeze(),
-        )?;
-        if let Err(e) = agent_connection.send(udp_data_message).await {
-            return Err(ProxyError::Network(NetworkError::AgentWrite(e)));
-        };
-        if let Err(e) = agent_connection.close().await {
-            return Err(ProxyError::Network(NetworkError::AgentClose(e)));
-        };
+        )
+        .map_err(ProxyError::Common)?;
+        agent_connection.send(udp_data_message).await.map_err(ProxyError::AgentWrite)?;
+        agent_connection.close().await.map_err(ProxyError::AgentClose)?;
         Ok(())
     }
 }

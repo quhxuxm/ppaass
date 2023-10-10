@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use futures::StreamExt;
 use log::error;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -15,7 +15,7 @@ use ppaass_common::{PpaassMessageAgentProtocol, PpaassNetAddress};
 use crate::{
     config::PROXY_CONFIG,
     crypto::{ProxyServerRsaCryptoFetcher, RSA_CRYPTO},
-    error::{NetworkError, ProxyError},
+    error::ProxyError,
     processor::udp::UdpHandler,
 };
 
@@ -50,8 +50,11 @@ where
 
     pub(crate) async fn exec(mut self) -> Result<(), ProxyError> {
         let agent_message = match timeout(Duration::from_secs(PROXY_CONFIG.get_agent_relay_timeout()), self.agent_connection.next()).await {
-            Err(_) => return Err(NetworkError::Timeout(PROXY_CONFIG.get_agent_relay_timeout()).into()),
-            Ok(Some(agent_message)) => agent_message?,
+            Err(_) => {
+                error!("Read from agent timeout: {:?}", self.agent_connection.get_connection_id());
+                return Err(ProxyError::Timeout(PROXY_CONFIG.get_agent_relay_timeout()));
+            },
+            Ok(Some(agent_message)) => agent_message.map_err(ProxyError::Common)?,
             Ok(None) => {
                 error!(
                     "Transport {} closed in agent side, close proxy side also.",
@@ -69,9 +72,12 @@ where
         match protocol {
             PpaassMessageAgentProtocol::Tcp(payload_type) => {
                 if PpaassMessageAgentTcpPayloadType::Init != payload_type {
-                    return Err(anyhow!("Invalid tcp init payload type from agent message: {:?}", payload_type).into());
+                    return Err(ProxyError::Other(format!(
+                        "Invalid tcp init payload type from agent message: {:?}",
+                        payload_type
+                    )));
                 }
-                let AgentTcpInit { src_address, dst_address } = data.try_into()?;
+                let AgentTcpInit { src_address, dst_address } = data.try_into().map_err(ProxyError::Common)?;
                 // Tcp handler will block the thread and continue to
                 // handle the agent connection in a loop
                 TcpHandler::exec(self.agent_connection, user_token, src_address, dst_address).await?;
@@ -79,14 +85,17 @@ where
             },
             PpaassMessageAgentProtocol::Udp(payload_type) => {
                 if PpaassMessageAgentUdpPayloadType::Data != payload_type {
-                    return Err(anyhow!("Invalid udp data payload type from agent message: {:?}", payload_type).into());
+                    return Err(ProxyError::Other(format!(
+                        "Invalid udp data payload type from agent message: {:?}",
+                        payload_type
+                    )));
                 }
                 let UdpData {
                     src_address,
                     dst_address,
                     data: udp_raw_data,
                     ..
-                } = data.try_into()?;
+                } = data.try_into().map_err(ProxyError::Common)?;
                 // Udp handler will block the thread and continue to
                 // handle the agent connection in a loop
                 UdpHandler::exec(self.agent_connection, user_token, src_address, dst_address, udp_raw_data).await?;
