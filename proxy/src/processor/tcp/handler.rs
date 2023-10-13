@@ -21,13 +21,12 @@ use tokio_stream::StreamExt as TokioStreamExt;
 
 use ppaass_common::{
     agent::PpaassAgentConnection,
-    generate_uuid,
     tcp::{AgentTcpData, ProxyTcpInitResultType},
-    CommonError, PpaassAgentMessage,
+    CommonError, PpaassAgentMessage, PpaassMessagePayloadEncryption,
 };
-use ppaass_common::{PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
+use ppaass_common::{PpaassMessageGenerator, PpaassNetAddress};
 
-use crate::{common::ProxyServerPayloadEncryptionSelector, config::PROXY_CONFIG, crypto::ProxyServerRsaCryptoFetcher, error::ProxyServerError};
+use crate::{config::PROXY_CONFIG, crypto::ProxyServerRsaCryptoFetcher, error::ProxyServerError};
 
 use super::destination::DstConnection;
 
@@ -64,7 +63,7 @@ impl TcpHandler {
 
     pub(crate) async fn exec<'r, T, I, U>(
         mut agent_connection: PpaassAgentConnection<'r, T, ProxyServerRsaCryptoFetcher, I>, agent_tcp_init_message_id: String, user_token: U,
-        src_address: PpaassNetAddress, dst_address: PpaassNetAddress,
+        src_address: PpaassNetAddress, dst_address: PpaassNetAddress, payload_encryption: PpaassMessagePayloadEncryption,
     ) -> Result<(), ProxyServerError>
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
@@ -74,11 +73,9 @@ impl TcpHandler {
     {
         let dst_relay_timeout = PROXY_CONFIG.get_dst_relay_timeout();
         let agent_relay_timeout = PROXY_CONFIG.get_agent_relay_timeout();
-
         let dst_connection = match Self::init_dst_connection(&dst_address).await {
             Ok(dst_connection) => dst_connection,
             Err(e) => {
-                let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(Bytes::from(generate_uuid().into_bytes())));
                 let tcp_init_fail = PpaassMessageGenerator::generate_proxy_tcp_init_message(
                     agent_tcp_init_message_id,
                     user_token,
@@ -91,7 +88,6 @@ impl TcpHandler {
                 return Err(e);
             },
         };
-        let payload_encryption = ProxyServerPayloadEncryptionSelector::select(user_token.as_ref(), Some(Bytes::from(generate_uuid().into_bytes())));
         let tcp_init_success_message = PpaassMessageGenerator::generate_proxy_tcp_init_message(
             agent_tcp_init_message_id,
             user_token.clone(),

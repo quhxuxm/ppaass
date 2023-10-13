@@ -13,9 +13,9 @@ use tokio::{
     time::timeout,
 };
 
-use ppaass_common::{agent::PpaassAgentConnection, generate_uuid, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
+use ppaass_common::{agent::PpaassAgentConnection, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassNetAddress};
 
-use crate::{common::ProxyServerPayloadEncryptionSelector, config::PROXY_CONFIG, crypto::ProxyServerRsaCryptoFetcher, error::ProxyServerError};
+use crate::{config::PROXY_CONFIG, crypto::ProxyServerRsaCryptoFetcher, error::ProxyServerError};
 
 const MAX_UDP_PACKET_SIZE: usize = 65535;
 const LOCAL_UDP_BIND_ADDR: &str = "0.0.0.0:0";
@@ -25,7 +25,7 @@ pub(crate) struct UdpHandler;
 impl UdpHandler {
     pub(crate) async fn exec<T, I, U>(
         mut agent_connection: PpaassAgentConnection<'_, T, ProxyServerRsaCryptoFetcher, I>, user_token: U, src_address: PpaassNetAddress,
-        dst_address: PpaassNetAddress, udp_data: Bytes,
+        dst_address: PpaassNetAddress, udp_data: Bytes, payload_encryption: PpaassMessagePayloadEncryption,
     ) -> Result<(), ProxyServerError>
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
@@ -34,7 +34,6 @@ impl UdpHandler {
     {
         let dst_udp_socket = UdpSocket::bind(LOCAL_UDP_BIND_ADDR).await?;
         let dst_socket_addrs = dst_address.to_socket_addrs()?;
-
         let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();
         match timeout(
             Duration::from_secs(PROXY_CONFIG.get_dst_udp_connect_timeout()),
@@ -77,7 +76,6 @@ impl UdpHandler {
             }
         }
 
-        let payload_encryption = ProxyServerPayloadEncryptionSelector::select(user_token.as_ref(), Some(Bytes::from(generate_uuid().into_bytes())));
         let udp_data_message = PpaassMessageGenerator::generate_proxy_udp_data_message(
             user_token.clone(),
             payload_encryption,
