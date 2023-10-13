@@ -15,7 +15,7 @@ use tokio::{
 
 use ppaass_common::{agent::PpaassAgentConnection, generate_uuid, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress};
 
-use crate::{common::ProxyServerPayloadEncryptionSelector, config::PROXY_CONFIG, crypto::ProxyServerRsaCryptoFetcher, error::ProxyError};
+use crate::{common::ProxyServerPayloadEncryptionSelector, config::PROXY_CONFIG, crypto::ProxyServerRsaCryptoFetcher, error::ProxyServerError};
 
 const MAX_UDP_PACKET_SIZE: usize = 65535;
 const LOCAL_UDP_BIND_ADDR: &str = "0.0.0.0:0";
@@ -26,7 +26,7 @@ impl UdpHandler {
     pub(crate) async fn exec<T, I, U>(
         mut agent_connection: PpaassAgentConnection<'_, T, ProxyServerRsaCryptoFetcher, I>, user_token: U, src_address: PpaassNetAddress,
         dst_address: PpaassNetAddress, udp_data: Bytes,
-    ) -> Result<(), ProxyError>
+    ) -> Result<(), ProxyServerError>
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
         I: AsRef<str> + Send + Sync + Clone + Display + Debug + 'static,
@@ -44,13 +44,13 @@ impl UdpHandler {
         {
             Err(_) => {
                 error!("Initialize udp socket to destination timeout: {dst_address}");
-                return Err(ProxyError::Timeout(PROXY_CONFIG.get_dst_connect_timeout()));
+                return Err(ProxyServerError::Timeout(PROXY_CONFIG.get_dst_connect_timeout()));
             },
             Ok(result) => {
-                result.map_err(ProxyError::DestinationConnect)?;
+                result?;
             },
         };
-        dst_udp_socket.send(&udp_data).await.map_err(ProxyError::DestinationWrite)?;
+        dst_udp_socket.send(&udp_data).await?;
         let mut udp_data = BytesMut::new();
         loop {
             let mut udp_recv_buf = [0u8; MAX_UDP_PACKET_SIZE];
@@ -62,14 +62,14 @@ impl UdpHandler {
             {
                 Err(_) => {
                     error!("Receive udp data from destination timeout: {dst_address}");
-                    return Err(ProxyError::Timeout(PROXY_CONFIG.get_dst_udp_recv_timeout()));
+                    return Err(ProxyServerError::Timeout(PROXY_CONFIG.get_dst_udp_recv_timeout()));
                 },
 
                 Ok(Ok(0)) => {
                     return Ok(());
                 },
                 Ok(size) => {
-                    let size = size.map_err(ProxyError::DestinationRead)?;
+                    let size = size?;
                     (&udp_recv_buf[..size], size)
                 },
             };
@@ -87,9 +87,9 @@ impl UdpHandler {
             dst_address.clone(),
             udp_data.freeze(),
         )
-        .map_err(ProxyError::Common)?;
-        agent_connection.send(udp_data_message).await.map_err(ProxyError::AgentWrite)?;
-        agent_connection.close().await.map_err(ProxyError::AgentClose)?;
+        .map_err(ProxyServerError::Common)?;
+        agent_connection.send(udp_data_message).await?;
+        agent_connection.close().await?;
         Ok(())
     }
 }
