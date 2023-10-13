@@ -54,7 +54,7 @@ where
                 error!("Read from agent timeout: {:?}", self.agent_connection.get_connection_id());
                 return Err(ProxyServerError::Timeout(PROXY_CONFIG.get_agent_relay_timeout()));
             },
-            Ok(Some(agent_message)) => agent_message.map_err(ProxyServerError::Common)?,
+            Ok(Some(agent_message)) => agent_message?,
             Ok(None) => {
                 error!(
                     "Transport {} closed in agent side, close proxy side also.",
@@ -77,7 +77,7 @@ where
                         payload_type
                     )));
                 }
-                let AgentTcpInit { src_address, dst_address } = data.try_into().map_err(ProxyServerError::Common)?;
+                let AgentTcpInit { src_address, dst_address } = data.try_into()?;
                 // Tcp handler will block the thread and continue to
                 // handle the agent connection in a loop
                 TcpHandler::exec(self.agent_connection, user_token, src_address, dst_address).await?;
@@ -95,7 +95,7 @@ where
                     dst_address,
                     data: udp_raw_data,
                     ..
-                } = data.try_into().map_err(ProxyServerError::Common)?;
+                } = data.try_into()?;
                 // Udp handler will block the thread and continue to
                 // handle the agent connection in a loop
                 UdpHandler::exec(self.agent_connection, user_token, src_address, dst_address, udp_raw_data).await?;

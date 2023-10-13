@@ -46,9 +46,7 @@ impl UdpHandler {
                 error!("Initialize udp socket to destination timeout: {dst_address}");
                 return Err(ProxyServerError::Timeout(PROXY_CONFIG.get_dst_connect_timeout()));
             },
-            Ok(result) => {
-                result?;
-            },
+            Ok(result) => result?,
         };
         dst_udp_socket.send(&udp_data).await?;
         let mut udp_data = BytesMut::new();
@@ -86,8 +84,7 @@ impl UdpHandler {
             src_address.clone(),
             dst_address.clone(),
             udp_data.freeze(),
-        )
-        .map_err(ProxyServerError::Common)?;
+        )?;
         agent_connection.send(udp_data_message).await?;
         agent_connection.close().await?;
         Ok(())

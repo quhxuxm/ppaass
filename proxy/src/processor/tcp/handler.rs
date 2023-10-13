@@ -86,8 +86,7 @@ impl TcpHandler {
                     dst_address,
                     payload_encryption,
                     ProxyTcpInitResultType::Fail,
-                )
-                .map_err(ProxyServerError::Common)?;
+                )?;
                 agent_connection.send(tcp_init_fail).await?;
                 return Err(e);
             },
@@ -100,8 +99,7 @@ impl TcpHandler {
             dst_address.clone(),
             payload_encryption.clone(),
             ProxyTcpInitResultType::Success,
-        )
-        .map_err(ProxyServerError::Common)?;
+        )?;
         agent_connection.send(tcp_init_success_message).await?;
         let (mut agent_connection_write, agent_connection_read) = agent_connection.split();
         let (mut dst_connection_write, dst_connection_read) = dst_connection.split();
