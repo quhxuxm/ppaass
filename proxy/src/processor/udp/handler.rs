@@ -6,7 +6,7 @@ use std::{
 
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::SinkExt;
-use log::error;
+use log::{debug, error};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::UdpSocket,
@@ -61,7 +61,7 @@ impl UdpHandler {
             .await
             {
                 Err(_) => {
-                    error!("Receive udp data from destination timeout: {dst_address}");
+                    debug!("Receive udp data from destination timeout: {dst_address}");
                     return Err(ProxyServerError::Timeout(PROXY_CONFIG.get_dst_udp_recv_timeout()));
                 },
 
