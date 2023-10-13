@@ -148,6 +148,7 @@ impl Socks5ClientTransport {
                 client_udp_restrict_address.clone(),
                 dst_address.clone(),
                 client_to_dst_socks5_udp_packet.data,
+                true,
             )?;
             let mut proxy_connection = PROXY_CONNECTION_FACTORY.create_connection().await?;
             proxy_connection.send(agent_udp_message).await?;

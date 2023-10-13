@@ -25,7 +25,7 @@ pub(crate) struct UdpHandler;
 impl UdpHandler {
     pub(crate) async fn exec<T, I, U>(
         mut agent_connection: PpaassAgentConnection<'_, T, ProxyServerRsaCryptoFetcher, I>, user_token: U, src_address: PpaassNetAddress,
-        dst_address: PpaassNetAddress, udp_data: Bytes, payload_encryption: PpaassMessagePayloadEncryption,
+        dst_address: PpaassNetAddress, udp_data: Bytes, payload_encryption: PpaassMessagePayloadEncryption, need_response: bool,
     ) -> Result<(), ProxyServerError>
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
@@ -48,6 +48,9 @@ impl UdpHandler {
             Ok(result) => result?,
         };
         dst_udp_socket.send(&udp_data).await?;
+        if !need_response {
+            return Ok(());
+        }
         let mut udp_data = BytesMut::new();
         loop {
             let mut udp_recv_buf = [0u8; MAX_UDP_PACKET_SIZE];

@@ -9,13 +9,14 @@ use serde_derive::{Deserialize, Serialize};
 
 #[non_exhaustive]
 #[derive(Serialize, Deserialize, Constructor)]
-pub struct UdpData {
+pub struct AgentUdpData {
     pub src_address: PpaassNetAddress,
     pub dst_address: PpaassNetAddress,
     pub data: Bytes,
+    pub need_response: bool,
 }
 
-impl TryFrom<Bytes> for UdpData {
+impl TryFrom<Bytes> for AgentUdpData {
     type Error = CommonError;
 
     fn try_from(value: Bytes) -> Result<Self, Self::Error> {
@@ -23,10 +24,36 @@ impl TryFrom<Bytes> for UdpData {
     }
 }
 
-impl TryFrom<UdpData> for Bytes {
+impl TryFrom<AgentUdpData> for Bytes {
     type Error = CommonError;
 
-    fn try_from(value: UdpData) -> Result<Self, Self::Error> {
+    fn try_from(value: AgentUdpData) -> Result<Self, Self::Error> {
+        bincode::serialize(&value)
+            .map(Bytes::from)
+            .map_err(|e| CommonError::Encoder(SerializeError::UdpData(e).into()))
+    }
+}
+
+#[non_exhaustive]
+#[derive(Serialize, Deserialize, Constructor)]
+pub struct ProxyUdpData {
+    pub src_address: PpaassNetAddress,
+    pub dst_address: PpaassNetAddress,
+    pub data: Bytes,
+}
+
+impl TryFrom<Bytes> for ProxyUdpData {
+    type Error = CommonError;
+
+    fn try_from(value: Bytes) -> Result<Self, Self::Error> {
+        bincode::deserialize(&value).map_err(|e| CommonError::Decoder(DeserializeError::UdpData(e).into()))
+    }
+}
+
+impl TryFrom<ProxyUdpData> for Bytes {
+    type Error = CommonError;
+
+    fn try_from(value: ProxyUdpData) -> Result<Self, Self::Error> {
         bincode::serialize(&value)
             .map(Bytes::from)
             .map_err(|e| CommonError::Encoder(SerializeError::UdpData(e).into()))

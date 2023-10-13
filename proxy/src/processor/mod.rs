@@ -11,7 +11,7 @@ use ppaass_common::{
     agent::PpaassAgentConnection, generate_uuid, PpaassAgentMessage, PpaassAgentMessagePayload, PpaassMessageAgentTcpPayloadType,
     PpaassMessageAgentUdpPayloadType, PpaassMessagePayloadEncryptionSelector,
 };
-use ppaass_common::{tcp::AgentTcpInit, udp::UdpData};
+use ppaass_common::{tcp::AgentTcpInit, udp::AgentUdpData};
 use ppaass_common::{PpaassMessageAgentProtocol, PpaassNetAddress};
 
 use crate::{
@@ -103,15 +103,25 @@ where
                         payload_type
                     )));
                 }
-                let UdpData {
+                let AgentUdpData {
                     src_address,
                     dst_address,
                     data: udp_raw_data,
+                    need_response,
                     ..
                 } = data.try_into()?;
                 // Udp handler will block the thread and continue to
                 // handle the agent connection in a loop
-                UdpHandler::exec(self.agent_connection, user_token, src_address, dst_address, udp_raw_data, payload_encryption).await?;
+                UdpHandler::exec(
+                    self.agent_connection,
+                    user_token,
+                    src_address,
+                    dst_address,
+                    udp_raw_data,
+                    payload_encryption,
+                    need_response,
+                )
+                .await?;
                 Ok(())
             },
         }
