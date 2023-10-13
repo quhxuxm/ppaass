@@ -31,14 +31,14 @@ pub(crate) enum Socks5Address {
 impl Socks5Address {
     pub(crate) fn parse(input: &mut impl Buf) -> Result<Socks5Address, ParseError> {
         if !input.has_remaining() {
-            return Err(ParseError::InputExhausted("Input bytes exhausted, remaing: 0".to_string()));
+            return Err(ParseError::InputExhausted("Input bytes exhausted, remaining: 0".to_string()));
         }
         let address_type = input.get_u8();
         let address = match address_type {
             IPV4_FLAG => {
                 if input.remaining() < 6 {
                     return Err(ParseError::InputExhausted(format!(
-                        "Input bytes exhausted, remaing: {}, require: 6",
+                        "Input bytes exhausted, remaining: {}, require: 6",
                         input.remaining()
                     )));
                 }
@@ -52,7 +52,7 @@ impl Socks5Address {
             IPV6_FLAG => {
                 if input.remaining() < 18 {
                     return Err(ParseError::InputExhausted(format!(
-                        "Input bytes exhausted, remaing: {}, require: 18",
+                        "Input bytes exhausted, remaining: {}, require: 18",
                         input.remaining()
                     )));
                 }
@@ -66,14 +66,14 @@ impl Socks5Address {
             DOMAIN_FLAG => {
                 if input.remaining() < 1 {
                     return Err(ParseError::InputExhausted(format!(
-                        "Input bytes exhausted, remaing: {}, require: 1",
+                        "Input bytes exhausted, remaining: {}, require: 1",
                         input.remaining()
                     )));
                 }
                 let domain_name_length = input.get_u8() as usize;
                 if input.remaining() < domain_name_length + 2 {
                     return Err(ParseError::InputExhausted(format!(
-                        "Input bytes exhausted, remaing: {}, require: {}",
+                        "Input bytes exhausted, remaining: {}, require: {}",
                         input.remaining(),
                         domain_name_length + 2
                     )));
