@@ -129,6 +129,10 @@ impl ClientTransportHandshake for HttpClientTransport {
                 error!("Client tcp connection [{src_address}] fail to do tcp loop init, tcp loop key: [{tcp_loop_key}]");
                 return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
             },
+            ProxyTcpInitResultType::ConnectToDstFail => {
+                error!("Client tcp connection [{src_address}] fail to do tcp loop init, because of proxy fail connect to destination, tcp loop key: [{tcp_loop_key}]");
+                return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
+            },
         }
         if init_data.is_none() {
             //For https proxy

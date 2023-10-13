@@ -256,6 +256,10 @@ impl Socks5ClientTransport {
                 error!("Client tcp connection [{src_address}] fail to do tcp loop init, tcp loop key: [{tcp_loop_key}]");
                 return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
             },
+            ProxyTcpInitResultType::ConnectToDstFail => {
+                error!("Client tcp connection [{src_address}] fail to do tcp loop init, because of proxy fail connect to destination, tcp loop key: [{tcp_loop_key}]");
+                return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
+            },
         }
         let socks5_init_success_result = Socks5InitCommandResult::new(Socks5InitCommandResultStatus::Succeeded, Some(dst_address.clone().try_into()?));
         socks5_init_framed.send(socks5_init_success_result).await.map_err(EncoderError::Socks5)?;

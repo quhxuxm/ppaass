@@ -65,6 +65,7 @@ where
         };
         let PpaassAgentMessage {
             user_token,
+            id: agent_tcp_init_message_id,
             payload: PpaassAgentMessagePayload { protocol, data },
             ..
         } = agent_message;
@@ -80,7 +81,7 @@ where
                 let AgentTcpInit { src_address, dst_address } = data.try_into()?;
                 // Tcp handler will block the thread and continue to
                 // handle the agent connection in a loop
-                TcpHandler::exec(self.agent_connection, user_token, src_address, dst_address).await?;
+                TcpHandler::exec(self.agent_connection, agent_tcp_init_message_id, user_token, src_address, dst_address).await?;
                 Ok(())
             },
             PpaassMessageAgentProtocol::Udp(payload_type) => {

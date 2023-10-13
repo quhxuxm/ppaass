@@ -63,8 +63,8 @@ impl TcpHandler {
     }
 
     pub(crate) async fn exec<'r, T, I, U>(
-        mut agent_connection: PpaassAgentConnection<'r, T, ProxyServerRsaCryptoFetcher, I>, user_token: U, src_address: PpaassNetAddress,
-        dst_address: PpaassNetAddress,
+        mut agent_connection: PpaassAgentConnection<'r, T, ProxyServerRsaCryptoFetcher, I>, agent_tcp_init_message_id: String, user_token: U,
+        src_address: PpaassNetAddress, dst_address: PpaassNetAddress,
     ) -> Result<(), ProxyServerError>
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
@@ -80,12 +80,12 @@ impl TcpHandler {
             Err(e) => {
                 let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(Bytes::from(generate_uuid().into_bytes())));
                 let tcp_init_fail = PpaassMessageGenerator::generate_proxy_tcp_init_message(
-                    generate_uuid(),
+                    agent_tcp_init_message_id,
                     user_token,
                     src_address,
                     dst_address,
                     payload_encryption,
-                    ProxyTcpInitResultType::Fail,
+                    ProxyTcpInitResultType::ConnectToDstFail,
                 )?;
                 agent_connection.send(tcp_init_fail).await?;
                 return Err(e);
@@ -93,7 +93,7 @@ impl TcpHandler {
         };
         let payload_encryption = ProxyServerPayloadEncryptionSelector::select(user_token.as_ref(), Some(Bytes::from(generate_uuid().into_bytes())));
         let tcp_init_success_message = PpaassMessageGenerator::generate_proxy_tcp_init_message(
-            generate_uuid(),
+            agent_tcp_init_message_id,
             user_token.clone(),
             src_address.clone(),
             dst_address.clone(),

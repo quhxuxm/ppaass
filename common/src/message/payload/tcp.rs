@@ -14,6 +14,7 @@ pub struct AgentTcpInit {
 pub enum ProxyTcpInitResultType {
     Success,
     Fail,
+    ConnectToDstFail,
 }
 
 #[derive(Serialize, Deserialize, Constructor)]
