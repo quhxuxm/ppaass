@@ -5,6 +5,14 @@ version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+name = "ppaass_agent_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ppaass-agent"
+path = "src/bin/bin.rs"
+
 [dependencies]
 anyhow = {workspace = true}
 async-trait = {workspace = true}

@@ -1,26 +1,8 @@
-pub(crate) mod config;
-pub(crate) mod server;
-
-pub(crate) mod connection;
-pub(crate) mod crypto;
-pub(crate) mod error;
-pub(crate) mod transport;
-
 use anyhow::Result;
 
-use config::AGENT_CONFIG;
-use ppaass_common::PpaassMessagePayloadEncryptionSelector;
-
 use log::error;
-use server::AgentServer;
+use ppaass_agent_lib::{config::AGENT_CONFIG, server::AgentServer};
 use tokio::runtime::Builder;
-
-pub const SOCKS_V5: u8 = 5;
-pub const SOCKS_V4: u8 = 4;
-
-pub struct AgentServerPayloadEncryptionTypeSelector;
-
-impl PpaassMessagePayloadEncryptionSelector for AgentServerPayloadEncryptionTypeSelector {}
 
 fn main() -> Result<()> {
     log4rs::init_file("resources/config/ppaass-agent-log.yml", Default::default())?;
