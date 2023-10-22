@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use serde_derive::{Deserialize, Serialize};
 
 lazy_static! {
-    pub(crate) static ref AGENT_CONFIG: AgentConfig = {
+    pub static ref AGENT_CONFIG: AgentConfig = {
         let agent_configuration_file = read_to_string("resources/config/ppaass-agent.toml").expect("Fail to read agent configuration file.");
         toml::from_str(&agent_configuration_file).expect("Fail to parse agent configuration file content.")
     };
