@@ -47,7 +47,11 @@ impl TcpHandler {
                 error!("Initialize tcp connection to destination timeout: {dst_address}");
                 return Err(ProxyServerError::Timeout(PROXY_CONFIG.get_dst_connect_timeout()));
             },
-            Ok(dst_tcp_stream) => dst_tcp_stream?,
+            Ok(Ok(dst_tcp_stream)) => dst_tcp_stream,
+            Ok(Err(e)) => {
+                error!("Initialize tcp connection to destination [{dst_address}] because of I/O error: {e:?}");
+                return Err(ProxyServerError::GeneralIo(e));
+            },
         };
         dst_tcp_stream.set_nodelay(true)?;
         dst_tcp_stream.set_linger(None)?;

@@ -1,9 +1,13 @@
-use bytecodec::bytes::{BytesEncoder, RemainingBytesDecoder};
-use bytecodec::io::IoDecodeExt;
-use bytecodec::EncodeExt;
+use bytecodec::{
+    bytes::{BytesEncoder, RemainingBytesDecoder},
+    ErrorKind,
+};
+use bytecodec::{io::IoDecodeExt, EncodeExt};
+
 use bytes::{Buf, BufMut, BytesMut};
 use httpcodec::{BodyDecoder, BodyEncoder, Request, RequestDecoder, Response, ResponseEncoder};
 
+use log::error;
 use tokio_util::codec::{Decoder, Encoder};
 
 use crate::error::{HttpDecodeError, HttpEncodeError};
@@ -19,7 +23,16 @@ impl Decoder for HttpCodec {
     type Error = HttpDecodeError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        let decode_result = self.request_decoder.decode_exact(src.chunk())?;
+        let decode_result = match self.request_decoder.decode_exact(src.chunk()) {
+            Ok(decode_result) => decode_result,
+            Err(e) => match e.kind() {
+                ErrorKind::IncompleteDecoding => return Ok(None),
+                other_kind => {
+                    error!("Http agent fail to decode because of error: {other_kind:?}");
+                    return Err(HttpDecodeError::LowLevel(e));
+                },
+            },
+        };
         Ok(Some(decode_result))
     }
 }
