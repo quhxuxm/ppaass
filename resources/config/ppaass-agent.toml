@@ -1,4 +1,4 @@
-port = 10090
+port = 10080
 worker_thread_number = 128
 client_connection_accept_timeout = 20
 compress = true
