@@ -204,6 +204,23 @@ impl Socks5ClientTransport {
     async fn handle_connect_command(
         src_address: PpaassNetAddress, dst_address: PpaassNetAddress, mut socks5_init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
     ) -> Result<ClientTransportDataRelayInfo, AgentError> {
+        match &dst_address {
+            PpaassNetAddress::IpV4 { ip: [0, 0, 0, 1], port: _ } => {
+                return Err(AgentError::Other(anyhow!("0.0.0.1 or 127.0.0.1 is not a valid destination address")))
+            },
+            PpaassNetAddress::IpV4 { ip: [127, 0, 0, 1], port: _ } => return Err(AgentError::Other(anyhow!("127.0.0.1 is not a valid destination address"))),
+            PpaassNetAddress::IpV6 {
+                ip: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                port: _,
+            } => return Err(AgentError::Other(anyhow!("0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:1 is not a valid destination address"))),
+            PpaassNetAddress::Domain { host, port: _ } => {
+                if host.eq("0.0.0.1") || host.eq("127.0.0.1") {
+                    return Err(AgentError::Other(anyhow!("0.0.0.1 or 127.0.0.1 is not a valid destination address")));
+                }
+            },
+            _ => {},
+        };
+
         let user_token = AGENT_CONFIG
             .get_user_token()
             .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
