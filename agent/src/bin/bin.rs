@@ -4,8 +4,10 @@ use log::error;
 use ppaass_agent_lib::{config::AGENT_CONFIG, server::AgentServer};
 use tokio::runtime::Builder;
 
+const LOG_CONFIG_PATH: &str = "resources/config/ppaass-agent-log.yml";
+
 fn main() -> Result<()> {
-    log4rs::init_file("resources/config/ppaass-agent-log.yml", Default::default())?;
+    log4rs::init_file(LOG_CONFIG_PATH, Default::default())?;
 
     let agent_server_runtime = Builder::new_multi_thread()
         .enable_all()
