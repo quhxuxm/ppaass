@@ -3,7 +3,7 @@ use bytes::Bytes;
 use crate::{
     generate_uuid,
     tcp::{AgentTcpData, AgentTcpInit, ProxyTcpInit, ProxyTcpInitResultType},
-    udp::UdpData,
+    udp::{AgentUdpData, ProxyUdpData},
     CommonError, PpaassAgentMessage, PpaassAgentMessagePayload, PpaassMessageAgentProtocol, PpaassMessageAgentTcpPayloadType, PpaassMessageAgentUdpPayloadType,
     PpaassMessagePayloadEncryption, PpaassMessageProxyProtocol, PpaassMessageProxyTcpPayloadType, PpaassMessageProxyUdpPayloadType, PpaassNetAddress,
     PpaassProxyMessage, PpaassProxyMessagePayload,
@@ -73,8 +73,9 @@ impl PpaassMessageGenerator {
     /// Generate the agent udp data message
     pub fn generate_agent_udp_data_message(
         user_token: impl ToString, encryption: PpaassMessagePayloadEncryption, src_address: PpaassNetAddress, dst_address: PpaassNetAddress, data: Bytes,
+        need_response: bool,
     ) -> Result<PpaassAgentMessage, CommonError> {
-        let udp_data: UdpData = UdpData::new(src_address, dst_address, data);
+        let udp_data = AgentUdpData::new(src_address, dst_address, data, need_response);
         let payload = PpaassAgentMessagePayload {
             protocol: PpaassMessageAgentProtocol::Udp(PpaassMessageAgentUdpPayloadType::Data),
             data: udp_data.try_into()?,
@@ -87,7 +88,7 @@ impl PpaassMessageGenerator {
     pub fn generate_proxy_udp_data_message(
         user_token: impl ToString, encryption: PpaassMessagePayloadEncryption, src_address: PpaassNetAddress, dst_address: PpaassNetAddress, data: Bytes,
     ) -> Result<PpaassProxyMessage, CommonError> {
-        let udp_data: UdpData = UdpData::new(src_address, dst_address, data);
+        let udp_data = ProxyUdpData::new(src_address, dst_address, data);
         let payload = PpaassProxyMessagePayload {
             protocol: PpaassMessageProxyProtocol::Udp(PpaassMessageProxyUdpPayloadType::Data),
             data: udp_data.try_into()?,

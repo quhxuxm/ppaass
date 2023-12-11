@@ -1,5 +1,6 @@
 pub(crate) mod codec;
 
+use anyhow::anyhow;
 use async_trait::async_trait;
 use bytecodec::{bytes::BytesEncoder, EncodeExt};
 
@@ -80,6 +81,9 @@ impl ClientTransportHandshake for HttpClientTransport {
             .host()
             .ok_or(ConversionError::NoHost(parsed_request_url.to_string()))?
             .to_string();
+        if target_host.eq("0.0.0.1") || target_host.eq("127.0.0.1") {
+            return Err(AgentError::Other(anyhow!("0.0.0.1 or 127.0.0.1 is not a valid destination address")));
+        }
         let dst_address = PpaassNetAddress::Domain {
             host: target_host,
             port: target_port,
@@ -127,6 +131,10 @@ impl ClientTransportHandshake for HttpClientTransport {
             },
             ProxyTcpInitResultType::Fail => {
                 error!("Client tcp connection [{src_address}] fail to do tcp loop init, tcp loop key: [{tcp_loop_key}]");
+                return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
+            },
+            ProxyTcpInitResultType::ConnectToDstFail => {
+                error!("Client tcp connection [{src_address}] fail to do tcp loop init, because of proxy fail connect to destination, tcp loop key: [{tcp_loop_key}]");
                 return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
             },
         }

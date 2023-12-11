@@ -9,7 +9,7 @@ use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::{BytesCodec, Framed};
 
-use crate::error::NetworkError;
+use crate::error::ProxyServerError;
 
 /// The destination connection framed with BytesCodec
 #[pin_project]
@@ -35,26 +35,26 @@ impl<T> Sink<BytesMut> for DstConnection<T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
 {
-    type Error = NetworkError;
+    type Error = ProxyServerError;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        Sink::<BytesMut>::poll_ready(this.inner, cx).map_err(NetworkError::DestinationWrite)
+        Sink::<BytesMut>::poll_ready(this.inner, cx).map_err(ProxyServerError::GeneralIo)
     }
 
     fn start_send(self: Pin<&mut Self>, item: BytesMut) -> Result<(), Self::Error> {
         let this = self.project();
-        Sink::<BytesMut>::start_send(this.inner, item).map_err(NetworkError::DestinationWrite)
+        Sink::<BytesMut>::start_send(this.inner, item).map_err(ProxyServerError::GeneralIo)
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        Sink::<BytesMut>::poll_flush(this.inner, cx).map_err(NetworkError::DestinationWrite)
+        Sink::<BytesMut>::poll_flush(this.inner, cx).map_err(ProxyServerError::GeneralIo)
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let this = self.project();
-        Sink::<BytesMut>::poll_close(this.inner, cx).map_err(NetworkError::DestinationWrite)
+        Sink::<BytesMut>::poll_close(this.inner, cx).map_err(ProxyServerError::GeneralIo)
     }
 }
 
@@ -62,10 +62,10 @@ impl<T> Stream for DstConnection<T>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
 {
-    type Item = Result<BytesMut, NetworkError>;
+    type Item = Result<BytesMut, ProxyServerError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        this.inner.poll_next(cx).map_err(NetworkError::DestinationRead)
+        this.inner.poll_next(cx).map_err(ProxyServerError::GeneralIo)
     }
 }

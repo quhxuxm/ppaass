@@ -189,6 +189,7 @@ pub(crate) trait ClientTransportRelay {
         let (mut proxy_connection_write, proxy_connection_read) = proxy_connection.split();
 
         let (_, _) = tokio::join!(
+            // Forward client data to proxy
             TokioStreamExt::map_while(client_io_read.timeout(Duration::from_secs(client_relay_timeout)), |client_message| {
                 let client_message = client_message.ok()?;
                 let client_message = client_message.ok()?;
@@ -203,6 +204,7 @@ pub(crate) trait ClientTransportRelay {
                 Some(Ok(tcp_data))
             })
             .forward(&mut proxy_connection_write),
+            // Forward proxy data to client
             TokioStreamExt::map_while(proxy_connection_read.timeout(Duration::from_secs(proxy_relay_timeout)), |proxy_message| {
                 let proxy_message = proxy_message.ok()?;
                 let PpaassProxyMessage { payload, .. } = proxy_message.ok()?;
