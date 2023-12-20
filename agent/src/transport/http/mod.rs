@@ -70,13 +70,10 @@ impl ClientTransportHandshake for HttpClientTransport {
         };
 
         let parsed_request_url = Url::parse(request_url.as_str()).map_err(ConversionError::UrlFormat)?;
-        let target_port = match parsed_request_url.port() {
-            None => match parsed_request_url.scheme() {
-                HTTPS_SCHEMA => HTTPS_DEFAULT_PORT,
-                _ => HTTP_DEFAULT_PORT,
-            },
-            Some(v) => v,
-        };
+        let target_port = parsed_request_url.port().unwrap_or_else(|| match parsed_request_url.scheme() {
+            HTTPS_SCHEMA => HTTPS_DEFAULT_PORT,
+            _ => HTTP_DEFAULT_PORT,
+        });
         let target_host = parsed_request_url
             .host()
             .ok_or(ConversionError::NoHost(parsed_request_url.to_string()))?
