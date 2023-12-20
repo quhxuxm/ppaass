@@ -87,7 +87,6 @@ impl ClientTransportHandshake for HttpClientTransport {
         };
 
         let user_token = AGENT_CONFIG.get_user_token();
-
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(random_32_bytes()));
         let tcp_init_request =
             PpaassMessageGenerator::generate_agent_tcp_init_message(user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;

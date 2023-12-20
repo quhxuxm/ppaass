@@ -20,7 +20,7 @@ use super::DecodeStatus;
 const PPAASS_FLAG: &[u8] = "__PPAASS__".as_bytes();
 const HEADER_LENGTH: usize = PPAASS_FLAG.len() + size_of::<u8>() + size_of::<u64>();
 const COMPRESS_FLAG: u8 = 1;
-const UNCOMPRESS_FLAG: u8 = 1;
+const UN_COMPRESS_FLAG: u8 = 1;
 
 pub(crate) struct PpaassAgentConnectionCodec<T>
 where
@@ -130,10 +130,8 @@ where
                     .freeze()
             },
         };
-
         self.status = DecodeStatus::Head;
         src.reserve(HEADER_LENGTH);
-
         let message_framed = PpaassAgentMessage::new(
             id,
             user_token,
@@ -160,7 +158,7 @@ where
         if self.compress {
             dst.put_u8(COMPRESS_FLAG);
         } else {
-            dst.put_u8(UNCOMPRESS_FLAG);
+            dst.put_u8(UN_COMPRESS_FLAG);
         }
         let PpaassProxyMessage {
             id,

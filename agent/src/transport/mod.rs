@@ -130,7 +130,7 @@ pub(crate) struct ClientTransportTcpDataRelay {
     client_tcp_stream: TcpStream,
     src_address: PpaassNetAddress,
     dst_address: PpaassNetAddress,
-    proxy_connection: PpaassProxyConnection<'static, TcpStream, AgentServerRsaCryptoFetcher, String>,
+    proxy_connection: PpaassProxyConnection<AgentServerRsaCryptoFetcher>,
     init_data: Option<Bytes>,
 }
 

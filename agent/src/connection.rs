@@ -38,7 +38,7 @@ impl ProxyConnectionFactory {
         Ok(Self { proxy_addresses })
     }
 
-    pub(crate) async fn create_connection<'r>(&self) -> Result<PpaassProxyConnection<'r, TcpStream, AgentServerRsaCryptoFetcher, String>, AgentError> {
+    pub(crate) async fn create_connection(&self) -> Result<PpaassProxyConnection<AgentServerRsaCryptoFetcher>, AgentError> {
         debug!("Take proxy connection from pool.");
         let proxy_tcp_stream = match timeout(
             Duration::from_secs(AGENT_CONFIG.get_connect_to_proxy_timeout()),
@@ -61,7 +61,7 @@ impl ProxyConnectionFactory {
         let proxy_connection = PpaassProxyConnection::new(
             Uuid::new_v4().to_string(),
             proxy_tcp_stream,
-            &*RSA_CRYPTO,
+            RSA_CRYPTO.clone(),
             AGENT_CONFIG.get_compress(),
             AGENT_CONFIG.get_proxy_send_buffer_size(),
         );

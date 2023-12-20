@@ -1,9 +1,10 @@
-use std::time::Duration;
+mod tcp;
+mod udp;
 
 use anyhow::Result;
-
 use futures::StreamExt;
 use log::error;
+use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio::time::timeout;
 
@@ -23,9 +24,6 @@ use crate::{
 };
 
 use self::tcp::TcpHandler;
-
-mod tcp;
-mod udp;
 
 pub(crate) struct Transport {
     agent_connection: PpaassAgentConnection<ProxyServerRsaCryptoFetcher>,
