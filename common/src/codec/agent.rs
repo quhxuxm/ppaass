@@ -22,23 +22,20 @@ const HEADER_LENGTH: usize = PPAASS_FLAG.len() + size_of::<u8>() + size_of::<u64
 const COMPRESS_FLAG: u8 = 1;
 const UNCOMPRESS_FLAG: u8 = 1;
 
-pub(crate) struct PpaassAgentConnectionCodec<'r, T>
+pub(crate) struct PpaassAgentConnectionCodec<T>
 where
-    T: RsaCryptoFetcher + 'static,
+    T: RsaCryptoFetcher,
 {
-    rsa_crypto_fetcher: &'r T,
+    rsa_crypto_fetcher: T,
     compress: bool,
     status: DecodeStatus,
 }
 
-impl<'r, T> PpaassAgentConnectionCodec<'r, T>
+impl<T> PpaassAgentConnectionCodec<T>
 where
-    T: RsaCryptoFetcher + 'static,
+    T: RsaCryptoFetcher,
 {
-    pub fn new<'a>(compress: bool, rsa_crypto_fetcher: &'a T) -> PpaassAgentConnectionCodec<'r, T>
-    where
-        'a: 'r,
-    {
+    pub fn new(compress: bool, rsa_crypto_fetcher: T) -> PpaassAgentConnectionCodec<T> {
         Self {
             rsa_crypto_fetcher,
             compress,
@@ -48,9 +45,9 @@ where
 }
 
 /// Decode the input bytes buffer to ppaass message
-impl<T> Decoder for PpaassAgentConnectionCodec<'_, T>
+impl<T> Decoder for PpaassAgentConnectionCodec<T>
 where
-    T: RsaCryptoFetcher + 'static,
+    T: RsaCryptoFetcher,
 {
     type Item = PpaassAgentMessage;
     type Error = CommonError;
@@ -151,9 +148,9 @@ where
 }
 
 /// Encode the ppaass message to bytes buffer
-impl<T> Encoder<PpaassProxyMessage> for PpaassAgentConnectionCodec<'_, T>
+impl<T> Encoder<PpaassProxyMessage> for PpaassAgentConnectionCodec<T>
 where
-    T: RsaCryptoFetcher + 'static,
+    T: RsaCryptoFetcher,
 {
     type Error = CommonError;
 

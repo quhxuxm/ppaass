@@ -1,4 +1,4 @@
-use crate::{config::PROXY_CONFIG, error::ProxyServerError, processor::Transport};
+use crate::{config::PROXY_CONFIG, error::ProxyServerError, transport::Transport};
 
 use std::net::SocketAddr;
 
