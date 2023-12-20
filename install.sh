@@ -1,6 +1,4 @@
 #Prepare base env
-export RUSTUP_INIT_SKIP_PATH_CHECK=yes
-
 sudo apt update
 sudo apt upgrade -y
 sudo apt install gcc -y
@@ -45,7 +43,7 @@ sudo chmod 777 ppaass
 cd /ppaass/sourcecode/ppaass
 sudo git pull
 
-RUSTFLAGS="--cfg tokio_unstable" cargo build --release
+cargo build --release
 
 # ps -ef | grep gradle | grep -v grep | awk '{print $2}' | xargs kill -9
 sudo cp -r /ppaass/sourcecode/ppaass/resources/ /ppaass/build/
