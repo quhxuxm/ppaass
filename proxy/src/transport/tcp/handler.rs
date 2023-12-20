@@ -3,21 +3,23 @@ use std::{
     time::Duration,
 };
 
-use bytes::{Bytes, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 
 use futures::StreamExt as FuturesStreamExt;
+use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::SinkExt;
 
-use log::error;
+use log::{debug, error};
 use tokio::net::TcpStream;
-use tokio::time::timeout;
+use tokio::sync::mpsc::error::TryRecvError;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
-use tokio_stream::StreamExt as TokioStreamExt;
+use tokio::time::timeout;
 
 use ppaass_common::{
     agent::PpaassAgentConnection,
     tcp::{AgentTcpData, ProxyTcpInitResultType},
-    CommonError, PpaassAgentMessage, PpaassMessagePayloadEncryption,
+    CommonError, PpaassAgentMessage, PpaassMessagePayloadEncryption, PpaassProxyMessage,
 };
 use ppaass_common::{PpaassMessageGenerator, PpaassUnifiedAddress};
 
@@ -64,8 +66,6 @@ impl TcpHandler {
         mut agent_connection: PpaassAgentConnection<ProxyServerRsaCryptoFetcher>, agent_tcp_init_message_id: String, user_token: String,
         src_address: PpaassUnifiedAddress, dst_address: PpaassUnifiedAddress, payload_encryption: PpaassMessagePayloadEncryption,
     ) -> Result<(), ProxyServerError> {
-        let dst_relay_timeout = PROXY_CONFIG.get_dst_relay_timeout();
-        let agent_relay_timeout = PROXY_CONFIG.get_agent_relay_timeout();
         let dst_connection = match Self::init_dst_connection(&dst_address).await {
             Ok(dst_connection) => dst_connection,
             Err(e) => {
@@ -90,31 +90,150 @@ impl TcpHandler {
             ProxyTcpInitResultType::Success,
         )?;
         agent_connection.send(tcp_init_success_message).await?;
-        let (mut agent_connection_write, agent_connection_read) = agent_connection.split();
-        let (mut dst_connection_write, dst_connection_read) = dst_connection.split();
-        let (_, _) = tokio::join!(
-            // Forward agent data to proxy
-            TokioStreamExt::map_while(agent_connection_read.timeout(Duration::from_secs(agent_relay_timeout)), |agent_message| {
-                let agent_message = agent_message.ok()?.ok()?;
-                let raw_data = Self::unwrap_to_raw_tcp_data(agent_message).ok()?;
-                Some(Ok(BytesMut::from_iter(raw_data)))
-            })
-            .forward(&mut dst_connection_write),
-            // Forward proxy data to agent
-            TokioStreamExt::map_while(dst_connection_read.timeout(Duration::from_secs(dst_relay_timeout)), |dst_message| {
-                let dst_message = dst_message.ok()?.ok()?;
-                let tcp_data_message = PpaassMessageGenerator::generate_proxy_tcp_data_message(
-                    user_token.clone(),
-                    payload_encryption.clone(),
-                    src_address.clone(),
-                    dst_address.clone(),
-                    dst_message.freeze(),
-                )
-                .ok()?;
-                Some(Ok(tcp_data_message))
-            })
-            .forward(&mut agent_connection_write)
-        );
+        let (agent_connection_write, agent_connection_read) = agent_connection.split();
+        let (dst_connection_write, dst_connection_read) = dst_connection.split();
+
+        let (dst_inbound_tx, dst_inbound_rx) = unbounded_channel::<Bytes>();
+        let (dst_outbound_tx, dst_outbound_rx) = unbounded_channel::<Bytes>();
+
+        tokio::spawn(Self::read_agent_connection_to_dst_outbound_tx(agent_connection_read, dst_outbound_tx));
+        tokio::spawn(Self::read_dst_connection_to_dst_inbound_tx(dst_connection_read, dst_inbound_tx));
+        tokio::spawn(Self::write_dst_inbound_rx_to_agent_connection(
+            dst_inbound_rx,
+            agent_connection_write,
+            user_token,
+            payload_encryption,
+            src_address,
+            dst_address,
+        ));
+        tokio::spawn(Self::write_dst_outbound_rx_to_dst_connection(dst_outbound_rx, dst_connection_write));
         Ok(())
+    }
+
+    async fn read_agent_connection_to_dst_outbound_tx(
+        mut agent_connection_read: SplitStream<PpaassAgentConnection<ProxyServerRsaCryptoFetcher>>, dst_outbound_tx: UnboundedSender<Bytes>,
+    ) {
+        loop {
+            let agent_message = match timeout(Duration::from_secs(PROXY_CONFIG.get_agent_relay_timeout()), agent_connection_read.next()).await {
+                Ok(Some(Ok(agent_message))) => agent_message,
+                Ok(Some(Err(e))) => {
+                    error!("Fail to forward agent message to destination because of error happen when read agent connection: {e:?}");
+                    return;
+                },
+                Ok(None) => {
+                    debug!("Read all data from agent connection");
+                    return;
+                },
+                Err(_) => {
+                    error!("Fail to forward agent message to destination because of read agent connection timeout.");
+                    return;
+                },
+            };
+            let raw_data = match Self::unwrap_to_raw_tcp_data(agent_message) {
+                Ok(raw_data) => raw_data,
+                Err(e) => {
+                    error!("Fail to unwrap agent message because of error: {e:?}");
+                    return;
+                },
+            };
+            if let Err(e) = dst_outbound_tx.send(raw_data) {
+                error!("Fail to send agent message to destination outbound channel because of error: {e:?}");
+                return;
+            };
+        }
+    }
+
+    async fn read_dst_connection_to_dst_inbound_tx(mut dst_connection_read: SplitStream<DstConnection>, dst_inbound_tx: UnboundedSender<Bytes>) {
+        loop {
+            let dst_message = match timeout(Duration::from_secs(PROXY_CONFIG.get_dst_relay_timeout()), dst_connection_read.next()).await {
+                Ok(Some(Ok(dst_message))) => dst_message,
+                Ok(Some(Err(e))) => {
+                    error!("Fail to forward destination message to agent because of error happen when read destination connection: {e:?}");
+                    return;
+                },
+                Ok(None) => {
+                    debug!("Read all data from destination connection");
+                    return;
+                },
+                Err(_) => {
+                    error!("Fail to forward destination message to agent because of read agent connection timeout.");
+                    return;
+                },
+            };
+            if let Err(e) = dst_inbound_tx.send(dst_message.freeze()) {
+                error!("Fail to send destination message to destination inbound channel because of error: {e:?}");
+                return;
+            };
+        }
+    }
+    async fn write_dst_inbound_rx_to_agent_connection(
+        mut dst_inbound_rx: UnboundedReceiver<Bytes>,
+        mut agent_connection_write: SplitSink<PpaassAgentConnection<ProxyServerRsaCryptoFetcher>, PpaassProxyMessage>, user_token: String,
+        payload_encryption: PpaassMessagePayloadEncryption, src_address: PpaassUnifiedAddress, dst_address: PpaassUnifiedAddress,
+    ) {
+        loop {
+            let mut all_inbound_data = Vec::with_capacity(65536);
+            match dst_inbound_rx.try_recv() {
+                Ok(inbound_data) => {
+                    all_inbound_data.push(inbound_data);
+                },
+                Err(TryRecvError::Empty) => {
+                    tokio::task::yield_now().await;
+                    continue;
+                },
+                Err(TryRecvError::Disconnected) => {
+                    return;
+                },
+            }
+            let mut data = BytesMut::new();
+            all_inbound_data.iter().for_each(|item| {
+                data.put_slice(item);
+            });
+
+            let tcp_data_message = match PpaassMessageGenerator::generate_proxy_tcp_data_message(
+                user_token.clone(),
+                payload_encryption.clone(),
+                src_address.clone(),
+                dst_address.clone(),
+                data.freeze(),
+            ) {
+                Err(e) => {
+                    error!("Fail to create proxy message with destination data because of error: {e:?}");
+                    return;
+                },
+                Ok(tcp_data_message) => tcp_data_message,
+            };
+            if let Err(e) = agent_connection_write.send(tcp_data_message).await {
+                error!("Fail to send proxy message to agent because of error: {e:?}");
+                return;
+            };
+        }
+    }
+    async fn write_dst_outbound_rx_to_dst_connection(
+        mut dst_outbound_rx: UnboundedReceiver<Bytes>, mut dst_connection_write: SplitSink<DstConnection, BytesMut>,
+    ) {
+        loop {
+            let mut all_outbound_data = Vec::with_capacity(65536);
+            match dst_outbound_rx.try_recv() {
+                Ok(outbound_data) => {
+                    all_outbound_data.push(outbound_data);
+                },
+                Err(TryRecvError::Empty) => {
+                    tokio::task::yield_now().await;
+                    continue;
+                },
+                Err(TryRecvError::Disconnected) => {
+                    return;
+                },
+            }
+            let mut data = BytesMut::new();
+            all_outbound_data.iter().for_each(|item| {
+                data.put_slice(item);
+            });
+            if let Err(e) = dst_connection_write.send(data).await {
+                error!("Fail to send agent message to destination because of error: {e:?}");
+                return;
+            };
+        }
     }
 }
