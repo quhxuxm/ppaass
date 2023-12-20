@@ -3,7 +3,7 @@ use bytes::{Bytes, BytesMut};
 use cipher::{block_padding::Pkcs7, BlockEncryptMut};
 use cipher::{BlockDecryptMut, KeyInit};
 
-use crate::{generate_uuid, AesError};
+use crate::{random_32_bytes, AesError};
 
 type PaddingMode = Pkcs7;
 
@@ -13,7 +13,7 @@ type AesDecryptor = ecb::Decryptor<Aes256>;
 const BLOCK_SIZE: usize = 32;
 
 pub fn generate_aes_encryption_token() -> Bytes {
-    Bytes::from(format!("{}{}", generate_uuid(), generate_uuid()).as_bytes().to_vec())
+    random_32_bytes()
 }
 
 pub fn encrypt_with_aes(encryption_token: &Bytes, target: &mut BytesMut) -> Result<BytesMut, AesError> {

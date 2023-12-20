@@ -4,14 +4,15 @@ mod crypto;
 mod error;
 mod message;
 
+use bytes::{Bytes};
 pub use connection::*;
 pub use crypto::*;
 pub use error::*;
 pub use message::*;
-use uuid::Uuid;
+use rand::random;
 
-/// Generate a 32 byte length uuid.
-pub fn generate_uuid() -> String {
-    let uuid_str = Uuid::new_v4().to_string();
-    uuid_str.replace('-', "")
+
+pub fn random_32_bytes() -> Bytes {
+    let random_32_bytes = random::<[u8; 32]>();
+    Bytes::from(random_32_bytes.to_vec())
 }

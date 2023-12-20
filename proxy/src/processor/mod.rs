@@ -1,14 +1,14 @@
 use std::time::Duration;
 
 use anyhow::Result;
-use bytes::Bytes;
+
 use futures::StreamExt;
 use log::error;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::timeout;
 
 use ppaass_common::{
-    agent::PpaassAgentConnection, generate_uuid, PpaassAgentMessage, PpaassAgentMessagePayload, PpaassMessageAgentTcpPayloadType,
+    agent::PpaassAgentConnection, random_32_bytes, PpaassAgentMessage, PpaassAgentMessagePayload, PpaassMessageAgentTcpPayloadType,
     PpaassMessageAgentUdpPayloadType, PpaassMessagePayloadEncryptionSelector,
 };
 use ppaass_common::{tcp::AgentTcpInit, udp::AgentUdpData};
@@ -73,7 +73,7 @@ where
             payload: PpaassAgentMessagePayload { protocol, data },
             ..
         } = agent_message;
-        let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(Bytes::from(generate_uuid().into_bytes())));
+        let payload_encryption = ProxyServerPayloadEncryptionSelector::select(&user_token, Some(random_32_bytes()));
         match protocol {
             PpaassMessageAgentProtocol::Tcp(payload_type) => {
                 if PpaassMessageAgentTcpPayloadType::Init != payload_type {

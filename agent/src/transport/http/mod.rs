@@ -10,7 +10,7 @@ use futures::{SinkExt, StreamExt};
 use httpcodec::{BodyEncoder, HttpVersion, ReasonPhrase, RequestEncoder, Response, StatusCode};
 use log::{debug, error};
 use ppaass_common::{
-    generate_uuid,
+    random_32_bytes,
     tcp::{ProxyTcpInit, ProxyTcpInitResultType},
     PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyProtocol, PpaassMessageProxyTcpPayloadType, PpaassNetAddress,
     PpaassProxyMessage, PpaassProxyMessagePayload,
@@ -93,7 +93,7 @@ impl ClientTransportHandshake for HttpClientTransport {
             .get_user_token()
             .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
 
-        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(Bytes::from(generate_uuid().into_bytes())));
+        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(random_32_bytes()));
         let tcp_init_request =
             PpaassMessageGenerator::generate_agent_tcp_init_message(user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
 

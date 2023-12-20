@@ -6,7 +6,8 @@ use tokio::{net::TcpStream, time::timeout};
 
 use log::{debug, error};
 
-use ppaass_common::{generate_uuid, proxy::PpaassProxyConnection};
+use ppaass_common::proxy::PpaassProxyConnection;
+use uuid::Uuid;
 
 use crate::{
     config::AGENT_CONFIG,
@@ -60,7 +61,7 @@ impl ProxyConnectionFactory {
         debug!("Success connect to proxy.");
         proxy_tcp_stream.set_nodelay(true).map_err(NetworkError::PropertyModification)?;
         let proxy_connection = PpaassProxyConnection::new(
-            generate_uuid(),
+            Uuid::new_v4().to_string(),
             proxy_tcp_stream,
             &*RSA_CRYPTO,
             AGENT_CONFIG.get_compress(),

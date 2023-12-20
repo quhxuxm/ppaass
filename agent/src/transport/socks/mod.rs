@@ -9,6 +9,7 @@ use bytes::Bytes;
 
 use futures::{SinkExt, StreamExt};
 use ppaass_common::{
+    random_32_bytes,
     tcp::{ProxyTcpInit, ProxyTcpInitResultType},
     PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyProtocol, PpaassMessageProxyTcpPayloadType,
     PpaassMessageProxyUdpPayloadType, PpaassNetAddress, PpaassProxyMessage, PpaassProxyMessagePayload,
@@ -37,8 +38,6 @@ use crate::{
     },
     AgentServerPayloadEncryptionTypeSelector,
 };
-
-use ppaass_common::generate_uuid;
 
 use super::{dispatcher::ClientTransportHandshakeInfo, ClientTransportRelay, ClientTransportUdpDataRelay};
 
@@ -126,7 +125,7 @@ impl Socks5ClientTransport {
         let user_token = AGENT_CONFIG
             .get_user_token()
             .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
-        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(Bytes::from(generate_uuid().into_bytes())));
+        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(random_32_bytes()));
         loop {
             let mut client_udp_buf = [0u8; 65535];
             let (len, client_udp_address) = match agent_udp_bind_socket.recv_from(&mut client_udp_buf).await {
@@ -224,7 +223,7 @@ impl Socks5ClientTransport {
         let user_token = AGENT_CONFIG
             .get_user_token()
             .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
-        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(Bytes::from(generate_uuid().into_bytes())));
+        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(random_32_bytes()));
         let tcp_init_request =
             PpaassMessageGenerator::generate_agent_tcp_init_message(user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
         let mut proxy_connection = PROXY_CONNECTION_FACTORY.create_connection().await?;

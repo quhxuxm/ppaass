@@ -26,7 +26,7 @@ use futures::{
 
 use pin_project::pin_project;
 use ppaass_common::{
-    generate_uuid, proxy::PpaassProxyConnection, tcp::AgentTcpData, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress,
+    proxy::PpaassProxyConnection, random_32_bytes, tcp::AgentTcpData, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress,
     PpaassProxyMessage,
 };
 use tokio::{
@@ -158,7 +158,7 @@ pub(crate) trait ClientTransportRelay {
         let user_token = AGENT_CONFIG
             .get_user_token()
             .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
-        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(Bytes::from(generate_uuid().into_bytes())));
+        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(random_32_bytes()));
         let ClientTransportTcpDataRelay {
             client_tcp_stream,
             src_address,
