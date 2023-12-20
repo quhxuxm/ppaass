@@ -86,9 +86,7 @@ impl ClientTransportHandshake for HttpClientTransport {
             port: target_port,
         };
 
-        let user_token = AGENT_CONFIG
-            .get_user_token()
-            .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
+        let user_token = AGENT_CONFIG.get_user_token();
 
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(random_32_bytes()));
         let tcp_init_request =

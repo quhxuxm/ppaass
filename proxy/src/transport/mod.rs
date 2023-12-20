@@ -38,7 +38,7 @@ impl Transport {
             agent_tcp_stream,
             RSA_CRYPTO.clone(),
             PROXY_CONFIG.get_compress(),
-            PROXY_CONFIG.get_agent_recive_buffer_size(),
+            PROXY_CONFIG.get_agent_receive_buffer_size(),
         );
         Self { agent_connection }
     }

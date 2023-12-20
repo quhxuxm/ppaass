@@ -18,7 +18,7 @@ pub(crate) struct AgentServerRsaCryptoFetcher {
 impl AgentServerRsaCryptoFetcher {
     pub(crate) fn new() -> Result<Self> {
         let mut result = Self { cache: HashMap::new() };
-        let rsa_dir_path = AGENT_CONFIG.get_rsa_dir().context("fail to get rsa directory from configuration file")?;
+        let rsa_dir_path = AGENT_CONFIG.get_rsa_dir();
         let rsa_dir = std::fs::read_dir(rsa_dir_path).context("fail to read rsa directory")?;
         rsa_dir.for_each(|entry| {
             let Ok(entry) = entry else {

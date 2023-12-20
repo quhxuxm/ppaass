@@ -10,25 +10,23 @@ lazy_static! {
     };
 }
 
-const DEFAULT_PROXY_SERVER_PORT: u16 = 80;
 const DEFAULT_PROXY_SERVER_WORKER_THREAD_NUMBER: usize = 128;
-const DEFAULT_RSA_DIR: &str = "rsa";
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub(crate) struct ProxyConfig {
-    /// Whehter use ip v6
+    /// Whether use ip v6
     ipv6: Option<bool>,
     /// Port of the ppaass proxy
-    port: Option<u16>,
+    port: u16,
     /// The root directory used to store the rsa
     /// files for each user
-    rsa_dir: Option<String>,
+    rsa_dir: String,
     /// The threads number
     worker_thread_number: Option<usize>,
     /// Whether enable compressing
     compress: Option<bool>,
     /// The buffer size for one agent connection
-    agent_recive_buffer_size: Option<usize>,
+    agent_receive_buffer_size: Option<usize>,
     dst_tcp_buffer_size: Option<usize>,
     dst_connect_timeout: Option<u64>,
     dst_relay_timeout: Option<u64>,
@@ -43,11 +41,11 @@ impl ProxyConfig {
     }
 
     pub(crate) fn get_port(&self) -> u16 {
-        self.port.unwrap_or(DEFAULT_PROXY_SERVER_PORT)
+        self.port
     }
 
-    pub(crate) fn get_rsa_dir(&self) -> String {
-        self.rsa_dir.as_ref().unwrap_or(&DEFAULT_RSA_DIR.to_string()).to_string()
+    pub(crate) fn get_rsa_dir(&self) -> &str {
+        &self.rsa_dir
     }
 
     pub(crate) fn get_worker_thread_number(&self) -> usize {
@@ -58,8 +56,8 @@ impl ProxyConfig {
         self.compress.unwrap_or(false)
     }
 
-    pub(crate) fn get_agent_recive_buffer_size(&self) -> usize {
-        self.agent_recive_buffer_size.unwrap_or(1024 * 512)
+    pub(crate) fn get_agent_receive_buffer_size(&self) -> usize {
+        self.agent_receive_buffer_size.unwrap_or(1024 * 512)
     }
 
     pub(crate) fn get_dst_tcp_buffer_size(&self) -> usize {
