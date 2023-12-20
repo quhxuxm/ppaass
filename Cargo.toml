@@ -42,4 +42,4 @@ tokio-stream = "0.1.14"
 lazy_static="1.4.0"
 log4rs = "1.2.0"
 log = "0.4.20"
-deadpool="0.10.0"
+
