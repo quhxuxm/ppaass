@@ -12,6 +12,8 @@ sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
 
 sudo apt install unzip -y
 sudo apt install git -y
+sudo apt install bind9 -y
+
 sudo curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 source $HOME/.cargo/env
