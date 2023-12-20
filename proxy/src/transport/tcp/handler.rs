@@ -19,7 +19,7 @@ use ppaass_common::{
     tcp::{AgentTcpData, ProxyTcpInitResultType},
     CommonError, PpaassAgentMessage, PpaassMessagePayloadEncryption,
 };
-use ppaass_common::{PpaassMessageGenerator, PpaassNetAddress};
+use ppaass_common::{PpaassMessageGenerator, PpaassUnifiedAddress};
 
 use crate::{config::PROXY_CONFIG, crypto::ProxyServerRsaCryptoFetcher, error::ProxyServerError};
 
@@ -30,7 +30,7 @@ use super::destination::DstConnection;
 pub(crate) struct TcpHandler;
 
 impl TcpHandler {
-    async fn init_dst_connection(dst_address: &PpaassNetAddress) -> Result<DstConnection, ProxyServerError> {
+    async fn init_dst_connection(dst_address: &PpaassUnifiedAddress) -> Result<DstConnection, ProxyServerError> {
         let dst_socket_address = dst_address.to_socket_addrs()?.collect::<Vec<SocketAddr>>();
         let dst_tcp_stream = match timeout(
             Duration::from_secs(PROXY_CONFIG.get_dst_connect_timeout()),
@@ -62,7 +62,7 @@ impl TcpHandler {
 
     pub(crate) async fn exec(
         mut agent_connection: PpaassAgentConnection<ProxyServerRsaCryptoFetcher>, agent_tcp_init_message_id: String, user_token: String,
-        src_address: PpaassNetAddress, dst_address: PpaassNetAddress, payload_encryption: PpaassMessagePayloadEncryption,
+        src_address: PpaassUnifiedAddress, dst_address: PpaassUnifiedAddress, payload_encryption: PpaassMessagePayloadEncryption,
     ) -> Result<(), ProxyServerError> {
         let dst_relay_timeout = PROXY_CONFIG.get_dst_relay_timeout();
         let agent_relay_timeout = PROXY_CONFIG.get_agent_relay_timeout();

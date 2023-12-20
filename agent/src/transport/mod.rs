@@ -26,8 +26,8 @@ use futures::{
 
 use pin_project::pin_project;
 use ppaass_common::{
-    proxy::PpaassProxyConnection, random_32_bytes, tcp::AgentTcpData, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress,
-    PpaassProxyMessage,
+    proxy::PpaassProxyConnection, random_32_bytes, tcp::AgentTcpData, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassProxyMessage,
+    PpaassUnifiedAddress,
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -41,7 +41,7 @@ struct ClientConnectionWrite<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
-    src_address: PpaassNetAddress,
+    src_address: PpaassUnifiedAddress,
 
     #[pin]
     client_bytes_framed_write: SplitSink<Framed<T, BytesCodec>, BytesMut>,
@@ -51,7 +51,7 @@ impl<T> ClientConnectionWrite<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
-    fn new(src_address: PpaassNetAddress, client_bytes_framed_write: SplitSink<Framed<T, BytesCodec>, BytesMut>) -> Self {
+    fn new(src_address: PpaassUnifiedAddress, client_bytes_framed_write: SplitSink<Framed<T, BytesCodec>, BytesMut>) -> Self {
         Self {
             src_address,
             client_bytes_framed_write,
@@ -91,7 +91,7 @@ struct ClientConnectionRead<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
-    src_address: PpaassNetAddress,
+    src_address: PpaassUnifiedAddress,
     #[pin]
     client_bytes_framed_read: SplitStream<Framed<T, BytesCodec>>,
 }
@@ -100,7 +100,7 @@ impl<T> ClientConnectionRead<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
-    fn new(src_address: PpaassNetAddress, client_bytes_framed_read: SplitStream<Framed<T, BytesCodec>>) -> Self {
+    fn new(src_address: PpaassUnifiedAddress, client_bytes_framed_read: SplitStream<Framed<T, BytesCodec>>) -> Self {
         Self {
             src_address,
             client_bytes_framed_read,
@@ -128,8 +128,8 @@ pub(crate) enum ClientTransportDataRelayInfo {
 #[non_exhaustive]
 pub(crate) struct ClientTransportTcpDataRelay {
     client_tcp_stream: TcpStream,
-    src_address: PpaassNetAddress,
-    dst_address: PpaassNetAddress,
+    src_address: PpaassUnifiedAddress,
+    dst_address: PpaassUnifiedAddress,
     proxy_connection: PpaassProxyConnection<AgentServerRsaCryptoFetcher>,
     init_data: Option<Bytes>,
 }
@@ -138,7 +138,7 @@ pub(crate) struct ClientTransportTcpDataRelay {
 pub(crate) struct ClientTransportUdpDataRelay {
     client_tcp_stream: TcpStream,
     agent_udp_bind_socket: UdpSocket,
-    client_udp_restrict_address: PpaassNetAddress,
+    client_udp_restrict_address: PpaassUnifiedAddress,
 }
 
 #[async_trait]
@@ -175,7 +175,7 @@ pub(crate) trait ClientTransportRelay {
         );
         if let Some(init_data) = init_data {
             let agent_message = PpaassMessageGenerator::generate_agent_tcp_data_message(
-                user_token,
+                user_token.to_string(),
                 payload_encryption.clone(),
                 src_address.clone(),
                 dst_address.clone(),
@@ -192,7 +192,7 @@ pub(crate) trait ClientTransportRelay {
                 let client_message = client_message.ok()?;
                 let client_message = client_message.ok()?;
                 let tcp_data = PpaassMessageGenerator::generate_agent_tcp_data_message(
-                    user_token,
+                    user_token.to_string(),
                     payload_encryption.clone(),
                     src_address.clone(),
                     dst_address.clone(),

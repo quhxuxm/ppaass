@@ -5,7 +5,7 @@ use std::{
 };
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use ppaass_common::PpaassNetAddress;
+use ppaass_common::PpaassUnifiedAddress;
 
 mod auth;
 mod init;
@@ -190,23 +190,23 @@ impl From<Socks5Address> for Bytes {
     }
 }
 
-impl From<Socks5Address> for PpaassNetAddress {
+impl From<Socks5Address> for PpaassUnifiedAddress {
     fn from(value: Socks5Address) -> Self {
         match value {
-            Socks5Address::IpV4(host, port) => PpaassNetAddress::IpV4 { ip: host, port },
-            Socks5Address::IpV6(host, port) => PpaassNetAddress::IpV6 { ip: host, port },
-            Socks5Address::Domain(host, port) => PpaassNetAddress::Domain { host, port },
+            Socks5Address::IpV4(host, port) => PpaassUnifiedAddress::IpV4 { ip: host, port },
+            Socks5Address::IpV6(host, port) => PpaassUnifiedAddress::IpV6 { ip: host, port },
+            Socks5Address::Domain(host, port) => PpaassUnifiedAddress::Domain { host, port },
         }
     }
 }
 
-impl TryFrom<PpaassNetAddress> for Socks5Address {
+impl TryFrom<PpaassUnifiedAddress> for Socks5Address {
     type Error = ConversionError;
-    fn try_from(net_addr: PpaassNetAddress) -> Result<Self, Self::Error> {
+    fn try_from(net_addr: PpaassUnifiedAddress) -> Result<Self, Self::Error> {
         match net_addr {
-            PpaassNetAddress::IpV4 { ip, port } => Ok(Socks5Address::IpV4(ip, port)),
-            PpaassNetAddress::IpV6 { ip, port } => Ok(Socks5Address::IpV6(ip, port)),
-            PpaassNetAddress::Domain { host, port } => Ok(Socks5Address::Domain(host, port)),
+            PpaassUnifiedAddress::IpV4 { ip, port } => Ok(Socks5Address::IpV4(ip, port)),
+            PpaassUnifiedAddress::IpV6 { ip, port } => Ok(Socks5Address::IpV6(ip, port)),
+            PpaassUnifiedAddress::Domain { host, port } => Ok(Socks5Address::Domain(host, port)),
         }
     }
 }

@@ -8,7 +8,7 @@ use futures::SinkExt;
 use log::{debug, error};
 use tokio::{net::UdpSocket, time::timeout};
 
-use ppaass_common::{agent::PpaassAgentConnection, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassNetAddress};
+use ppaass_common::{agent::PpaassAgentConnection, PpaassMessageGenerator, PpaassMessagePayloadEncryption, PpaassUnifiedAddress};
 
 use crate::{config::PROXY_CONFIG, crypto::ProxyServerRsaCryptoFetcher, error::ProxyServerError};
 
@@ -19,8 +19,8 @@ pub(crate) struct UdpHandler;
 
 impl UdpHandler {
     pub(crate) async fn exec(
-        mut agent_connection: PpaassAgentConnection<ProxyServerRsaCryptoFetcher>, user_token: String, src_address: PpaassNetAddress,
-        dst_address: PpaassNetAddress, udp_data: Bytes, payload_encryption: PpaassMessagePayloadEncryption, need_response: bool,
+        mut agent_connection: PpaassAgentConnection<ProxyServerRsaCryptoFetcher>, user_token: String, src_address: PpaassUnifiedAddress,
+        dst_address: PpaassUnifiedAddress, udp_data: Bytes, payload_encryption: PpaassMessagePayloadEncryption, need_response: bool,
     ) -> Result<(), ProxyServerError> {
         let dst_udp_socket = UdpSocket::bind(LOCAL_UDP_BIND_ADDR).await?;
         let dst_socket_addrs = dst_address.to_socket_addrs()?;

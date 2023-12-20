@@ -12,7 +12,7 @@ use ppaass_common::{
     random_32_bytes,
     tcp::{ProxyTcpInit, ProxyTcpInitResultType},
     PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyProtocol, PpaassMessageProxyTcpPayloadType,
-    PpaassMessageProxyUdpPayloadType, PpaassNetAddress, PpaassProxyMessage, PpaassProxyMessagePayload,
+    PpaassMessageProxyUdpPayloadType, PpaassProxyMessage, PpaassProxyMessagePayload, PpaassUnifiedAddress,
 };
 
 use log::{debug, error, info};
@@ -121,7 +121,7 @@ impl Socks5ClientTransport {
             }
         }
     }
-    async fn relay_udp_data(client_udp_restrict_address: PpaassNetAddress, agent_udp_bind_socket: UdpSocket) -> Result<(), AgentError> {
+    async fn relay_udp_data(client_udp_restrict_address: PpaassUnifiedAddress, agent_udp_bind_socket: UdpSocket) -> Result<(), AgentError> {
         let user_token = AGENT_CONFIG.get_user_token();
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(random_32_bytes()));
         loop {
@@ -130,7 +130,7 @@ impl Socks5ClientTransport {
                 Ok(len) => len,
                 Err(e) => return Err(NetworkError::ClientUdpRecv(e).into()),
             };
-            let src_address: PpaassNetAddress = client_udp_address.into();
+            let src_address: PpaassUnifiedAddress = client_udp_address.into();
             if client_udp_restrict_address != src_address {
                 error!("The udp packet sent from client not valid, client udp restrict address: {client_udp_restrict_address}, src address: {src_address}");
                 continue;
@@ -138,9 +138,9 @@ impl Socks5ClientTransport {
             let client_udp_buf = client_udp_buf[..len].to_vec();
             let client_udp_bytes = Bytes::from_iter(client_udp_buf);
             let client_to_dst_socks5_udp_packet: Socks5UdpDataPacket = client_udp_bytes.try_into().map_err(DecoderError::Socks5)?;
-            let dst_address: PpaassNetAddress = client_to_dst_socks5_udp_packet.address.into();
+            let dst_address: PpaassUnifiedAddress = client_to_dst_socks5_udp_packet.address.into();
             let agent_udp_message = PpaassMessageGenerator::generate_agent_udp_data_message(
-                user_token,
+                user_token.to_string(),
                 payload_encryption.clone(),
                 client_udp_restrict_address.clone(),
                 dst_address.clone(),
@@ -175,13 +175,13 @@ impl Socks5ClientTransport {
 
     #[allow(unused)]
     async fn handle_bind_command(
-        src_address: PpaassNetAddress, dst_address: PpaassNetAddress, mut socks5_init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
+        src_address: PpaassUnifiedAddress, dst_address: PpaassUnifiedAddress, mut socks5_init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
     ) -> Result<ClientTransportDataRelayInfo, AgentError> {
         unimplemented!("Still not implement the socks5 bind command")
     }
 
     async fn handle_udp_associate_command(
-        client_udp_restrict_address: PpaassNetAddress, mut socks5_init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
+        client_udp_restrict_address: PpaassUnifiedAddress, mut socks5_init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
     ) -> Result<ClientTransportDataRelayInfo, AgentError> {
         debug!("Client do socks5 udp associate on restrict address: {client_udp_restrict_address:?}");
         let agent_udp_bind_socket = UdpSocket::bind("0.0.0.0:0").await?;
@@ -199,18 +199,20 @@ impl Socks5ClientTransport {
     }
 
     async fn handle_connect_command(
-        src_address: PpaassNetAddress, dst_address: PpaassNetAddress, mut socks5_init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
+        src_address: PpaassUnifiedAddress, dst_address: PpaassUnifiedAddress, mut socks5_init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
     ) -> Result<ClientTransportDataRelayInfo, AgentError> {
         match &dst_address {
-            PpaassNetAddress::IpV4 { ip: [0, 0, 0, 1], port: _ } => {
+            PpaassUnifiedAddress::IpV4 { ip: [0, 0, 0, 1], port: _ } => {
                 return Err(AgentError::Other(anyhow!("0.0.0.1 or 127.0.0.1 is not a valid destination address")))
             },
-            PpaassNetAddress::IpV4 { ip: [127, 0, 0, 1], port: _ } => return Err(AgentError::Other(anyhow!("127.0.0.1 is not a valid destination address"))),
-            PpaassNetAddress::IpV6 {
+            PpaassUnifiedAddress::IpV4 { ip: [127, 0, 0, 1], port: _ } => {
+                return Err(AgentError::Other(anyhow!("127.0.0.1 is not a valid destination address")))
+            },
+            PpaassUnifiedAddress::IpV6 {
                 ip: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
                 port: _,
             } => return Err(AgentError::Other(anyhow!("0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:1 is not a valid destination address"))),
-            PpaassNetAddress::Domain { host, port: _ } => {
+            PpaassUnifiedAddress::Domain { host, port: _ } => {
                 if host.eq("0.0.0.1") || host.eq("127.0.0.1") {
                     return Err(AgentError::Other(anyhow!("0.0.0.1 or 127.0.0.1 is not a valid destination address")));
                 }
@@ -220,8 +222,12 @@ impl Socks5ClientTransport {
 
         let user_token = AGENT_CONFIG.get_user_token();
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(random_32_bytes()));
-        let tcp_init_request =
-            PpaassMessageGenerator::generate_agent_tcp_init_message(user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
+        let tcp_init_request = PpaassMessageGenerator::generate_agent_tcp_init_message(
+            user_token.to_string(),
+            src_address.clone(),
+            dst_address.clone(),
+            payload_encryption.clone(),
+        )?;
         let mut proxy_connection = PROXY_CONNECTION_FACTORY.create_connection().await?;
 
         debug!(

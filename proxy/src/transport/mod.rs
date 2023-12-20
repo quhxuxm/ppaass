@@ -13,7 +13,7 @@ use ppaass_common::{
     PpaassMessageAgentUdpPayloadType, PpaassMessagePayloadEncryptionSelector,
 };
 use ppaass_common::{tcp::AgentTcpInit, udp::AgentUdpData};
-use ppaass_common::{PpaassMessageAgentProtocol, PpaassNetAddress};
+use ppaass_common::{PpaassMessageAgentProtocol, PpaassUnifiedAddress};
 
 use crate::{
     common::ProxyServerPayloadEncryptionSelector,
@@ -30,7 +30,7 @@ pub(crate) struct Transport {
 }
 
 impl Transport {
-    pub(crate) fn new(agent_tcp_stream: TcpStream, agent_address: PpaassNetAddress) -> Transport {
+    pub(crate) fn new(agent_tcp_stream: TcpStream, agent_address: PpaassUnifiedAddress) -> Transport {
         let agent_connection = PpaassAgentConnection::new(
             agent_address.to_string(),
             agent_tcp_stream,

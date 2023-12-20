@@ -12,7 +12,7 @@ use std::{
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, Display)]
-pub enum PpaassNetAddress {
+pub enum PpaassUnifiedAddress {
     #[display(fmt = "{:?}:{}", ip, port)]
     IpV4 { ip: [u8; 4], port: u16 },
     #[display(fmt = "{:?}:{}", ip, port)]
@@ -21,7 +21,7 @@ pub enum PpaassNetAddress {
     Domain { host: String, port: u16 },
 }
 
-impl PartialEq for PpaassNetAddress {
+impl PartialEq for PpaassUnifiedAddress {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::IpV4 { ip: l_ip, port: l_port }, Self::IpV4 { ip: r_ip, port: r_port }) => l_ip == r_ip && l_port == r_port,
@@ -59,7 +59,7 @@ impl Iterator for SocketAddrIter {
     }
 }
 
-impl ToSocketAddrs for PpaassNetAddress {
+impl ToSocketAddrs for PpaassUnifiedAddress {
     type Iter = SocketAddrIter;
 
     fn to_socket_addrs(&self) -> std::io::Result<Self::Iter> {
@@ -68,16 +68,16 @@ impl ToSocketAddrs for PpaassNetAddress {
     }
 }
 
-impl TryFrom<&PpaassNetAddress> for Vec<SocketAddr> {
+impl TryFrom<&PpaassUnifiedAddress> for Vec<SocketAddr> {
     type Error = CommonError;
 
-    fn try_from(value: &PpaassNetAddress) -> Result<Self, Self::Error> {
+    fn try_from(value: &PpaassUnifiedAddress) -> Result<Self, Self::Error> {
         match value {
-            PpaassNetAddress::IpV4 { ip, port } => {
+            PpaassUnifiedAddress::IpV4 { ip, port } => {
                 let socket_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(ip[0], ip[1], ip[2], ip[3]), *port));
                 Ok(vec![socket_addr])
             },
-            PpaassNetAddress::IpV6 { ip, port } => {
+            PpaassUnifiedAddress::IpV6 { ip, port } => {
                 let mut ip_cursor = Cursor::new(ip);
                 let socket_addr = SocketAddr::V6(SocketAddrV6::new(
                     Ipv6Addr::new(
@@ -96,7 +96,7 @@ impl TryFrom<&PpaassNetAddress> for Vec<SocketAddr> {
                 ));
                 Ok(vec![socket_addr])
             },
-            PpaassNetAddress::Domain { host, port } => {
+            PpaassUnifiedAddress::Domain { host, port } => {
                 let address_string = format!("{host}:{port}");
                 let addresses = address_string.to_socket_addrs()?;
                 let addresses = addresses.collect::<Vec<_>>();
@@ -106,14 +106,14 @@ impl TryFrom<&PpaassNetAddress> for Vec<SocketAddr> {
     }
 }
 
-impl TryFrom<PpaassNetAddress> for Vec<SocketAddr> {
+impl TryFrom<PpaassUnifiedAddress> for Vec<SocketAddr> {
     type Error = CommonError;
-    fn try_from(value: PpaassNetAddress) -> Result<Self, Self::Error> {
+    fn try_from(value: PpaassUnifiedAddress) -> Result<Self, Self::Error> {
         (&value).try_into()
     }
 }
 
-impl From<&SocketAddr> for PpaassNetAddress {
+impl From<&SocketAddr> for PpaassUnifiedAddress {
     fn from(value: &SocketAddr) -> Self {
         let ip_address = value.ip();
         match ip_address {
@@ -129,7 +129,7 @@ impl From<&SocketAddr> for PpaassNetAddress {
     }
 }
 
-impl From<SocketAddr> for PpaassNetAddress {
+impl From<SocketAddr> for PpaassUnifiedAddress {
     fn from(value: SocketAddr) -> Self {
         (&value).into()
     }

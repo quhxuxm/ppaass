@@ -12,8 +12,8 @@ use log::{debug, error};
 use ppaass_common::{
     random_32_bytes,
     tcp::{ProxyTcpInit, ProxyTcpInitResultType},
-    PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyProtocol, PpaassMessageProxyTcpPayloadType, PpaassNetAddress,
-    PpaassProxyMessage, PpaassProxyMessagePayload,
+    PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyProtocol, PpaassMessageProxyTcpPayloadType, PpaassProxyMessage,
+    PpaassProxyMessagePayload, PpaassUnifiedAddress,
 };
 
 use tokio_util::codec::{Framed, FramedParts};
@@ -81,15 +81,19 @@ impl ClientTransportHandshake for HttpClientTransport {
         if target_host.eq("0.0.0.1") || target_host.eq("127.0.0.1") {
             return Err(AgentError::Other(anyhow!("0.0.0.1 or 127.0.0.1 is not a valid destination address")));
         }
-        let dst_address = PpaassNetAddress::Domain {
+        let dst_address = PpaassUnifiedAddress::Domain {
             host: target_host,
             port: target_port,
         };
 
         let user_token = AGENT_CONFIG.get_user_token();
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(random_32_bytes()));
-        let tcp_init_request =
-            PpaassMessageGenerator::generate_agent_tcp_init_message(user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
+        let tcp_init_request = PpaassMessageGenerator::generate_agent_tcp_init_message(
+            user_token.to_string(),
+            src_address.clone(),
+            dst_address.clone(),
+            payload_encryption.clone(),
+        )?;
 
         let mut proxy_connection = PROXY_CONNECTION_FACTORY.create_connection().await?;
 
