@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+use std::sync::Arc;
 use std::{
     net::{SocketAddr, ToSocketAddrs},
     time::Duration,
@@ -178,7 +180,7 @@ impl TcpHandler {
                     all_inbound_data.push(inbound_data);
                 },
                 Err(TryRecvError::Empty) => {
-                    tokio::task::yield_now().await;
+                    tokio::time::sleep(Duration::from_millis(100)).await;
                     continue;
                 },
                 Err(TryRecvError::Disconnected) => {
@@ -219,7 +221,7 @@ impl TcpHandler {
                     all_outbound_data.push(outbound_data);
                 },
                 Err(TryRecvError::Empty) => {
-                    tokio::task::yield_now().await;
+                    tokio::time::sleep(Duration::from_millis(100)).await;
                     continue;
                 },
                 Err(TryRecvError::Disconnected) => {
