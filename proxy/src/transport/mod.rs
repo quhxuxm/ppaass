@@ -41,13 +41,9 @@ impl Transport {
 
     pub(crate) async fn exec(mut self) -> Result<(), ProxyServerError> {
         //Read the first message from agent connection
-        let agent_message = match timeout(Duration::from_secs(PROXY_CONFIG.get_agent_relay_timeout()), self.agent_connection.next()).await {
-            Err(_) => {
-                error!("Read from agent timeout: {:?}", self.agent_connection.get_connection_id());
-                return Err(ProxyServerError::Timeout(PROXY_CONFIG.get_agent_relay_timeout()));
-            },
-            Ok(Some(agent_message)) => agent_message?,
-            Ok(None) => {
+        let agent_message = match self.agent_connection.next().await {
+            Some(agent_message) => agent_message?,
+            None => {
                 error!(
                     "Transport {} closed in agent side, close proxy side also.",
                     self.agent_connection.get_connection_id()
