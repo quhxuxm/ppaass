@@ -10,12 +10,11 @@ use futures::{SinkExt, StreamExt};
 use httpcodec::{BodyEncoder, HttpVersion, ReasonPhrase, RequestEncoder, Response, StatusCode};
 use log::{debug, error};
 use ppaass_common::{
-    random_32_bytes,
-    tcp::{ProxyTcpInit, ProxyTcpInitResultType},
-    PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyProtocol, PpaassMessageProxyTcpPayloadType, PpaassProxyMessage,
+    random_32_bytes, tcp::ProxyTcpInitResultType, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassProxyMessage,
     PpaassProxyMessagePayload, PpaassUnifiedAddress,
 };
 
+use ppaass_common::tcp::ProxyTcpPayload;
 use tokio_util::codec::{Framed, FramedParts};
 use url::Url;
 
@@ -96,7 +95,6 @@ impl ClientTransportHandshake for HttpClientTransport {
         )?;
 
         let mut proxy_connection = PROXY_CONNECTION_FACTORY.create_connection().await?;
-
         debug!(
             "Client tcp connection [{src_address}] take proxy connection [{}] to do proxy",
             proxy_connection.get_connection_id()
@@ -106,35 +104,20 @@ impl ClientTransportHandshake for HttpClientTransport {
         let proxy_message = proxy_connection.next().await.ok_or(NetworkError::ConnectionExhausted)??;
 
         let PpaassProxyMessage {
-            payload: PpaassProxyMessagePayload { protocol, data },
+            payload: proxy_message_payload,
             ..
         } = proxy_message;
 
-        let tcp_init_response = match protocol {
-            PpaassMessageProxyProtocol::Tcp(PpaassMessageProxyTcpPayloadType::Init) => data.try_into()?,
-            _ => {
-                return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
-            },
+        let PpaassProxyMessagePayload::Tcp(ProxyTcpPayload::Init { result_type, .. }) = proxy_message_payload else {
+            return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
         };
-
-        let ProxyTcpInit {
-            id: tcp_loop_key,
-            result_type: response_type,
-            ..
-        } = tcp_init_response;
-
-        match response_type {
-            ProxyTcpInitResultType::Success => {
-                debug!("Client tcp connection [{src_address}] receive init tcp loop init response: {tcp_loop_key}");
-            },
-            ProxyTcpInitResultType::Fail => {
-                error!("Client tcp connection [{src_address}] fail to do tcp loop init, tcp loop key: [{tcp_loop_key}]");
-                return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
-            },
-            ProxyTcpInitResultType::ConnectToDstFail => {
-                error!("Client tcp connection [{src_address}] fail to do tcp loop init, because of proxy fail connect to destination, tcp loop key: [{tcp_loop_key}]");
-                return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
-            },
+        if matches!(result_type, ProxyTcpInitResultType::Fail) {
+            error!("Client tcp connection [{src_address}] fail to do tcp loop init");
+            return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
+        }
+        if matches!(result_type, ProxyTcpInitResultType::ConnectToDstFail) {
+            error!("Client tcp connection [{src_address}] fail to do tcp loop init, because of proxy fail connect to destination");
+            return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
         }
         if init_data.is_none() {
             //For https proxy

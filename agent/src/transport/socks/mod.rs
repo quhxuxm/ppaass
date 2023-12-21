@@ -9,14 +9,14 @@ use bytes::Bytes;
 
 use futures::{SinkExt, StreamExt};
 use ppaass_common::{
-    random_32_bytes,
-    tcp::{ProxyTcpInit, ProxyTcpInitResultType},
-    PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyProtocol, PpaassMessageProxyTcpPayloadType,
-    PpaassMessageProxyUdpPayloadType, PpaassProxyMessage, PpaassProxyMessagePayload, PpaassUnifiedAddress,
+    random_32_bytes, tcp::ProxyTcpInitResultType, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassProxyMessage,
+    PpaassProxyMessagePayload, PpaassUnifiedAddress,
 };
 
 use log::{debug, error, info};
 
+use ppaass_common::tcp::ProxyTcpPayload;
+use ppaass_common::udp::ProxyUdpData;
 use tokio::{
     io::AsyncReadExt,
     net::{TcpStream, UdpSocket},
@@ -155,11 +155,16 @@ impl Socks5ClientTransport {
                 None => return Ok(()),
             };
             let PpaassProxyMessage {
-                payload: PpaassProxyMessagePayload { protocol, data },
+                payload: proxy_message_payload,
                 ..
             } = proxy_udp_message;
-            if protocol != PpaassMessageProxyProtocol::Udp(PpaassMessageProxyUdpPayloadType::Data) {
-                return Err(AgentError::Other(anyhow!("Invalid proxy udp payload type")));
+            let PpaassProxyMessagePayload::Udp(ProxyUdpData {
+                src_address,
+                dst_address,
+                data,
+            }) = proxy_message_payload
+            else {
+                return Err(AgentError::InvalidProxyResponse("Not a udp data.".to_string()));
             };
             debug!("Udp packet send from agent to client, dst_address: {dst_address}, src_address: {src_address}");
             let agent_to_client_socks5_udp_packet = Socks5UdpDataPacket {
@@ -247,40 +252,26 @@ impl Socks5ClientTransport {
                 return Err(e.into());
             },
         };
+
         let PpaassProxyMessage {
-            payload: PpaassProxyMessagePayload { protocol, data },
+            payload: proxy_message_payload,
             ..
         } = proxy_message;
-        let tcp_init_response = match protocol {
-            PpaassMessageProxyProtocol::Tcp(PpaassMessageProxyTcpPayloadType::Init) => data.try_into()?,
-            _ => {
-                error!("Client tcp connection [{src_address}] receive invalid message from proxy, protocol: {protocol:?}");
-                return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
-            },
+        let PpaassProxyMessagePayload::Tcp(ProxyTcpPayload::Init { result_type, .. }) = proxy_message_payload else {
+            return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
         };
-        let ProxyTcpInit {
-            id: tcp_loop_key,
-            dst_address,
-            result_type: response_type,
-            ..
-        } = tcp_init_response;
-        match response_type {
-            ProxyTcpInitResultType::Success => {
-                debug!("Client tcp connection [{src_address}] receive init tcp loop init response: {tcp_loop_key}");
-            },
-            ProxyTcpInitResultType::Fail => {
-                error!("Client tcp connection [{src_address}] fail to do tcp loop init, tcp loop key: [{tcp_loop_key}]");
-                return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
-            },
-            ProxyTcpInitResultType::ConnectToDstFail => {
-                error!("Client tcp connection [{src_address}] fail to do tcp loop init, because of proxy fail connect to destination, tcp loop key: [{tcp_loop_key}]");
-                return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
-            },
+        if matches!(result_type, ProxyTcpInitResultType::Fail) {
+            error!("Client tcp connection [{src_address}] fail to do tcp loop init");
+            return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
+        }
+        if matches!(result_type, ProxyTcpInitResultType::ConnectToDstFail) {
+            error!("Client tcp connection [{src_address}] fail to do tcp loop init, because of proxy fail connect to destination");
+            return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
         }
         let socks5_init_success_result = Socks5InitCommandResult::new(Socks5InitCommandResultStatus::Succeeded, Some(dst_address.clone().try_into()?));
         socks5_init_framed.send(socks5_init_success_result).await.map_err(EncoderError::Socks5)?;
         let FramedParts { io: client_tcp_stream, .. } = socks5_init_framed.into_parts();
-        debug!("Client tcp connection [{src_address}] success to do sock5 handshake begin to relay, tcp loop key: [{tcp_loop_key}].");
+        debug!("Client tcp connection [{src_address}] success to do sock5 handshake begin to relay.");
         Ok(ClientTransportDataRelayInfo::Tcp(ClientTransportTcpDataRelay {
             client_tcp_stream,
             src_address,

@@ -4,22 +4,20 @@ use derive_more::Constructor;
 use serde_derive::{Deserialize, Serialize};
 
 make_as_bytes! {
-    #[non_exhaustive]
-    #[derive(Serialize, Deserialize, Constructor)]
-    pub struct AgentUdpData {
-        pub src_address: PpaassUnifiedAddress,
-        pub dst_address: PpaassUnifiedAddress,
-        pub data: Bytes,
-        pub need_response: bool,
+    #[derive(Serialize, Deserialize, Debug, Constructor)]
+    struct AgentUdpData {
+        src_address: PpaassUnifiedAddress,
+        dst_address: PpaassUnifiedAddress,
+        data: Bytes,
+        need_response: bool,
     }
 }
 
 make_as_bytes! {
-    #[non_exhaustive]
-    #[derive(Serialize, Deserialize, Constructor)]
-    pub struct ProxyUdpData {
-        pub src_address: PpaassUnifiedAddress,
-        pub dst_address: PpaassUnifiedAddress,
-        pub data: Bytes,
+    #[derive(Serialize, Deserialize, Debug, Constructor)]
+    struct ProxyUdpData {
+        src_address: PpaassUnifiedAddress,
+        dst_address: PpaassUnifiedAddress,
+        data: Bytes,
     }
 }

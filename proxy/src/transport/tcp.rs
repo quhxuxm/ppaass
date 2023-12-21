@@ -12,10 +12,9 @@ use futures_util::SinkExt;
 use log::error;
 use tokio::net::TcpStream;
 
+use ppaass_common::tcp::AgentTcpPayload;
 use ppaass_common::{
-    agent::PpaassAgentConnection,
-    tcp::{AgentTcpData, ProxyTcpInitResultType},
-    CommonError, PpaassAgentMessage, PpaassMessagePayloadEncryption,
+    agent::PpaassAgentConnection, tcp::ProxyTcpInitResultType, CommonError, PpaassAgentMessage, PpaassAgentMessagePayload, PpaassMessagePayloadEncryption,
 };
 use ppaass_common::{PpaassMessageGenerator, PpaassUnifiedAddress};
 use tokio::time::timeout;
@@ -54,9 +53,16 @@ impl TcpHandler {
     }
 
     fn unwrap_to_raw_tcp_data(message: PpaassAgentMessage) -> Result<Bytes, CommonError> {
-        let PpaassAgentMessage { payload, .. } = message;
-        let AgentTcpData { data, .. } = payload.data.try_into()?;
-        Ok(data)
+        let PpaassAgentMessage {
+            payload: PpaassAgentMessagePayload::Tcp(AgentTcpPayload::Data { content }),
+            ..
+        } = message
+        else {
+            return Err(CommonError::Other(format!(
+                "Fail to unwrap raw data from agent message because of invalid payload type: {message:?}"
+            )));
+        };
+        Ok(content)
     }
 
     pub(crate) async fn exec(
@@ -101,14 +107,8 @@ impl TcpHandler {
         tokio::spawn(
             TokioStreamExt::map_while(dst_connection_read, move |dst_message| {
                 let dst_message = dst_message.ok()?;
-                let tcp_data_message = PpaassMessageGenerator::generate_proxy_tcp_data_message(
-                    user_token.clone(),
-                    payload_encryption.clone(),
-                    src_address.clone(),
-                    dst_address.clone(),
-                    dst_message.freeze(),
-                )
-                .ok()?;
+                let tcp_data_message =
+                    PpaassMessageGenerator::generate_proxy_tcp_data_message(user_token.clone(), payload_encryption.clone(), dst_message.freeze()).ok()?;
                 Some(Ok(tcp_data_message))
             })
             .forward(agent_connection_write),

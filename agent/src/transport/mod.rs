@@ -23,11 +23,13 @@ use futures::{
     stream::{SplitSink, SplitStream},
     Sink, SinkExt, Stream,
 };
+use log::error;
 
 use pin_project::pin_project;
+use ppaass_common::tcp::ProxyTcpPayload;
 use ppaass_common::{
-    proxy::PpaassProxyConnection, random_32_bytes, tcp::AgentTcpData, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassProxyMessage,
-    PpaassUnifiedAddress,
+    proxy::PpaassProxyConnection, random_32_bytes, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassProxyMessage,
+    PpaassProxyMessagePayload, PpaassUnifiedAddress,
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -174,13 +176,7 @@ pub(crate) trait ClientTransportRelay {
             ClientConnectionRead::new(src_address.clone(), client_io_read),
         );
         if let Some(init_data) = init_data {
-            let agent_message = PpaassMessageGenerator::generate_agent_tcp_data_message(
-                user_token.to_string(),
-                payload_encryption.clone(),
-                src_address.clone(),
-                dst_address.clone(),
-                init_data,
-            )?;
+            let agent_message = PpaassMessageGenerator::generate_agent_tcp_data_message(user_token.to_string(), payload_encryption.clone(), init_data)?;
             proxy_connection.send(agent_message).await?;
         }
 
@@ -191,23 +187,24 @@ pub(crate) trait ClientTransportRelay {
             TokioStreamExt::map_while(client_io_read.timeout(Duration::from_secs(client_relay_timeout)), |client_message| {
                 let client_message = client_message.ok()?;
                 let client_message = client_message.ok()?;
-                let tcp_data = PpaassMessageGenerator::generate_agent_tcp_data_message(
-                    user_token.to_string(),
-                    payload_encryption.clone(),
-                    src_address.clone(),
-                    dst_address.clone(),
-                    client_message.freeze(),
-                )
-                .ok()?;
+                let tcp_data =
+                    PpaassMessageGenerator::generate_agent_tcp_data_message(user_token.to_string(), payload_encryption.clone(), client_message.freeze())
+                        .ok()?;
                 Some(Ok(tcp_data))
             })
             .forward(&mut proxy_connection_write),
             // Forward proxy data to client
             TokioStreamExt::map_while(proxy_connection_read.timeout(Duration::from_secs(proxy_relay_timeout)), |proxy_message| {
                 let proxy_message = proxy_message.ok()?;
-                let PpaassProxyMessage { payload, .. } = proxy_message.ok()?;
-                let AgentTcpData { data, .. } = payload.data.try_into().ok()?;
-                Some(Ok(BytesMut::from_iter(data)))
+                let PpaassProxyMessage {
+                    payload: PpaassProxyMessagePayload::Tcp(ProxyTcpPayload::Data { content }),
+                    ..
+                } = proxy_message.ok()?
+                else {
+                    error!("Fail to parse proxy message payload because of not a tcp data");
+                    return None;
+                };
+                Some(Ok(BytesMut::from_iter(content)))
             })
             .forward(&mut client_io_write)
         );

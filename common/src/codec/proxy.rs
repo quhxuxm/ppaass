@@ -10,8 +10,8 @@ use pretty_hex::*;
 use tokio_util::codec::{Decoder, Encoder};
 
 use crate::{
-    decrypt_with_aes, encrypt_with_aes, CommonError, CryptoError, DecoderError, EncoderError, PpaassAgentMessagePayload, PpaassProxyMessage,
-    PpaassProxyMessagePayload, RsaCryptoFetcher, RsaError,
+    decrypt_with_aes, encrypt_with_aes, CodecPpaassMessage, CommonError, CryptoError, DecoderError, EncoderError, PpaassProxyMessage, RsaCryptoFetcher,
+    RsaError,
 };
 use crate::{PpaassAgentMessage, PpaassMessagePayloadEncryption};
 
@@ -88,7 +88,7 @@ where
         self.status = DecodeStatus::Data(compressed, body_length);
         let body_bytes = src.split_to(body_length as usize);
         trace!("Input message body bytes(compressed={compressed}):\n\n{}\n\n", pretty_hex(&body_bytes));
-        let encrypted_message: PpaassProxyMessage = if compressed {
+        let encrypted_message: CodecPpaassMessage = if compressed {
             let mut gzip_decoder = GzDecoder::new(body_bytes.reader());
             let mut decompressed_bytes = Vec::new();
             if let Err(e) = gzip_decoder.read_to_end(&mut decompressed_bytes) {
@@ -100,15 +100,14 @@ where
                 "Decompressed bytes will convert to PpaassMessage:\n{}\n",
                 pretty_hex::pretty_hex(&decompressed_bytes)
             );
-            let encrypted_message: PpaassProxyMessage = decompressed_bytes.try_into()?;
-            encrypted_message
+            decompressed_bytes.try_into()?
         } else {
             trace!("Raw bytes will convert to PpaassMessage:\n{}\n", pretty_hex::pretty_hex(&body_bytes));
             body_bytes.freeze().try_into()?
         };
 
-        let PpaassProxyMessage {
-            id,
+        let CodecPpaassMessage {
+            message_id,
             user_token,
             encryption: payload_encryption,
             payload: encrypted_message_payload,
@@ -121,9 +120,9 @@ where
             .ok_or(CryptoError::Rsa(RsaError::NotFound(user_token.clone())))?;
 
         let decrypt_payload_bytes = match payload_encryption {
-            PpaassMessagePayloadEncryption::Plain => encrypted_message_payload.data,
+            PpaassMessagePayloadEncryption::Plain => encrypted_message_payload,
             PpaassMessagePayloadEncryption::Aes(ref encryption_token) => {
-                let mut encrypted_message_payload_data = BytesMut::from_iter(encrypted_message_payload.data);
+                let mut encrypted_message_payload_data = BytesMut::from_iter(encrypted_message_payload);
 
                 let original_encryption_token = Bytes::from(rsa_crypto.decrypt(encryption_token).map_err(CryptoError::Rsa)?);
                 decrypt_with_aes(&original_encryption_token, &mut encrypted_message_payload_data)
@@ -135,15 +134,7 @@ where
         self.status = DecodeStatus::Head;
         src.reserve(HEADER_LENGTH);
 
-        let message_framed = PpaassProxyMessage::new(
-            id,
-            user_token,
-            payload_encryption,
-            PpaassProxyMessagePayload {
-                protocol: encrypted_message_payload.protocol,
-                data: decrypt_payload_bytes,
-            },
-        );
+        let message_framed = PpaassProxyMessage::new(message_id, user_token, payload_encryption, decrypt_payload_bytes.try_into()?);
         Ok(Some(message_framed))
     }
 }
@@ -164,7 +155,7 @@ where
             dst.put_u8(UN_COMPRESS_FLAG);
         }
         let PpaassAgentMessage {
-            id,
+            message_id,
             user_token,
             encryption: payload_encryption,
             payload: original_message_payload,
@@ -177,26 +168,27 @@ where
             .ok_or(CryptoError::Rsa(RsaError::NotFound(user_token.clone())))?;
 
         let (encrypted_payload_bytes, encrypted_payload_encryption_type) = match payload_encryption {
-            PpaassMessagePayloadEncryption::Plain => (original_message_payload.data, PpaassMessagePayloadEncryption::Plain),
+            PpaassMessagePayloadEncryption::Plain => (
+                {
+                    let original_message_payload: Bytes = original_message_payload.try_into()?;
+                    original_message_payload
+                },
+                PpaassMessagePayloadEncryption::Plain,
+            ),
             PpaassMessagePayloadEncryption::Aes(ref original_token) => {
                 let encrypted_payload_encryption_token = Bytes::from(rsa_crypto.encrypt(original_token).map_err(CryptoError::Rsa)?);
-                let mut original_message_payload_data = BytesMut::from_iter(original_message_payload.data);
-                let message_payload_data = encrypt_with_aes(original_token, &mut original_message_payload_data)
+
+                let original_message_payload: Bytes = original_message_payload.try_into()?;
+                let mut original_message_payload_mut = BytesMut::new();
+                original_message_payload_mut.put(original_message_payload);
+                let message_payload_data = encrypt_with_aes(original_token, &mut original_message_payload_mut)
                     .map_err(|e| CommonError::Encoder(EncoderError::Crypto(e.into())))?
                     .freeze();
                 (message_payload_data, PpaassMessagePayloadEncryption::Aes(encrypted_payload_encryption_token))
             },
         };
 
-        let message_to_encode = PpaassAgentMessage::new(
-            id,
-            user_token,
-            encrypted_payload_encryption_type,
-            PpaassAgentMessagePayload {
-                protocol: original_message_payload.protocol,
-                data: encrypted_payload_bytes,
-            },
-        );
+        let message_to_encode = CodecPpaassMessage::new(message_id, user_token, encrypted_payload_encryption_type, encrypted_payload_bytes);
         let result_bytes: Bytes = message_to_encode.try_into()?;
         let result_bytes = if self.compress {
             let encoder_buf = BytesMut::new();
