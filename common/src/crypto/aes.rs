@@ -33,7 +33,7 @@ pub fn decrypt_with_aes(encryption_token: &Bytes, target: &mut BytesMut) -> Resu
 
 #[test]
 fn test() -> Result<(), AesError> {
-    let encryption_token = Bytes::from_iter(generate_uuid().as_bytes().to_vec());
+    let encryption_token = random_32_bytes();
     let mut target = BytesMut::from_iter("hello world! this is my plaintext888888888888888.".as_bytes().to_vec());
     encrypt_with_aes(&encryption_token, &mut target)?;
     println!("Encrypt result: [{:?}]", String::from_utf8_lossy(&target));
