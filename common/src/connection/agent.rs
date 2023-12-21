@@ -30,10 +30,6 @@ where
         let inner = Framed::with_capacity(stream, agent_connection_codec, buffer_size);
         Self { inner, connection_id }
     }
-
-    pub fn get_connection_id(&self) -> &str {
-        &self.connection_id
-    }
 }
 
 impl<R> Sink<PpaassProxyMessage> for PpaassAgentConnection<R>

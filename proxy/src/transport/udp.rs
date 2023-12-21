@@ -19,7 +19,7 @@ pub(crate) struct UdpHandler;
 
 impl UdpHandler {
     pub(crate) async fn exec(
-        mut agent_connection: PpaassAgentConnection<ProxyServerRsaCryptoFetcher>, user_token: String, src_address: PpaassUnifiedAddress,
+        transport_id: String, mut agent_connection: PpaassAgentConnection<ProxyServerRsaCryptoFetcher>, user_token: String, src_address: PpaassUnifiedAddress,
         dst_address: PpaassUnifiedAddress, udp_data: Bytes, payload_encryption: PpaassMessagePayloadEncryption, need_response: bool,
     ) -> Result<(), ProxyServerError> {
         let dst_udp_socket = UdpSocket::bind(LOCAL_UDP_BIND_ADDR).await?;
@@ -32,10 +32,14 @@ impl UdpHandler {
         .await
         {
             Err(_) => {
-                error!("Initialize udp socket to destination timeout: {dst_address}");
+                error!("Transport {transport_id} connect to udp destination timeout: {dst_address}");
                 return Err(ProxyServerError::Timeout(PROXY_CONFIG.get_dst_connect_timeout()));
             },
-            Ok(result) => result?,
+            Ok(Ok(result)) => result,
+            Ok(Err(e)) => {
+                error!("Transport {transport_id} connect to udp destination [{dst_address}] fail because of error: {e:?}");
+                return Err(ProxyServerError::GeneralIo(e));
+            },
         };
         dst_udp_socket.send(&udp_data).await?;
         if !need_response {

@@ -56,7 +56,7 @@ impl ProxyConfig {
         self.compress.unwrap_or(false)
     }
 
-    pub(crate) fn get_agent_receive_buffer_size(&self) -> usize {
+    pub(crate) fn get_agent_connection_codec_framed_buffer_size(&self) -> usize {
         self.agent_receive_buffer_size.unwrap_or(1024 * 512)
     }
 
