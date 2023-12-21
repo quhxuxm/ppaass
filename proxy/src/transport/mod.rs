@@ -99,6 +99,7 @@ impl Transport {
                 // Udp transport will block the thread and continue to
                 // handle the agent connection in a loop
                 UdpHandler::exec(
+                    transport_id,
                     self.agent_connection,
                     user_token,
                     src_address,
