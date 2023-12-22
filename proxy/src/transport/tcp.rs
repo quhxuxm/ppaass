@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::{
     net::{SocketAddr, ToSocketAddrs},
     time::Duration,
@@ -73,7 +75,7 @@ impl TcpHandler {
 
     pub(crate) async fn exec(
         transport_id: String, mut agent_connection: PpaassAgentConnection<ProxyServerRsaCryptoFetcher>, user_token: String, src_address: PpaassUnifiedAddress,
-        dst_address: PpaassUnifiedAddress, payload_encryption: PpaassMessagePayloadEncryption,
+        dst_address: PpaassUnifiedAddress, payload_encryption: PpaassMessagePayloadEncryption, transport_number: Arc<AtomicU64>,
     ) -> Result<(), ProxyServerError> {
         let dst_connection = match Self::init_dst_connection(transport_id.clone(), &dst_address).await {
             Ok(dst_connection) => dst_connection,
@@ -103,27 +105,39 @@ impl TcpHandler {
         let (agent_connection_write, agent_connection_read) = agent_connection.split();
         let (dst_connection_write, dst_connection_read) = dst_connection.split();
         debug!("Transport {transport_id} start task to relay agent and tcp destination: {dst_address}");
-        let (agent_to_dst, dst_to_agent) = tokio::join!(
-            TokioStreamExt::map_while(agent_connection_read, |agent_message| {
-                let agent_message = agent_message.ok()?;
-                let data = Self::unwrap_to_raw_tcp_data(agent_message).ok()?;
-                Some(Ok(BytesMut::from_iter(data)))
-            })
-            .forward(dst_connection_write),
-            TokioStreamExt::map_while(dst_connection_read, move |dst_message| {
+        {
+            let dst_address = dst_address.clone();
+            let transport_id = transport_id.clone();
+            let transport_number = transport_number.clone();
+            tokio::spawn(async move {
+                let agent_to_dst_relay_result = TokioStreamExt::map_while(agent_connection_read, |agent_message| {
+                    let agent_message = agent_message.ok()?;
+                    let data = Self::unwrap_to_raw_tcp_data(agent_message).ok()?;
+                    Some(Ok(BytesMut::from_iter(data)))
+                })
+                .forward(dst_connection_write)
+                .await;
+
+                if let Err(e) = agent_to_dst_relay_result {
+                    error!("Transport {transport_id} error happen when relay tcp data from agent to destination [{dst_address}], current transport number: {}, error: {e:?}",transport_number.load(Ordering::Relaxed));
+                }
+            });
+        }
+        tokio::spawn(async move {
+            let dst_to_agent_relay_result = TokioStreamExt::map_while(dst_connection_read, move |dst_message| {
                 let dst_message = dst_message.ok()?;
                 let tcp_data_message =
                     PpaassMessageGenerator::generate_proxy_tcp_data_message(user_token.clone(), payload_encryption.clone(), dst_message.freeze()).ok()?;
                 Some(Ok(tcp_data_message))
             })
             .forward(agent_connection_write)
-        );
-        if let Err(e) = agent_to_dst {
-            error!("Transport {transport_id} error happen when relay tcp data from agent to destination [{dst_address}]: {e:?}");
-        }
-        if let Err(e) = dst_to_agent {
-            error!("Transport {transport_id} error happen when relay tcp data from destination [{dst_address}] to agent: {e:?}");
-        }
+            .await;
+            transport_number.fetch_sub(1, Ordering::Relaxed);
+            if let Err(e) = dst_to_agent_relay_result {
+                error!("Transport {transport_id} error happen when relay tcp data from destination [{dst_address}] to agent, current transport number: {}, error: {e:?}", transport_number.load(Ordering::Relaxed));
+            }
+        });
+
         Ok(())
     }
 }

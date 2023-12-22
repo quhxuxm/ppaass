@@ -5,6 +5,8 @@ use anyhow::Result;
 use futures::StreamExt;
 use log::{debug, error, trace};
 use pretty_hex::pretty_hex;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use tokio::net::TcpStream;
 
 use ppaass_common::tcp::AgentTcpPayload;
@@ -26,10 +28,11 @@ use self::tcp::TcpHandler;
 pub(crate) struct Transport {
     agent_connection: PpaassAgentConnection<ProxyServerRsaCryptoFetcher>,
     transport_id: String,
+    transport_number: Arc<AtomicU64>,
 }
 
 impl Transport {
-    pub(crate) fn new(agent_tcp_stream: TcpStream, agent_address: PpaassUnifiedAddress) -> Transport {
+    pub(crate) fn new(agent_tcp_stream: TcpStream, agent_address: PpaassUnifiedAddress, transport_number: Arc<AtomicU64>) -> Transport {
         let transport_id = Uuid::new_v4().to_string();
         let agent_connection = PpaassAgentConnection::new(
             transport_id.clone(),
@@ -42,12 +45,14 @@ impl Transport {
         Self {
             agent_connection,
             transport_id,
+            transport_number,
         }
     }
 
     pub(crate) async fn exec(mut self) -> Result<(), ProxyServerError> {
         //Read the first message from agent connection
         let transport_id = self.transport_id;
+        let transport_number = self.transport_number;
         let agent_message = match self.agent_connection.next().await {
             Some(agent_message) => agent_message?,
             None => {
@@ -73,7 +78,23 @@ impl Transport {
                 debug!("Transport {transport_id} receive tcp init message[{message_id}], src address: {src_address}, dst address: {dst_address}");
                 // Tcp transport will block the thread and continue to
                 // handle the agent connection in a loop
-                TcpHandler::exec(transport_id, self.agent_connection, user_token, src_address, dst_address, payload_encryption).await?;
+                if let Err(e) = TcpHandler::exec(
+                    transport_id.clone(),
+                    self.agent_connection,
+                    user_token,
+                    src_address,
+                    dst_address,
+                    payload_encryption,
+                    transport_number.clone(),
+                )
+                .await
+                {
+                    transport_number.fetch_sub(1, Ordering::Relaxed);
+                    error!(
+                        "Transport {transport_id} error happen in tcp handler, current transport number: {}, error: {e:?}",
+                        transport_number.load(Ordering::Relaxed)
+                    );
+                };
                 Ok(())
             },
             PpaassAgentMessagePayload::Udp(payload_content) => {
@@ -88,8 +109,8 @@ impl Transport {
                 trace!("Transport {transport_id} receive udp data: {}", pretty_hex(&data));
                 // Udp transport will block the thread and continue to
                 // handle the agent connection in a loop
-                UdpHandler::exec(
-                    transport_id,
+                if let Err(e) = UdpHandler::exec(
+                    transport_id.clone(),
                     self.agent_connection,
                     user_token,
                     src_address,
@@ -98,7 +119,16 @@ impl Transport {
                     payload_encryption,
                     need_response,
                 )
-                .await?;
+                .await
+                {
+                    transport_number.fetch_sub(1, Ordering::Relaxed);
+                    error!(
+                        "Transport {transport_id} error happen in udp handler, current transport number: {}, error: {e:?}",
+                        transport_number.load(Ordering::Relaxed)
+                    );
+                    return Err(e);
+                };
+                transport_number.fetch_sub(1, Ordering::Relaxed);
                 Ok(())
             },
         }

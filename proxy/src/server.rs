@@ -54,7 +54,7 @@ impl ProxyServer {
             debug!("Proxy server success accept agent connection on address: {}", agent_socket_address);
             tokio::spawn(async move {
                 transport_number.fetch_add(1, Ordering::Relaxed);
-                let transport = Transport::new(agent_tcp_stream, agent_socket_address.into());
+                let transport = Transport::new(agent_tcp_stream, agent_socket_address.into(), transport_number.clone());
                 transport.exec().await?;
                 transport_number.fetch_sub(1, Ordering::Relaxed);
                 debug!(
