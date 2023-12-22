@@ -5,9 +5,7 @@ use anyhow::Result;
 use futures::StreamExt;
 use log::{debug, error, trace};
 use pretty_hex::pretty_hex;
-use std::time::Duration;
 use tokio::net::TcpStream;
-use tokio::time::timeout;
 
 use ppaass_common::tcp::AgentTcpPayload;
 use ppaass_common::udp::AgentUdpData;
@@ -40,6 +38,7 @@ impl Transport {
             PROXY_CONFIG.get_compress(),
             PROXY_CONFIG.get_agent_connection_codec_framed_buffer_size(),
         );
+        debug!("Create transport [{transport_id}] for agent: {agent_address}");
         Self {
             agent_connection,
             transport_id,
@@ -74,16 +73,7 @@ impl Transport {
                 debug!("Transport {transport_id} receive tcp init message[{message_id}], src address: {src_address}, dst address: {dst_address}");
                 // Tcp transport will block the thread and continue to
                 // handle the agent connection in a loop
-                TcpHandler::exec(
-                    transport_id,
-                    self.agent_connection,
-                    message_id,
-                    user_token,
-                    src_address,
-                    dst_address,
-                    payload_encryption,
-                )
-                .await?;
+                TcpHandler::exec(transport_id, self.agent_connection, user_token, src_address, dst_address, payload_encryption).await?;
                 Ok(())
             },
             PpaassAgentMessagePayload::Udp(payload_content) => {

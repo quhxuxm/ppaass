@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::tcp::{AgentTcpPayload, ProxyTcpPayload};
 use crate::{
-    tcp::ProxyTcpInitResultType,
+    tcp::ProxyTcpInitResult,
     udp::{AgentUdpData, ProxyUdpData},
     CommonError, PpaassAgentMessage, PpaassAgentMessagePayload, PpaassMessagePayloadEncryption, PpaassProxyMessage, PpaassProxyMessagePayload,
     PpaassUnifiedAddress,
@@ -23,13 +23,13 @@ impl PpaassMessageGenerator {
 
     /// Generate the proxy tcp init message
     pub fn generate_proxy_tcp_init_message(
-        id: String, user_token: String, src_address: PpaassUnifiedAddress, dst_address: PpaassUnifiedAddress, encryption: PpaassMessagePayloadEncryption,
-        result_type: ProxyTcpInitResultType,
+        user_token: String, src_address: PpaassUnifiedAddress, dst_address: PpaassUnifiedAddress, encryption: PpaassMessagePayloadEncryption,
+        result: ProxyTcpInitResult,
     ) -> Result<PpaassProxyMessage, CommonError> {
         let payload = PpaassProxyMessagePayload::Tcp(ProxyTcpPayload::Init {
             src_address,
             dst_address,
-            result_type,
+            result,
         });
         let message = PpaassProxyMessage::new(Uuid::new_v4().to_string(), user_token.to_string(), encryption, payload);
         Ok(message)

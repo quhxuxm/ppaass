@@ -9,13 +9,12 @@ use bytes::Bytes;
 
 use futures::{SinkExt, StreamExt};
 use ppaass_common::{
-    random_32_bytes, tcp::ProxyTcpInitResultType, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassProxyMessage,
-    PpaassProxyMessagePayload, PpaassUnifiedAddress,
+    random_32_bytes, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassProxyMessage, PpaassProxyMessagePayload, PpaassUnifiedAddress,
 };
 
 use log::{debug, error, info};
 
-use ppaass_common::tcp::ProxyTcpPayload;
+use ppaass_common::tcp::{ProxyTcpInitResult, ProxyTcpPayload};
 use ppaass_common::udp::ProxyUdpData;
 use tokio::{
     io::AsyncReadExt,
@@ -257,17 +256,19 @@ impl Socks5ClientTransport {
             payload: proxy_message_payload,
             ..
         } = proxy_message;
-        let PpaassProxyMessagePayload::Tcp(ProxyTcpPayload::Init { result_type, .. }) = proxy_message_payload else {
+        let PpaassProxyMessagePayload::Tcp(ProxyTcpPayload::Init { result, .. }) = proxy_message_payload else {
             return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
         };
-        if matches!(result_type, ProxyTcpInitResultType::Fail) {
-            error!("Client tcp connection [{src_address}] fail to do tcp loop init");
-            return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
-        }
-        if matches!(result_type, ProxyTcpInitResultType::ConnectToDstFail) {
-            error!("Client tcp connection [{src_address}] fail to do tcp loop init, because of proxy fail connect to destination");
-            return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
-        }
+        let tunnel_id = match result {
+            ProxyTcpInitResult::Success(tunnel_id) => tunnel_id,
+            ProxyTcpInitResult::Fail(reason) => {
+                error!("Client socks5 tcp connection [{src_address}] fail to initialize tcp connection with proxy because of reason: {reason:?}");
+                return Err(AgentError::InvalidProxyResponse(format!(
+                    "Client socks5 tcp connection [{src_address}] fail to initialize tcp connection with proxy because of reason: {reason:?}"
+                )));
+            },
+        };
+        debug!("Client socks5 tcp connection [{src_address}] success to initialize tcp connection with proxy on tunnel: {tunnel_id}");
         let socks5_init_success_result = Socks5InitCommandResult::new(Socks5InitCommandResultStatus::Succeeded, Some(dst_address.clone().try_into()?));
         socks5_init_framed.send(socks5_init_success_result).await.map_err(EncoderError::Socks5)?;
         let FramedParts { io: client_tcp_stream, .. } = socks5_init_framed.into_parts();

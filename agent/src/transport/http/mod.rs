@@ -10,11 +10,10 @@ use futures::{SinkExt, StreamExt};
 use httpcodec::{BodyEncoder, HttpVersion, ReasonPhrase, RequestEncoder, Response, StatusCode};
 use log::{debug, error};
 use ppaass_common::{
-    random_32_bytes, tcp::ProxyTcpInitResultType, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassProxyMessage,
-    PpaassProxyMessagePayload, PpaassUnifiedAddress,
+    random_32_bytes, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassProxyMessage, PpaassProxyMessagePayload, PpaassUnifiedAddress,
 };
 
-use ppaass_common::tcp::ProxyTcpPayload;
+use ppaass_common::tcp::{ProxyTcpInitResult, ProxyTcpPayload};
 use tokio_util::codec::{Framed, FramedParts};
 use url::Url;
 
@@ -108,17 +107,19 @@ impl ClientTransportHandshake for HttpClientTransport {
             ..
         } = proxy_message;
 
-        let PpaassProxyMessagePayload::Tcp(ProxyTcpPayload::Init { result_type, .. }) = proxy_message_payload else {
+        let PpaassProxyMessagePayload::Tcp(ProxyTcpPayload::Init { result, .. }) = proxy_message_payload else {
             return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
         };
-        if matches!(result_type, ProxyTcpInitResultType::Fail) {
-            error!("Client tcp connection [{src_address}] fail to do tcp loop init");
-            return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
-        }
-        if matches!(result_type, ProxyTcpInitResultType::ConnectToDstFail) {
-            error!("Client tcp connection [{src_address}] fail to do tcp loop init, because of proxy fail connect to destination");
-            return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
-        }
+        let tunnel_id = match result {
+            ProxyTcpInitResult::Success(tunnel_id) => tunnel_id,
+            ProxyTcpInitResult::Fail(reason) => {
+                error!("Client http tcp connection [{src_address}] fail to initialize tcp connection with proxy because of reason: {reason:?}");
+                return Err(AgentError::InvalidProxyResponse(format!(
+                    "Client http tcp connection [{src_address}] fail to initialize tcp connection with proxy because of reason: {reason:?}"
+                )));
+            },
+        };
+        debug!("Client http tcp connection [{src_address}] success to initialize tcp connection with proxy on tunnel: {tunnel_id}");
         if init_data.is_none() {
             //For https proxy
             let http_connect_success_response = Response::new(

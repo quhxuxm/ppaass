@@ -23,7 +23,7 @@ use futures::{
     stream::{SplitSink, SplitStream},
     Sink, SinkExt, Stream,
 };
-use log::error;
+use log::{debug, error};
 
 use pin_project::pin_project;
 use ppaass_common::tcp::ProxyTcpPayload;
@@ -166,6 +166,8 @@ pub(crate) trait ClientTransportRelay {
             mut proxy_connection,
             init_data,
         } = tcp_relay_info;
+
+        debug!("Agent going to relay tcp data from destination: {dst_address}");
 
         let proxy_relay_timeout = AGENT_CONFIG.get_proxy_relay_timeout();
         let client_relay_timeout = AGENT_CONFIG.get_client_relay_timeout();

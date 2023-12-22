@@ -12,10 +12,8 @@ use futures_util::SinkExt;
 use log::{debug, error};
 use tokio::net::TcpStream;
 
-use ppaass_common::tcp::AgentTcpPayload;
-use ppaass_common::{
-    agent::PpaassAgentConnection, tcp::ProxyTcpInitResultType, CommonError, PpaassAgentMessage, PpaassAgentMessagePayload, PpaassMessagePayloadEncryption,
-};
+use ppaass_common::tcp::{AgentTcpPayload, ProxyTcpInitFailureReason, ProxyTcpInitResult};
+use ppaass_common::{agent::PpaassAgentConnection, CommonError, PpaassAgentMessage, PpaassAgentMessagePayload, PpaassMessagePayloadEncryption};
 use ppaass_common::{PpaassMessageGenerator, PpaassUnifiedAddress};
 use tokio::time::timeout;
 use tokio_stream::StreamExt as TokioStreamExt;
@@ -66,20 +64,19 @@ impl TcpHandler {
     }
 
     pub(crate) async fn exec(
-        transport_id: String, mut agent_connection: PpaassAgentConnection<ProxyServerRsaCryptoFetcher>, agent_tcp_init_message_id: String, user_token: String,
-        src_address: PpaassUnifiedAddress, dst_address: PpaassUnifiedAddress, payload_encryption: PpaassMessagePayloadEncryption,
+        transport_id: String, mut agent_connection: PpaassAgentConnection<ProxyServerRsaCryptoFetcher>, user_token: String, src_address: PpaassUnifiedAddress,
+        dst_address: PpaassUnifiedAddress, payload_encryption: PpaassMessagePayloadEncryption,
     ) -> Result<(), ProxyServerError> {
         let dst_connection = match Self::init_dst_connection(transport_id.clone(), &dst_address).await {
             Ok(dst_connection) => dst_connection,
             Err(e) => {
                 error!("Transport {transport_id} can not connect to tcp destination because of error: {e:?}");
                 let tcp_init_fail_message = PpaassMessageGenerator::generate_proxy_tcp_init_message(
-                    agent_tcp_init_message_id,
                     user_token,
                     src_address,
                     dst_address,
                     payload_encryption,
-                    ProxyTcpInitResultType::ConnectToDstFail,
+                    ProxyTcpInitResult::Fail(ProxyTcpInitFailureReason::CanNotConnectToDestination),
                 )?;
                 agent_connection.send(tcp_init_fail_message).await?;
                 return Err(e);
@@ -87,12 +84,11 @@ impl TcpHandler {
         };
         debug!("Transport {transport_id} success connect to tcp destination: {dst_address}");
         let tcp_init_success_message = PpaassMessageGenerator::generate_proxy_tcp_init_message(
-            agent_tcp_init_message_id,
             user_token.clone(),
             src_address.clone(),
             dst_address.clone(),
             payload_encryption.clone(),
-            ProxyTcpInitResultType::Success,
+            ProxyTcpInitResult::Success(transport_id.clone()),
         )?;
         agent_connection.send(tcp_init_success_message).await?;
         debug!("Transport {transport_id} sent tcp init success message to agent.");

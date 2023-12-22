@@ -60,20 +60,10 @@ impl ProxyConfig {
         self.agent_receive_buffer_size.unwrap_or(1024 * 512)
     }
 
-    pub(crate) fn get_dst_tcp_buffer_size(&self) -> usize {
-        self.dst_tcp_buffer_size.unwrap_or(1024 * 512)
-    }
-
     pub(crate) fn get_dst_connect_timeout(&self) -> u64 {
         self.dst_connect_timeout.unwrap_or(20)
     }
 
-    pub(crate) fn get_dst_relay_timeout(&self) -> u64 {
-        self.dst_relay_timeout.unwrap_or(20)
-    }
-    pub(crate) fn get_agent_relay_timeout(&self) -> u64 {
-        self.agent_relay_timeout.unwrap_or(20)
-    }
     pub(crate) fn get_dst_udp_recv_timeout(&self) -> u64 {
         self.dst_udp_recv_timeout.unwrap_or(5)
     }

@@ -17,10 +17,15 @@ make_as_bytes! {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum ProxyTcpInitResultType {
-    Success,
-    Fail,
-    ConnectToDstFail,
+pub enum ProxyTcpInitFailureReason {
+    CanNotConnectToDestination,
+    General,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum ProxyTcpInitResult {
+    Success(String),
+    Fail(ProxyTcpInitFailureReason),
 }
 
 make_as_bytes! {
@@ -29,7 +34,7 @@ make_as_bytes! {
         Init {
             src_address: PpaassUnifiedAddress,
             dst_address: PpaassUnifiedAddress,
-            result_type: ProxyTcpInitResultType,
+            result: ProxyTcpInitResult,
         },
         Data {
             content: Bytes
