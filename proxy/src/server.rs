@@ -56,7 +56,6 @@ impl ProxyServer {
                 transport_number.fetch_add(1, Ordering::Relaxed);
                 let transport = Transport::new(agent_tcp_stream, agent_socket_address.into(), transport_number.clone());
                 transport.exec().await?;
-                transport_number.fetch_sub(1, Ordering::Relaxed);
                 debug!(
                     "Complete execute agent connection [{agent_socket_address}], current transport number: {}.",
                     transport_number.load(Ordering::Relaxed)
