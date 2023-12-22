@@ -4,7 +4,7 @@ mod generator;
 mod payload;
 
 use crate::tcp::{AgentTcpPayload, ProxyTcpPayload};
-use crate::udp::{AgentUdpData, ProxyUdpData};
+use crate::udp::{AgentUdpPayload, ProxyUdpPayload};
 use crate::{make_as_bytes, CommonError};
 pub use address::*;
 use anyhow::Result;
@@ -29,7 +29,7 @@ make_as_bytes! {
     #[derive(Serialize, Deserialize, Debug)]
     pub enum PpaassAgentMessagePayload {
         Tcp(AgentTcpPayload),
-        Udp(AgentUdpData),
+        Udp(AgentUdpPayload),
     }
 }
 
@@ -47,7 +47,7 @@ make_as_bytes! {
     #[derive(Serialize, Deserialize, Debug)]
     pub enum PpaassProxyMessagePayload {
         Tcp(ProxyTcpPayload),
-        Udp(ProxyUdpData),
+        Udp(ProxyUdpPayload),
     }
 }
 

@@ -5,7 +5,7 @@ use serde_derive::{Deserialize, Serialize};
 
 make_as_bytes! {
     #[derive(Serialize, Deserialize, Debug, Constructor)]
-    struct AgentUdpData {
+    struct AgentUdpPayload {
         src_address: PpaassUnifiedAddress,
         dst_address: PpaassUnifiedAddress,
         data: Bytes,
@@ -15,7 +15,7 @@ make_as_bytes! {
 
 make_as_bytes! {
     #[derive(Serialize, Deserialize, Debug, Constructor)]
-    struct ProxyUdpData {
+    struct ProxyUdpPayload {
         src_address: PpaassUnifiedAddress,
         dst_address: PpaassUnifiedAddress,
         data: Bytes,

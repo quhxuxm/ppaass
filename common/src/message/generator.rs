@@ -4,7 +4,7 @@ use uuid::Uuid;
 use crate::tcp::{AgentTcpPayload, ProxyTcpPayload};
 use crate::{
     tcp::ProxyTcpInitResult,
-    udp::{AgentUdpData, ProxyUdpData},
+    udp::{AgentUdpPayload, ProxyUdpPayload},
     CommonError, PpaassAgentMessage, PpaassAgentMessagePayload, PpaassMessagePayloadEncryption, PpaassProxyMessage, PpaassProxyMessagePayload,
     PpaassUnifiedAddress,
 };
@@ -58,7 +58,7 @@ impl PpaassMessageGenerator {
         user_token: String, encryption: PpaassMessagePayloadEncryption, src_address: PpaassUnifiedAddress, dst_address: PpaassUnifiedAddress, data: Bytes,
         need_response: bool,
     ) -> Result<PpaassAgentMessage, CommonError> {
-        let payload = PpaassAgentMessagePayload::Udp(AgentUdpData {
+        let payload = PpaassAgentMessagePayload::Udp(AgentUdpPayload {
             src_address,
             dst_address,
             data,
@@ -72,7 +72,7 @@ impl PpaassMessageGenerator {
     pub fn generate_proxy_udp_data_message(
         user_token: String, encryption: PpaassMessagePayloadEncryption, src_address: PpaassUnifiedAddress, dst_address: PpaassUnifiedAddress, data: Bytes,
     ) -> Result<PpaassProxyMessage, CommonError> {
-        let payload = PpaassProxyMessagePayload::Udp(ProxyUdpData {
+        let payload = PpaassProxyMessagePayload::Udp(ProxyUdpPayload {
             src_address,
             dst_address,
             data,

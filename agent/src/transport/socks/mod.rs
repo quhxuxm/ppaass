@@ -15,7 +15,7 @@ use ppaass_common::{
 use log::{debug, error, info};
 
 use ppaass_common::tcp::{ProxyTcpInitResult, ProxyTcpPayload};
-use ppaass_common::udp::ProxyUdpData;
+use ppaass_common::udp::ProxyUdpPayload;
 use tokio::{
     io::AsyncReadExt,
     net::{TcpStream, UdpSocket},
@@ -157,7 +157,7 @@ impl Socks5ClientTransport {
                 payload: proxy_message_payload,
                 ..
             } = proxy_udp_message;
-            let PpaassProxyMessagePayload::Udp(ProxyUdpData {
+            let PpaassProxyMessagePayload::Udp(ProxyUdpPayload {
                 src_address,
                 dst_address,
                 data,

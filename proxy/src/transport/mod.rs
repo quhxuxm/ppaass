@@ -8,7 +8,7 @@ use pretty_hex::pretty_hex;
 use tokio::net::TcpStream;
 
 use ppaass_common::tcp::AgentTcpPayload;
-use ppaass_common::udp::AgentUdpData;
+use ppaass_common::udp::AgentUdpPayload;
 use ppaass_common::PpaassUnifiedAddress;
 use ppaass_common::{agent::PpaassAgentConnection, random_32_bytes, PpaassAgentMessage, PpaassAgentMessagePayload, PpaassMessagePayloadEncryptionSelector};
 use uuid::Uuid;
@@ -77,7 +77,7 @@ impl Transport {
                 Ok(())
             },
             PpaassAgentMessagePayload::Udp(payload_content) => {
-                let AgentUdpData {
+                let AgentUdpPayload {
                     src_address,
                     dst_address,
                     data,
