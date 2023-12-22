@@ -32,12 +32,14 @@ impl UdpHandler {
         .await
         {
             Err(_) => {
-                error!("Transport {transport_id} connect to udp destination timeout: {dst_address}");
+                error!("Transport {transport_id} connect to destination udp socket [{dst_address}] timeout: {dst_address}");
                 return Err(ProxyServerError::Timeout(PROXY_CONFIG.get_dst_connect_timeout()));
             },
-            Ok(Ok(result)) => result,
+            Ok(Ok(())) => {
+                debug!("Transport {transport_id} connect to destination udp socket [{dst_address}] success.");
+            },
             Ok(Err(e)) => {
-                error!("Transport {transport_id} connect to udp destination [{dst_address}] fail because of error: {e:?}");
+                error!("Transport {transport_id} connect to destination udp socket [{dst_address}] fail because of error: {e:?}");
                 return Err(ProxyServerError::GeneralIo(e));
             },
         };
@@ -55,11 +57,14 @@ impl UdpHandler {
             .await
             {
                 Err(_) => {
-                    debug!("Receive udp data from destination timeout: {dst_address}");
+                    debug!("Transport {transport_id} receive data from destination udp socket [{dst_address}] timeout: {dst_address}");
                     return Err(ProxyServerError::Timeout(PROXY_CONFIG.get_dst_udp_recv_timeout()));
                 },
-
                 Ok(Ok(0)) => {
+                    debug!(
+                        "Transport {transport_id} receive all data from destination udp socket [{dst_address}], current udp packet size: {}, last receive data size is zero",
+                        udp_data.len()
+                    );
                     return Ok(());
                 },
                 Ok(size) => {
@@ -69,6 +74,10 @@ impl UdpHandler {
             };
             udp_data.put(udp_recv_buf);
             if size < MAX_UDP_PACKET_SIZE {
+                debug!(
+                    "Transport {transport_id} receive all data from destination udp socket [{dst_address}], current udp packet size: {}, last receive data size is: {size}",
+                    udp_data.len()
+                );
                 break;
             }
         }
