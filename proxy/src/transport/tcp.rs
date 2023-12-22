@@ -80,7 +80,10 @@ impl TcpHandler {
         let dst_connection = match Self::init_dst_connection(transport_id.clone(), &dst_address).await {
             Ok(dst_connection) => dst_connection,
             Err(e) => {
-                error!("Transport {transport_id} can not connect to tcp destination [{dst_address}] because of error: {e:?}");
+                error!(
+                    "Transport {transport_id} can not connect to tcp destination [{dst_address}] because of error, current transport number:{}, error: {e:?}",
+                    transport_number.load(Ordering::Relaxed)
+                );
                 let tcp_init_fail_message = PpaassMessageGenerator::generate_proxy_tcp_init_message(
                     user_token,
                     src_address,
