@@ -32,15 +32,21 @@ impl UdpHandler {
         .await
         {
             Err(_) => {
-                error!("Transport {transport_id} connect to destination udp socket [{dst_address}] timeout: {dst_address}");
-                return Err(ProxyServerError::Timeout(PROXY_CONFIG.get_dst_connect_timeout()));
+                error!(
+                    "Transport {transport_id} connect to destination udp socket [{dst_address}] timeout in [{}] seconds.",
+                    PROXY_CONFIG.get_dst_udp_connect_timeout()
+                );
+                return Err(ProxyServerError::Other(format!(
+                    "Transport {transport_id} connect to destination udp socket [{dst_address}] timeout in [{}] seconds.",
+                    PROXY_CONFIG.get_dst_udp_connect_timeout()
+                )));
             },
             Ok(Ok(())) => {
                 debug!("Transport {transport_id} connect to destination udp socket [{dst_address}] success.");
             },
             Ok(Err(e)) => {
                 error!("Transport {transport_id} connect to destination udp socket [{dst_address}] fail because of error: {e:?}");
-                return Err(ProxyServerError::GeneralIo(e));
+                return Err(ProxyServerError::StdIo(e));
             },
         };
         dst_udp_socket.send(&udp_data).await?;
@@ -57,8 +63,14 @@ impl UdpHandler {
             .await
             {
                 Err(_) => {
-                    debug!("Transport {transport_id} receive data from destination udp socket [{dst_address}] timeout: {dst_address}");
-                    return Err(ProxyServerError::Timeout(PROXY_CONFIG.get_dst_udp_recv_timeout()));
+                    debug!(
+                        "Transport {transport_id} receive data from destination udp socket [{dst_address}] timeout in [{}] seconds.",
+                        PROXY_CONFIG.get_dst_udp_recv_timeout()
+                    );
+                    return Err(ProxyServerError::Other(format!(
+                        "Transport {transport_id} receive data from destination udp socket [{dst_address}] timeout in [{}] seconds.",
+                        PROXY_CONFIG.get_dst_udp_recv_timeout()
+                    )));
                 },
                 Ok(Ok(0)) => {
                     debug!(

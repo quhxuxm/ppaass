@@ -35,13 +35,19 @@ impl TcpHandler {
         .await
         {
             Err(_) => {
-                error!("Transport {transport_id} connect to tcp destination timeout: {dst_address}");
-                return Err(ProxyServerError::Timeout(PROXY_CONFIG.get_dst_connect_timeout()));
+                error!(
+                    "Transport {transport_id} connect to tcp destination [{dst_address}] timeout in [{}] seconds.",
+                    PROXY_CONFIG.get_dst_connect_timeout()
+                );
+                return Err(ProxyServerError::Other(format!(
+                    "Transport {transport_id} connect to tcp destination [{dst_address}] timeout in [{}] seconds.",
+                    PROXY_CONFIG.get_dst_connect_timeout()
+                )));
             },
             Ok(Ok(dst_tcp_stream)) => dst_tcp_stream,
             Ok(Err(e)) => {
                 error!("Transport {transport_id} connect to tcp destination [{dst_address}] fail because of error: {e:?}");
-                return Err(ProxyServerError::GeneralIo(e));
+                return Err(ProxyServerError::StdIo(e));
             },
         };
         dst_tcp_stream.set_nodelay(true)?;
@@ -70,7 +76,7 @@ impl TcpHandler {
         let dst_connection = match Self::init_dst_connection(transport_id.clone(), &dst_address).await {
             Ok(dst_connection) => dst_connection,
             Err(e) => {
-                error!("Transport {transport_id} can not connect to tcp destination because of error: {e:?}");
+                error!("Transport {transport_id} can not connect to tcp destination [{dst_address}] because of error: {e:?}");
                 let tcp_init_fail_message = PpaassMessageGenerator::generate_proxy_tcp_init_message(
                     user_token,
                     src_address,
