@@ -50,7 +50,7 @@ impl TcpHandler {
                 return Err(ProxyServerError::StdIo(e));
             },
         };
-        // dst_tcp_stream.set_nodelay(true)?;
+        dst_tcp_stream.set_nodelay(true)?;
         dst_tcp_stream.set_linger(None)?;
         // dst_tcp_stream.writable().await?;
         // dst_tcp_stream.readable().await?;
