@@ -25,7 +25,7 @@ impl ProxyServerRsaCryptoFetcher {
     pub(crate) fn new() -> Result<Self, RsaError> {
         let mut cache = HashMap::new();
         let rsa_dir_path = PROXY_CONFIG.get_rsa_dir();
-        let rsa_dir = read_dir(&rsa_dir_path)?;
+        let rsa_dir = read_dir(rsa_dir_path)?;
         rsa_dir.for_each(|entry| {
             let Ok(entry) = entry else {
                 error!("fail to read {rsa_dir_path} directory");

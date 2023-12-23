@@ -20,7 +20,10 @@ use crate::{
     config::PROXY_CONFIG,
     crypto::{ProxyServerRsaCryptoFetcher, RSA_CRYPTO},
     error::ProxyServerError,
-    transport::udp::UdpHandler,
+    transport::{
+        tcp::TcpHandlerRequest,
+        udp::{UdpHandler, UdpHandlerRequest},
+    },
 };
 
 use self::tcp::TcpHandler;
@@ -78,15 +81,15 @@ impl Transport {
                 debug!("Transport {transport_id} receive tcp init message[{message_id}], src address: {src_address}, dst address: {dst_address}");
                 // Tcp transport will block the thread and continue to
                 // handle the agent connection in a loop
-                if let Err(e) = TcpHandler::exec(
-                    transport_id.clone(),
-                    self.agent_connection,
+                if let Err(e) = TcpHandler::exec(TcpHandlerRequest {
+                    transport_id: transport_id.clone(),
+                    agent_connection: self.agent_connection,
                     user_token,
                     src_address,
                     dst_address,
                     payload_encryption,
-                    transport_number.clone(),
-                )
+                    transport_number: transport_number.clone(),
+                })
                 .await
                 {
                     transport_number.fetch_sub(1, Ordering::Relaxed);
@@ -101,24 +104,24 @@ impl Transport {
                 let AgentUdpPayload {
                     src_address,
                     dst_address,
-                    data,
+                    data: udp_data,
                     need_response,
                     ..
                 } = payload_content;
                 debug!("Transport {transport_id} receive udp data message[{message_id}], src address: {src_address}, dst address: {dst_address}");
-                trace!("Transport {transport_id} receive udp data: {}", pretty_hex(&data));
+                trace!("Transport {transport_id} receive udp data: {}", pretty_hex(&udp_data));
                 // Udp transport will block the thread and continue to
                 // handle the agent connection in a loop
-                if let Err(e) = UdpHandler::exec(
-                    transport_id.clone(),
-                    self.agent_connection,
+                if let Err(e) = UdpHandler::exec(UdpHandlerRequest {
+                    transport_id: transport_id.clone(),
+                    agent_connection: self.agent_connection,
                     user_token,
                     src_address,
                     dst_address,
-                    data,
+                    udp_data,
                     payload_encryption,
                     need_response,
-                )
+                })
                 .await
                 {
                     transport_number.fetch_sub(1, Ordering::Relaxed);

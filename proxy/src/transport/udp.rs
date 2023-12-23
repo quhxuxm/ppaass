@@ -15,13 +15,31 @@ use crate::{config::PROXY_CONFIG, crypto::ProxyServerRsaCryptoFetcher, error::Pr
 const MAX_UDP_PACKET_SIZE: usize = 65535;
 const LOCAL_UDP_BIND_ADDR: &str = "0.0.0.0:0";
 
+pub(crate) struct UdpHandlerRequest {
+    pub transport_id: String,
+    pub agent_connection: PpaassAgentConnection<ProxyServerRsaCryptoFetcher>,
+    pub user_token: String,
+    pub src_address: PpaassUnifiedAddress,
+    pub dst_address: PpaassUnifiedAddress,
+    pub udp_data: Bytes,
+    pub payload_encryption: PpaassMessagePayloadEncryption,
+    pub need_response: bool,
+}
+
 pub(crate) struct UdpHandler;
 
 impl UdpHandler {
-    pub(crate) async fn exec(
-        transport_id: String, mut agent_connection: PpaassAgentConnection<ProxyServerRsaCryptoFetcher>, user_token: String, src_address: PpaassUnifiedAddress,
-        dst_address: PpaassUnifiedAddress, udp_data: Bytes, payload_encryption: PpaassMessagePayloadEncryption, need_response: bool,
-    ) -> Result<(), ProxyServerError> {
+    pub(crate) async fn exec(handler_request: UdpHandlerRequest) -> Result<(), ProxyServerError> {
+        let UdpHandlerRequest {
+            transport_id,
+            mut agent_connection,
+            user_token,
+            src_address,
+            dst_address,
+            udp_data,
+            payload_encryption,
+            need_response,
+        } = handler_request;
         let dst_udp_socket = UdpSocket::bind(LOCAL_UDP_BIND_ADDR).await?;
         let dst_socket_addrs = dst_address.to_socket_addrs()?;
         let dst_socket_addrs = dst_socket_addrs.collect::<Vec<SocketAddr>>();

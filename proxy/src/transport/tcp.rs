@@ -23,8 +23,17 @@ use tokio_util::codec::{BytesCodec, Framed};
 
 use crate::{config::PROXY_CONFIG, crypto::ProxyServerRsaCryptoFetcher, error::ProxyServerError};
 
+pub(crate) struct TcpHandlerRequest {
+    pub transport_id: String,
+    pub agent_connection: PpaassAgentConnection<ProxyServerRsaCryptoFetcher>,
+    pub user_token: String,
+    pub src_address: PpaassUnifiedAddress,
+    pub dst_address: PpaassUnifiedAddress,
+    pub payload_encryption: PpaassMessagePayloadEncryption,
+    pub transport_number: Arc<AtomicU64>,
+}
+
 #[derive(Default)]
-#[non_exhaustive]
 pub(crate) struct TcpHandler;
 
 impl TcpHandler {
@@ -73,10 +82,16 @@ impl TcpHandler {
         Ok(content)
     }
 
-    pub(crate) async fn exec(
-        transport_id: String, mut agent_connection: PpaassAgentConnection<ProxyServerRsaCryptoFetcher>, user_token: String, src_address: PpaassUnifiedAddress,
-        dst_address: PpaassUnifiedAddress, payload_encryption: PpaassMessagePayloadEncryption, transport_number: Arc<AtomicU64>,
-    ) -> Result<(), ProxyServerError> {
+    pub(crate) async fn exec(handler_request: TcpHandlerRequest) -> Result<(), ProxyServerError> {
+        let TcpHandlerRequest {
+            transport_id,
+            mut agent_connection,
+            user_token,
+            src_address,
+            dst_address,
+            payload_encryption,
+            transport_number,
+        } = handler_request;
         let dst_connection = match Self::init_dst_connection(transport_id.clone(), &dst_address).await {
             Ok(dst_connection) => dst_connection,
             Err(e) => {
@@ -140,7 +155,6 @@ impl TcpHandler {
                 error!("Transport {transport_id} error happen when relay tcp data from destination [{dst_address}] to agent, current transport number: {}, error: {e:?}", transport_number.load(Ordering::Relaxed));
             }
         });
-
         Ok(())
     }
 }

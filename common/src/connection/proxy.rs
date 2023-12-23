@@ -25,7 +25,7 @@ impl<R> PpaassProxyConnection<R>
 where
     R: RsaCryptoFetcher + Send + Sync + 'static,
 {
-    pub fn new<'a>(connection_id: String, stream: TcpStream, rsa_crypto_fetcher: R, compress: bool, buffer_size: usize) -> PpaassProxyConnection<R> {
+    pub fn new(connection_id: String, stream: TcpStream, rsa_crypto_fetcher: R, compress: bool, buffer_size: usize) -> PpaassProxyConnection<R> {
         let agent_connection_codec = PpaassProxyConnectionCodec::new(compress, rsa_crypto_fetcher);
         let inner = Framed::with_capacity(stream, agent_connection_codec, buffer_size);
         Self { inner, connection_id }
