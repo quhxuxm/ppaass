@@ -54,6 +54,9 @@ impl UdpHandler {
                     "Transport {transport_id} connect to destination udp socket [{dst_address}] timeout in [{}] seconds.",
                     PROXY_CONFIG.get_dst_udp_connect_timeout()
                 );
+                if let Err(e) = agent_connection.close().await {
+                    error!("Transport {transport_id} fail to close agent connection because of error, destination udp socket: [{dst_address}], error: {e:?}");
+                };
                 return Err(ProxyServerError::Other(format!(
                     "Transport {transport_id} connect to destination udp socket [{dst_address}] timeout in [{}] seconds.",
                     PROXY_CONFIG.get_dst_udp_connect_timeout()
@@ -64,11 +67,23 @@ impl UdpHandler {
             },
             Ok(Err(e)) => {
                 error!("Transport {transport_id} connect to destination udp socket [{dst_address}] fail because of error: {e:?}");
+                if let Err(e) = agent_connection.close().await {
+                    error!("Transport {transport_id} fail to close agent connection because of error, destination udp socket: [{dst_address}], error: {e:?}");
+                };
                 return Err(ProxyServerError::StdIo(e));
             },
         };
-        dst_udp_socket.send(&udp_data).await?;
+        if let Err(e) = dst_udp_socket.send(&udp_data).await {
+            error!("Transport {transport_id} fail to relay agent udp data to destination udp socket [{dst_address}] because of error: {e:?}");
+            if let Err(e) = agent_connection.close().await {
+                error!("Transport {transport_id} fail to close agent connection because of error, destination udp socket: [{dst_address}], error: {e:?}");
+            };
+            return Err(ProxyServerError::StdIo(e));
+        };
         if !need_response {
+            if let Err(e) = agent_connection.close().await {
+                error!("Transport {transport_id} fail to close agent connection because of error, destination udp socket: [{dst_address}], error: {e:?}");
+            };
             return Ok(());
         }
         let mut udp_data = BytesMut::new();
@@ -85,6 +100,11 @@ impl UdpHandler {
                         "Transport {transport_id} receive data from destination udp socket [{dst_address}] timeout in [{}] seconds.",
                         PROXY_CONFIG.get_dst_udp_recv_timeout()
                     );
+                    if let Err(e) = agent_connection.close().await {
+                        error!(
+                            "Transport {transport_id} fail to close agent connection because of error, destination udp socket: [{dst_address}], error: {e:?}"
+                        );
+                    };
                     return Err(ProxyServerError::Other(format!(
                         "Transport {transport_id} receive data from destination udp socket [{dst_address}] timeout in [{}] seconds.",
                         PROXY_CONFIG.get_dst_udp_recv_timeout()
@@ -95,7 +115,7 @@ impl UdpHandler {
                         "Transport {transport_id} receive all data from destination udp socket [{dst_address}], current udp packet size: {}, last receive data size is zero",
                         udp_data.len()
                     );
-                    return Ok(());
+                    break;
                 },
                 Ok(size) => {
                     let size = size?;
@@ -111,7 +131,12 @@ impl UdpHandler {
                 break;
             }
         }
-
+        if udp_data.is_empty() {
+            if let Err(e) = agent_connection.close().await {
+                error!("Transport {transport_id} fail to close agent connection because of error, destination udp socket: [{dst_address}], error: {e:?}");
+            };
+            return Ok(());
+        }
         let udp_data_message = PpaassMessageGenerator::generate_proxy_udp_data_message(
             user_token.clone(),
             payload_encryption,
@@ -119,8 +144,12 @@ impl UdpHandler {
             dst_address.clone(),
             udp_data.freeze(),
         )?;
-        agent_connection.send(udp_data_message).await?;
-        agent_connection.close().await?;
+        if let Err(e) = agent_connection.send(udp_data_message).await {
+            error!("Transport {transport_id} fail to relay destination udp socket data [{dst_address}] udp data to agent because of error: {e:?}");
+        };
+        if let Err(e) = agent_connection.close().await {
+            error!("Transport {transport_id} fail to close agent connection because of error, destination udp socket: [{dst_address}], error: {e:?}");
+        };
         Ok(())
     }
 }
