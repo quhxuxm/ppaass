@@ -120,40 +120,45 @@ impl TcpHandler {
         )?;
         agent_connection.send(tcp_init_success_message).await?;
         debug!("Transport {transport_id} sent tcp init success message to agent.");
-        let (agent_connection_write, agent_connection_read) = agent_connection.split();
-        let (dst_connection_write, dst_connection_read) = dst_connection.split();
+        let (mut agent_connection_write, agent_connection_read) = agent_connection.split();
+        let (mut dst_connection_write, dst_connection_read) = dst_connection.split();
         debug!("Transport {transport_id} start task to relay agent and tcp destination: {dst_address}");
         {
             let dst_address = dst_address.clone();
             let transport_id = transport_id.clone();
             let transport_number = transport_number.clone();
             tokio::spawn(async move {
-                let agent_to_dst_relay_result = TokioStreamExt::map_while(agent_connection_read, |agent_message| {
+                if let Err(e) = TokioStreamExt::map_while(agent_connection_read, |agent_message| {
                     let agent_message = agent_message.ok()?;
                     let data = Self::unwrap_to_raw_tcp_data(agent_message).ok()?;
                     Some(Ok(BytesMut::from_iter(data)))
                 })
-                .forward(dst_connection_write)
-                .await;
-
-                if let Err(e) = agent_to_dst_relay_result {
+                .forward(&mut dst_connection_write)
+                .await
+                {
                     error!("Transport {transport_id} error happen when relay tcp data from agent to destination [{dst_address}], current transport number: {}, error: {e:?}",transport_number.load(Ordering::Relaxed));
                 }
+                if let Err(e) = dst_connection_write.close().await {
+                    error!("Transport {transport_id} fail to close destination connection [{dst_address}] beccause of error: {e:?}");
+                };
             });
         }
         tokio::spawn(async move {
-            let dst_to_agent_relay_result = TokioStreamExt::map_while(dst_connection_read, move |dst_message| {
+            if let Err(e) = TokioStreamExt::map_while(dst_connection_read, move |dst_message| {
                 let dst_message = dst_message.ok()?;
                 let tcp_data_message =
                     PpaassMessageGenerator::generate_proxy_tcp_data_message(user_token.clone(), payload_encryption.clone(), dst_message.freeze()).ok()?;
                 Some(Ok(tcp_data_message))
             })
-            .forward(agent_connection_write)
-            .await;
-            transport_number.fetch_sub(1, Ordering::Relaxed);
-            if let Err(e) = dst_to_agent_relay_result {
+            .forward(&mut agent_connection_write)
+            .await
+            {
                 error!("Transport {transport_id} error happen when relay tcp data from destination [{dst_address}] to agent, current transport number: {}, error: {e:?}", transport_number.load(Ordering::Relaxed));
             }
+            if let Err(e) = agent_connection_write.close().await {
+                error!("Transport {transport_id} fail to close agent connection beccause of error: {e:?}");
+            };
+            transport_number.fetch_sub(1, Ordering::Relaxed);
         });
         Ok(())
     }

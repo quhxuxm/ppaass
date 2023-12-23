@@ -5,7 +5,6 @@ mod socks;
 use std::{
     pin::Pin,
     task::{Context, Poll},
-    time::Duration,
 };
 
 use self::dispatcher::ClientTransportHandshakeInfo;
@@ -170,9 +169,6 @@ pub(crate) trait ClientTransportRelay {
         } = tcp_relay_info;
 
         debug!("Agent going to relay tcp data from destination: {dst_address}");
-
-        let proxy_relay_timeout = AGENT_CONFIG.get_proxy_relay_timeout();
-        let client_relay_timeout = AGENT_CONFIG.get_client_relay_timeout();
         let client_io_framed = Framed::with_capacity(client_tcp_stream, BytesCodec::new(), AGENT_CONFIG.get_client_receive_buffer_size());
         let (client_io_write, client_io_read) = client_io_framed.split::<BytesMut>();
         let (mut client_io_write, client_io_read) = (
@@ -191,8 +187,7 @@ pub(crate) trait ClientTransportRelay {
             let dst_address = dst_address.clone();
             tokio::spawn(async move {
                 // Forward client data to proxy
-                if let Err(e) = TokioStreamExt::map_while(client_io_read.timeout(Duration::from_secs(client_relay_timeout)), |client_message| {
-                    let client_message = client_message.ok()?;
+                if let Err(e) = TokioStreamExt::map_while(client_io_read, |client_message| {
                     let client_message = client_message.ok()?;
                     let tcp_data =
                         PpaassMessageGenerator::generate_agent_tcp_data_message(user_token.to_string(), payload_encryption.clone(), client_message.freeze())
@@ -204,16 +199,19 @@ pub(crate) trait ClientTransportRelay {
                 {
                     error!("Tunnel {tunnel_id} error happen when relay tcp data from client to proxy for destination [{dst_address}], error: {e:?}");
                 }
+                if let Err(e) = proxy_connection_write.close().await {
+                    error!("Tunnel {tunnel_id} fail to close proxy connection beccause of error: {e:?}");
+                };
             });
         }
 
         tokio::spawn(async move {
-            if let Err(e) = TokioStreamExt::map_while(proxy_connection_read.timeout(Duration::from_secs(proxy_relay_timeout)), |proxy_message| {
+            if let Err(e) = TokioStreamExt::map_while(proxy_connection_read, |proxy_message| {
                 let proxy_message = proxy_message.ok()?;
                 let PpaassProxyMessage {
                     payload: PpaassProxyMessagePayload::Tcp(ProxyTcpPayload::Data { content }),
                     ..
-                } = proxy_message.ok()?
+                } = proxy_message
                 else {
                     error!("Fail to parse proxy message payload because of not a tcp data");
                     return None;
@@ -225,6 +223,9 @@ pub(crate) trait ClientTransportRelay {
             {
                 error!("Tunnel {tunnel_id} error happen when relay tcp data from proxy to client for destination [{dst_address}], error: {e:?}",);
             }
+            if let Err(e) = client_io_write.close().await {
+                error!("Tunnel {tunnel_id} fail to close client connection beccause of error: {e:?}");
+            };
         });
 
         Ok(())
