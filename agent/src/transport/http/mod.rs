@@ -133,6 +133,7 @@ impl ClientTransportHandshake for HttpClientTransport {
         let FramedParts { io: client_tcp_stream, .. } = http_framed.into_parts();
         Ok((
             ClientTransportDataRelayInfo::Tcp(ClientTransportTcpDataRelay {
+                tunnel_id,
                 client_tcp_stream,
                 src_address,
                 dst_address,

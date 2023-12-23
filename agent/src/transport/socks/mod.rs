@@ -274,6 +274,7 @@ impl Socks5ClientTransport {
         let FramedParts { io: client_tcp_stream, .. } = socks5_init_framed.into_parts();
         debug!("Client tcp connection [{src_address}] success to do sock5 handshake begin to relay.");
         Ok(ClientTransportDataRelayInfo::Tcp(ClientTransportTcpDataRelay {
+            tunnel_id,
             client_tcp_stream,
             src_address,
             dst_address,

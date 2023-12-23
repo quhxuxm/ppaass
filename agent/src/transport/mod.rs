@@ -129,6 +129,7 @@ pub(crate) enum ClientTransportDataRelayInfo {
 
 #[non_exhaustive]
 pub(crate) struct ClientTransportTcpDataRelay {
+    tunnel_id: String,
     client_tcp_stream: TcpStream,
     src_address: PpaassUnifiedAddress,
     dst_address: PpaassUnifiedAddress,
@@ -160,6 +161,7 @@ pub(crate) trait ClientTransportRelay {
         let user_token = AGENT_CONFIG.get_user_token();
         let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(random_32_bytes()));
         let ClientTransportTcpDataRelay {
+            tunnel_id,
             client_tcp_stream,
             src_address,
             dst_address,
@@ -184,19 +186,29 @@ pub(crate) trait ClientTransportRelay {
 
         let (mut proxy_connection_write, proxy_connection_read) = proxy_connection.split();
 
-        let (_, _) = tokio::join!(
-            // Forward client data to proxy
-            TokioStreamExt::map_while(client_io_read.timeout(Duration::from_secs(client_relay_timeout)), |client_message| {
-                let client_message = client_message.ok()?;
-                let client_message = client_message.ok()?;
-                let tcp_data =
-                    PpaassMessageGenerator::generate_agent_tcp_data_message(user_token.to_string(), payload_encryption.clone(), client_message.freeze())
-                        .ok()?;
-                Some(Ok(tcp_data))
-            })
-            .forward(&mut proxy_connection_write),
-            // Forward proxy data to client
-            TokioStreamExt::map_while(proxy_connection_read.timeout(Duration::from_secs(proxy_relay_timeout)), |proxy_message| {
+        {
+            let tunnel_id = tunnel_id.clone();
+            let dst_address = dst_address.clone();
+            tokio::spawn(async move {
+                // Forward client data to proxy
+                if let Err(e) = TokioStreamExt::map_while(client_io_read.timeout(Duration::from_secs(client_relay_timeout)), |client_message| {
+                    let client_message = client_message.ok()?;
+                    let client_message = client_message.ok()?;
+                    let tcp_data =
+                        PpaassMessageGenerator::generate_agent_tcp_data_message(user_token.to_string(), payload_encryption.clone(), client_message.freeze())
+                            .ok()?;
+                    Some(Ok(tcp_data))
+                })
+                .forward(&mut proxy_connection_write)
+                .await
+                {
+                    error!("Tunnel {tunnel_id} error happen when relay tcp data from client to proxy for destination [{dst_address}], error: {e:?}");
+                }
+            });
+        }
+
+        tokio::spawn(async move {
+            if let Err(e) = TokioStreamExt::map_while(proxy_connection_read.timeout(Duration::from_secs(proxy_relay_timeout)), |proxy_message| {
                 let proxy_message = proxy_message.ok()?;
                 let PpaassProxyMessage {
                     payload: PpaassProxyMessagePayload::Tcp(ProxyTcpPayload::Data { content }),
@@ -209,7 +221,11 @@ pub(crate) trait ClientTransportRelay {
                 Some(Ok(BytesMut::from_iter(content)))
             })
             .forward(&mut client_io_write)
-        );
+            .await
+            {
+                error!("Tunnel {tunnel_id} error happen when relay tcp data from proxy to client for destination [{dst_address}], error: {e:?}",);
+            }
+        });
 
         Ok(())
     }
