@@ -139,7 +139,7 @@ impl TcpHandler {
                     error!("Transport {transport_id} error happen when relay tcp data from agent to destination [{dst_address}], current transport number: {}, error: {e:?}",transport_number.load(Ordering::Relaxed));
                 }
                 if let Err(e) = dst_connection_write.close().await {
-                    error!("Transport {transport_id} fail to close destination connection [{dst_address}] beccause of error: {e:?}");
+                    error!("Transport {transport_id} fail to close destination connection [{dst_address}] beccause of error, current transport number: {}, error: {e:?}",transport_number.load(Ordering::Relaxed));
                 };
             });
         }
@@ -155,10 +155,13 @@ impl TcpHandler {
             {
                 error!("Transport {transport_id} error happen when relay tcp data from destination [{dst_address}] to agent, current transport number: {}, error: {e:?}", transport_number.load(Ordering::Relaxed));
             }
-            if let Err(e) = agent_connection_write.close().await {
-                error!("Transport {transport_id} fail to close agent connection beccause of error: {e:?}");
-            };
             transport_number.fetch_sub(1, Ordering::Relaxed);
+            if let Err(e) = agent_connection_write.close().await {
+                error!(
+                    "Transport {transport_id} fail to close agent connection beccause of error, current transport number: {}, error: {e:?}",
+                    transport_number.load(Ordering::Relaxed)
+                );
+            };
         });
         Ok(())
     }
