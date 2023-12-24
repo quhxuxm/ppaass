@@ -10,12 +10,10 @@ use futures::{SinkExt, StreamExt};
 use httpcodec::{BodyEncoder, HttpVersion, ReasonPhrase, RequestEncoder, Response, StatusCode};
 use log::{debug, error};
 use ppaass_common::{
-    generate_uuid,
-    tcp::{ProxyTcpInit, ProxyTcpInitResultType},
-    PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyProtocol, PpaassMessageProxyTcpPayloadType, PpaassNetAddress,
-    PpaassProxyMessage, PpaassProxyMessagePayload,
+    random_32_bytes, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassProxyMessage, PpaassProxyMessagePayload, PpaassUnifiedAddress,
 };
 
+use ppaass_common::tcp::{ProxyTcpInitResult, ProxyTcpPayload};
 use tokio_util::codec::{Framed, FramedParts};
 use url::Url;
 
@@ -70,13 +68,10 @@ impl ClientTransportHandshake for HttpClientTransport {
         };
 
         let parsed_request_url = Url::parse(request_url.as_str()).map_err(ConversionError::UrlFormat)?;
-        let target_port = match parsed_request_url.port() {
-            None => match parsed_request_url.scheme() {
-                HTTPS_SCHEMA => HTTPS_DEFAULT_PORT,
-                _ => HTTP_DEFAULT_PORT,
-            },
-            Some(v) => v,
-        };
+        let target_port = parsed_request_url.port().unwrap_or_else(|| match parsed_request_url.scheme() {
+            HTTPS_SCHEMA => HTTPS_DEFAULT_PORT,
+            _ => HTTP_DEFAULT_PORT,
+        });
         let target_host = parsed_request_url
             .host()
             .ok_or(ConversionError::NoHost(parsed_request_url.to_string()))?
@@ -84,21 +79,21 @@ impl ClientTransportHandshake for HttpClientTransport {
         if target_host.eq("0.0.0.1") || target_host.eq("127.0.0.1") {
             return Err(AgentError::Other(anyhow!("0.0.0.1 or 127.0.0.1 is not a valid destination address")));
         }
-        let dst_address = PpaassNetAddress::Domain {
+        let dst_address = PpaassUnifiedAddress::Domain {
             host: target_host,
             port: target_port,
         };
 
-        let user_token = AGENT_CONFIG
-            .get_user_token()
-            .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
-
-        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(Bytes::from(generate_uuid().into_bytes())));
-        let tcp_init_request =
-            PpaassMessageGenerator::generate_agent_tcp_init_message(user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
+        let user_token = AGENT_CONFIG.get_user_token();
+        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(random_32_bytes()));
+        let tcp_init_request = PpaassMessageGenerator::generate_agent_tcp_init_message(
+            user_token.to_string(),
+            src_address.clone(),
+            dst_address.clone(),
+            payload_encryption.clone(),
+        )?;
 
         let mut proxy_connection = PROXY_CONNECTION_FACTORY.create_connection().await?;
-
         debug!(
             "Client tcp connection [{src_address}] take proxy connection [{}] to do proxy",
             proxy_connection.get_connection_id()
@@ -108,36 +103,23 @@ impl ClientTransportHandshake for HttpClientTransport {
         let proxy_message = proxy_connection.next().await.ok_or(NetworkError::ConnectionExhausted)??;
 
         let PpaassProxyMessage {
-            payload: PpaassProxyMessagePayload { protocol, data },
+            payload: proxy_message_payload,
             ..
         } = proxy_message;
 
-        let tcp_init_response = match protocol {
-            PpaassMessageProxyProtocol::Tcp(PpaassMessageProxyTcpPayloadType::Init) => data.try_into()?,
-            _ => {
-                return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
+        let PpaassProxyMessagePayload::Tcp(ProxyTcpPayload::Init { result, .. }) = proxy_message_payload else {
+            return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
+        };
+        let tunnel_id = match result {
+            ProxyTcpInitResult::Success(tunnel_id) => tunnel_id,
+            ProxyTcpInitResult::Fail(reason) => {
+                error!("Client http tcp connection [{src_address}] fail to initialize tcp connection with proxy because of reason: {reason:?}");
+                return Err(AgentError::InvalidProxyResponse(format!(
+                    "Client http tcp connection [{src_address}] fail to initialize tcp connection with proxy because of reason: {reason:?}"
+                )));
             },
         };
-
-        let ProxyTcpInit {
-            id: tcp_loop_key,
-            result_type: response_type,
-            ..
-        } = tcp_init_response;
-
-        match response_type {
-            ProxyTcpInitResultType::Success => {
-                debug!("Client tcp connection [{src_address}] receive init tcp loop init response: {tcp_loop_key}");
-            },
-            ProxyTcpInitResultType::Fail => {
-                error!("Client tcp connection [{src_address}] fail to do tcp loop init, tcp loop key: [{tcp_loop_key}]");
-                return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
-            },
-            ProxyTcpInitResultType::ConnectToDstFail => {
-                error!("Client tcp connection [{src_address}] fail to do tcp loop init, because of proxy fail connect to destination, tcp loop key: [{tcp_loop_key}]");
-                return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
-            },
-        }
+        debug!("Client http tcp connection [{src_address}] success to initialize tcp connection with proxy on tunnel: {tunnel_id}");
         if init_data.is_none() {
             //For https proxy
             let http_connect_success_response = Response::new(
@@ -151,6 +133,7 @@ impl ClientTransportHandshake for HttpClientTransport {
         let FramedParts { io: client_tcp_stream, .. } = http_framed.into_parts();
         Ok((
             ClientTransportDataRelayInfo::Tcp(ClientTransportTcpDataRelay {
+                tunnel_id,
                 client_tcp_stream,
                 src_address,
                 dst_address,

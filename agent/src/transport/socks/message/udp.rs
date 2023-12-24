@@ -36,11 +36,12 @@ impl TryFrom<Bytes> for Socks5UdpDataPacket {
 
 impl From<Socks5UdpDataPacket> for Bytes {
     fn from(packet: Socks5UdpDataPacket) -> Self {
+        let Socks5UdpDataPacket { frag, address, data } = packet;
         let mut result = BytesMut::new();
         result.put_u16(0);
-        result.put_u8(packet.frag);
-        result.put::<Bytes>(packet.address.into());
-        result.put(packet.data.as_ref());
+        result.put_u8(frag);
+        result.put::<Bytes>(address.into());
+        result.put(data.as_ref());
         result.freeze()
     }
 }

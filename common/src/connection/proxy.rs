@@ -1,54 +1,44 @@
 use std::{
-    fmt::{Debug, Display},
     pin::Pin,
     task::{Context, Poll},
 };
 
 use futures::{Sink, Stream};
 use pin_project::pin_project;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::net::TcpStream;
 use tokio_util::codec::Framed;
 
 use crate::{codec::proxy::PpaassProxyConnectionCodec, CommonError, PpaassAgentMessage, PpaassProxyMessage, RsaCryptoFetcher};
 
 #[non_exhaustive]
 #[pin_project]
-pub struct PpaassProxyConnection<'r, T, R, I>
+pub struct PpaassProxyConnection<R>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
     #[pin]
-    inner: Framed<T, PpaassProxyConnectionCodec<'r, R>>,
-    connection_id: I,
+    inner: Framed<TcpStream, PpaassProxyConnectionCodec<R>>,
+    connection_id: String,
 }
 
-impl<'r, T, R, I> PpaassProxyConnection<'r, T, R, I>
+impl<R> PpaassProxyConnection<R>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
-    pub fn new<'a>(connection_id: I, stream: T, rsa_crypto_fetcher: &'a R, compress: bool, buffer_size: usize) -> PpaassProxyConnection<'r, T, R, I>
-    where
-        'a: 'r,
-    {
+    pub fn new(connection_id: String, stream: TcpStream, rsa_crypto_fetcher: R, compress: bool, buffer_size: usize) -> PpaassProxyConnection<R> {
         let agent_connection_codec = PpaassProxyConnectionCodec::new(compress, rsa_crypto_fetcher);
         let inner = Framed::with_capacity(stream, agent_connection_codec, buffer_size);
         Self { inner, connection_id }
     }
 
-    pub fn get_connection_id(&self) -> &I {
+    pub fn get_connection_id(&self) -> &str {
         &self.connection_id
     }
 }
 
-impl<T, R, I> Sink<PpaassAgentMessage> for PpaassProxyConnection<'_, T, R, I>
+impl<R> Sink<PpaassAgentMessage> for PpaassProxyConnection<R>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
     type Error = CommonError;
 
@@ -73,11 +63,9 @@ where
     }
 }
 
-impl<T, R, I> Stream for PpaassProxyConnection<'_, T, R, I>
+impl<R> Stream for PpaassProxyConnection<R>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
     R: RsaCryptoFetcher + Send + Sync + 'static,
-    I: ToString + Send + Sync + Clone + Display + Debug + 'static,
 {
     type Item = Result<PpaassProxyMessage, CommonError>;
 

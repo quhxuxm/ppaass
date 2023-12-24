@@ -2,8 +2,8 @@ mod common;
 mod config;
 mod crypto;
 mod error;
-mod processor;
 mod server;
+mod transport;
 
 use config::PROXY_CONFIG;
 
@@ -25,7 +25,8 @@ fn main() -> Result<()> {
 
     proxy_server_runtime.block_on(async {
         info!("Begin to start proxy server.");
-        if let Err(e) = ProxyServer::start().await {
+        let proxy_server = ProxyServer::new();
+        if let Err(e) = proxy_server.start().await {
             let panic_message = format!("Fail to start proxy server because of error: {e:?}");
             error!("{panic_message}");
             panic!("{panic_message}")

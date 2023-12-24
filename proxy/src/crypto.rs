@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::{
     collections::HashMap,
     fs::{read_dir, File},
@@ -15,16 +16,16 @@ lazy_static! {
     pub(crate) static ref RSA_CRYPTO: ProxyServerRsaCryptoFetcher = ProxyServerRsaCryptoFetcher::new().expect("Can not initialize proxy rsa crypto fetcher.");
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct ProxyServerRsaCryptoFetcher {
-    cache: HashMap<String, RsaCrypto>,
+    cache: Arc<HashMap<String, RsaCrypto>>,
 }
 
 impl ProxyServerRsaCryptoFetcher {
     pub(crate) fn new() -> Result<Self, RsaError> {
-        let mut result = Self { cache: HashMap::new() };
+        let mut cache = HashMap::new();
         let rsa_dir_path = PROXY_CONFIG.get_rsa_dir();
-        let rsa_dir = read_dir(&rsa_dir_path)?;
+        let rsa_dir = read_dir(rsa_dir_path)?;
         rsa_dir.for_each(|entry| {
             let Ok(entry) = entry else {
                 error!("fail to read {rsa_dir_path} directory");
@@ -53,9 +54,9 @@ impl ProxyServerRsaCryptoFetcher {
                 error!("Fail to create rsa crypto for user: {user_token}.");
                 return;
             };
-            result.cache.insert(user_token.to_string(), rsa_crypto);
+            cache.insert(user_token.to_string(), rsa_crypto);
         });
-        Ok(result)
+        Ok(Self { cache: Arc::new(cache) })
     }
 }
 

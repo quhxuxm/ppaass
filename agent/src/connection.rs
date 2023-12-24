@@ -6,7 +6,8 @@ use tokio::{net::TcpStream, time::timeout};
 
 use log::{debug, error};
 
-use ppaass_common::{generate_uuid, proxy::PpaassProxyConnection};
+use ppaass_common::proxy::PpaassProxyConnection;
+use uuid::Uuid;
 
 use crate::{
     config::AGENT_CONFIG,
@@ -25,9 +26,7 @@ pub(crate) struct ProxyConnectionFactory {
 
 impl ProxyConnectionFactory {
     pub(crate) fn new() -> Result<Self, AgentError> {
-        let proxy_addresses_configuration = AGENT_CONFIG
-            .get_proxy_addresses()
-            .expect("Fail to parse proxy addresses from configuration file");
+        let proxy_addresses_configuration = AGENT_CONFIG.get_proxy_addresses();
         let proxy_addresses: Vec<SocketAddr> = proxy_addresses_configuration
             .iter()
             .filter_map(|addr| SocketAddr::from_str(addr).ok())
@@ -39,7 +38,7 @@ impl ProxyConnectionFactory {
         Ok(Self { proxy_addresses })
     }
 
-    pub(crate) async fn create_connection<'r>(&self) -> Result<PpaassProxyConnection<'r, TcpStream, AgentServerRsaCryptoFetcher, String>, AgentError> {
+    pub(crate) async fn create_connection(&self) -> Result<PpaassProxyConnection<AgentServerRsaCryptoFetcher>, AgentError> {
         debug!("Take proxy connection from pool.");
         let proxy_tcp_stream = match timeout(
             Duration::from_secs(AGENT_CONFIG.get_connect_to_proxy_timeout()),
@@ -60,9 +59,9 @@ impl ProxyConnectionFactory {
         debug!("Success connect to proxy.");
         proxy_tcp_stream.set_nodelay(true).map_err(NetworkError::PropertyModification)?;
         let proxy_connection = PpaassProxyConnection::new(
-            generate_uuid(),
+            Uuid::new_v4().to_string(),
             proxy_tcp_stream,
-            &*RSA_CRYPTO,
+            RSA_CRYPTO.clone(),
             AGENT_CONFIG.get_compress(),
             AGENT_CONFIG.get_proxy_send_buffer_size(),
         );

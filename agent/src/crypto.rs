@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::config::AGENT_CONFIG;
 use anyhow::{Context, Result};
@@ -10,15 +11,15 @@ lazy_static! {
     pub(crate) static ref RSA_CRYPTO: AgentServerRsaCryptoFetcher = AgentServerRsaCryptoFetcher::new().expect("Can not initialize agent rsa crypto fetcher.");
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct AgentServerRsaCryptoFetcher {
-    cache: HashMap<String, RsaCrypto>,
+    cache: Arc<HashMap<String, RsaCrypto>>,
 }
 
 impl AgentServerRsaCryptoFetcher {
     pub(crate) fn new() -> Result<Self> {
-        let mut result = Self { cache: HashMap::new() };
-        let rsa_dir_path = AGENT_CONFIG.get_rsa_dir().context("fail to get rsa directory from configuration file")?;
+        let mut cache = HashMap::new();
+        let rsa_dir_path = AGENT_CONFIG.get_rsa_dir();
         let rsa_dir = std::fs::read_dir(rsa_dir_path).context("fail to read rsa directory")?;
         rsa_dir.for_each(|entry| {
             let Ok(entry) = entry else {
@@ -57,9 +58,9 @@ impl AgentServerRsaCryptoFetcher {
                 },
                 Ok(v) => v,
             };
-            result.cache.insert(user_token.to_string(), rsa_crypto);
+            cache.insert(user_token.to_string(), rsa_crypto);
         });
-        Ok(result)
+        Ok(Self { cache: Arc::new(cache) })
     }
 }
 

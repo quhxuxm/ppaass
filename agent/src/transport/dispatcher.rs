@@ -3,7 +3,7 @@ use std::{mem::size_of, net::SocketAddr};
 use bytes::BytesMut;
 use futures::StreamExt;
 use log::{debug, error};
-use ppaass_common::PpaassNetAddress;
+use ppaass_common::PpaassUnifiedAddress;
 use tokio::net::TcpStream;
 use tokio_util::codec::{Decoder, Framed, FramedParts};
 
@@ -48,7 +48,7 @@ impl Decoder for SwitchClientProtocolDecoder {
 
 pub(crate) struct ClientTransportHandshakeInfo {
     pub(crate) client_tcp_stream: TcpStream,
-    pub(crate) src_address: PpaassNetAddress,
+    pub(crate) src_address: PpaassUnifiedAddress,
     pub(crate) initial_buf: BytesMut,
 }
 

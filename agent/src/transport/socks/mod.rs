@@ -9,13 +9,13 @@ use bytes::Bytes;
 
 use futures::{SinkExt, StreamExt};
 use ppaass_common::{
-    tcp::{ProxyTcpInit, ProxyTcpInitResultType},
-    PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassMessageProxyProtocol, PpaassMessageProxyTcpPayloadType,
-    PpaassMessageProxyUdpPayloadType, PpaassNetAddress, PpaassProxyMessage, PpaassProxyMessagePayload,
+    random_32_bytes, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassProxyMessage, PpaassProxyMessagePayload, PpaassUnifiedAddress,
 };
 
 use log::{debug, error, info};
 
+use ppaass_common::tcp::{ProxyTcpInitResult, ProxyTcpPayload};
+use ppaass_common::udp::ProxyUdpPayload;
 use tokio::{
     io::AsyncReadExt,
     net::{TcpStream, UdpSocket},
@@ -37,8 +37,6 @@ use crate::{
     },
     AgentServerPayloadEncryptionTypeSelector,
 };
-
-use ppaass_common::generate_uuid;
 
 use super::{dispatcher::ClientTransportHandshakeInfo, ClientTransportRelay, ClientTransportUdpDataRelay};
 
@@ -122,18 +120,16 @@ impl Socks5ClientTransport {
             }
         }
     }
-    async fn relay_udp_data(client_udp_restrict_address: PpaassNetAddress, agent_udp_bind_socket: UdpSocket) -> Result<(), AgentError> {
-        let user_token = AGENT_CONFIG
-            .get_user_token()
-            .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
-        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(Bytes::from(generate_uuid().into_bytes())));
+    async fn relay_udp_data(client_udp_restrict_address: PpaassUnifiedAddress, agent_udp_bind_socket: UdpSocket) -> Result<(), AgentError> {
+        let user_token = AGENT_CONFIG.get_user_token();
+        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(random_32_bytes()));
         loop {
             let mut client_udp_buf = [0u8; 65535];
             let (len, client_udp_address) = match agent_udp_bind_socket.recv_from(&mut client_udp_buf).await {
                 Ok(len) => len,
                 Err(e) => return Err(NetworkError::ClientUdpRecv(e).into()),
             };
-            let src_address: PpaassNetAddress = client_udp_address.into();
+            let src_address: PpaassUnifiedAddress = client_udp_address.into();
             if client_udp_restrict_address != src_address {
                 error!("The udp packet sent from client not valid, client udp restrict address: {client_udp_restrict_address}, src address: {src_address}");
                 continue;
@@ -141,9 +137,9 @@ impl Socks5ClientTransport {
             let client_udp_buf = client_udp_buf[..len].to_vec();
             let client_udp_bytes = Bytes::from_iter(client_udp_buf);
             let client_to_dst_socks5_udp_packet: Socks5UdpDataPacket = client_udp_bytes.try_into().map_err(DecoderError::Socks5)?;
-            let dst_address: PpaassNetAddress = client_to_dst_socks5_udp_packet.address.into();
+            let dst_address: PpaassUnifiedAddress = client_to_dst_socks5_udp_packet.address.into();
             let agent_udp_message = PpaassMessageGenerator::generate_agent_udp_data_message(
-                user_token,
+                user_token.to_string(),
                 payload_encryption.clone(),
                 client_udp_restrict_address.clone(),
                 dst_address.clone(),
@@ -158,11 +154,16 @@ impl Socks5ClientTransport {
                 None => return Ok(()),
             };
             let PpaassProxyMessage {
-                payload: PpaassProxyMessagePayload { protocol, data },
+                payload: proxy_message_payload,
                 ..
             } = proxy_udp_message;
-            if protocol != PpaassMessageProxyProtocol::Udp(PpaassMessageProxyUdpPayloadType::Data) {
-                return Err(AgentError::Other(anyhow!("Invalid proxy udp payload type")));
+            let PpaassProxyMessagePayload::Udp(ProxyUdpPayload {
+                src_address,
+                dst_address,
+                data,
+            }) = proxy_message_payload
+            else {
+                return Err(AgentError::InvalidProxyResponse("Not a udp data.".to_string()));
             };
             debug!("Udp packet send from agent to client, dst_address: {dst_address}, src_address: {src_address}");
             let agent_to_client_socks5_udp_packet = Socks5UdpDataPacket {
@@ -178,13 +179,13 @@ impl Socks5ClientTransport {
 
     #[allow(unused)]
     async fn handle_bind_command(
-        src_address: PpaassNetAddress, dst_address: PpaassNetAddress, mut socks5_init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
+        src_address: PpaassUnifiedAddress, dst_address: PpaassUnifiedAddress, mut socks5_init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
     ) -> Result<ClientTransportDataRelayInfo, AgentError> {
         unimplemented!("Still not implement the socks5 bind command")
     }
 
     async fn handle_udp_associate_command(
-        client_udp_restrict_address: PpaassNetAddress, mut socks5_init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
+        client_udp_restrict_address: PpaassUnifiedAddress, mut socks5_init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
     ) -> Result<ClientTransportDataRelayInfo, AgentError> {
         debug!("Client do socks5 udp associate on restrict address: {client_udp_restrict_address:?}");
         let agent_udp_bind_socket = UdpSocket::bind("0.0.0.0:0").await?;
@@ -202,31 +203,32 @@ impl Socks5ClientTransport {
     }
 
     async fn handle_connect_command(
-        src_address: PpaassNetAddress, dst_address: PpaassNetAddress, mut socks5_init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
+        src_address: PpaassUnifiedAddress, dst_address: PpaassUnifiedAddress, mut socks5_init_framed: Framed<TcpStream, Socks5InitCommandContentCodec>,
     ) -> Result<ClientTransportDataRelayInfo, AgentError> {
         match &dst_address {
-            PpaassNetAddress::IpV4 { ip: [0, 0, 0, 1], port: _ } => {
-                return Err(AgentError::Other(anyhow!("0.0.0.1 or 127.0.0.1 is not a valid destination address")))
+            PpaassUnifiedAddress::Ip(socket_addr) => {
+                if socket_addr.ip().is_loopback() {
+                    return Err(AgentError::Other(anyhow!("Loopback address is not allowed: {socket_addr}")));
+                }
+                if socket_addr.ip().is_unspecified() {
+                    return Err(AgentError::Other(anyhow!("Unspecified address is not allowed: {socket_addr}")));
+                }
             },
-            PpaassNetAddress::IpV4 { ip: [127, 0, 0, 1], port: _ } => return Err(AgentError::Other(anyhow!("127.0.0.1 is not a valid destination address"))),
-            PpaassNetAddress::IpV6 {
-                ip: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-                port: _,
-            } => return Err(AgentError::Other(anyhow!("0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:1 is not a valid destination address"))),
-            PpaassNetAddress::Domain { host, port: _ } => {
-                if host.eq("0.0.0.1") || host.eq("127.0.0.1") {
+            PpaassUnifiedAddress::Domain { host, port: _ } => {
+                if host.eq("0.0.0.1") || host.eq("127.0.0.1") || host.eq("localhost") {
                     return Err(AgentError::Other(anyhow!("0.0.0.1 or 127.0.0.1 is not a valid destination address")));
                 }
             },
-            _ => {},
         };
 
-        let user_token = AGENT_CONFIG
-            .get_user_token()
-            .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
-        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(Bytes::from(generate_uuid().into_bytes())));
-        let tcp_init_request =
-            PpaassMessageGenerator::generate_agent_tcp_init_message(user_token, src_address.clone(), dst_address.clone(), payload_encryption.clone())?;
+        let user_token = AGENT_CONFIG.get_user_token();
+        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(random_32_bytes()));
+        let tcp_init_request = PpaassMessageGenerator::generate_agent_tcp_init_message(
+            user_token.to_string(),
+            src_address.clone(),
+            dst_address.clone(),
+            payload_encryption.clone(),
+        )?;
         let mut proxy_connection = PROXY_CONNECTION_FACTORY.create_connection().await?;
 
         debug!(
@@ -249,41 +251,30 @@ impl Socks5ClientTransport {
                 return Err(e.into());
             },
         };
+
         let PpaassProxyMessage {
-            payload: PpaassProxyMessagePayload { protocol, data },
+            payload: proxy_message_payload,
             ..
         } = proxy_message;
-        let tcp_init_response = match protocol {
-            PpaassMessageProxyProtocol::Tcp(PpaassMessageProxyTcpPayloadType::Init) => data.try_into()?,
-            _ => {
-                error!("Client tcp connection [{src_address}] receive invalid message from proxy, protocol: {protocol:?}");
-                return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
+        let PpaassProxyMessagePayload::Tcp(ProxyTcpPayload::Init { result, .. }) = proxy_message_payload else {
+            return Err(AgentError::InvalidProxyResponse("Not a tcp init response.".to_string()));
+        };
+        let tunnel_id = match result {
+            ProxyTcpInitResult::Success(tunnel_id) => tunnel_id,
+            ProxyTcpInitResult::Fail(reason) => {
+                error!("Client socks5 tcp connection [{src_address}] fail to initialize tcp connection with proxy because of reason: {reason:?}");
+                return Err(AgentError::InvalidProxyResponse(format!(
+                    "Client socks5 tcp connection [{src_address}] fail to initialize tcp connection with proxy because of reason: {reason:?}"
+                )));
             },
         };
-        let ProxyTcpInit {
-            id: tcp_loop_key,
-            dst_address,
-            result_type: response_type,
-            ..
-        } = tcp_init_response;
-        match response_type {
-            ProxyTcpInitResultType::Success => {
-                debug!("Client tcp connection [{src_address}] receive init tcp loop init response: {tcp_loop_key}");
-            },
-            ProxyTcpInitResultType::Fail => {
-                error!("Client tcp connection [{src_address}] fail to do tcp loop init, tcp loop key: [{tcp_loop_key}]");
-                return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
-            },
-            ProxyTcpInitResultType::ConnectToDstFail => {
-                error!("Client tcp connection [{src_address}] fail to do tcp loop init, because of proxy fail connect to destination, tcp loop key: [{tcp_loop_key}]");
-                return Err(AgentError::InvalidProxyResponse("Proxy tcp init fail.".to_string()));
-            },
-        }
+        debug!("Client socks5 tcp connection [{src_address}] success to initialize tcp connection with proxy on tunnel: {tunnel_id}");
         let socks5_init_success_result = Socks5InitCommandResult::new(Socks5InitCommandResultStatus::Succeeded, Some(dst_address.clone().try_into()?));
         socks5_init_framed.send(socks5_init_success_result).await.map_err(EncoderError::Socks5)?;
         let FramedParts { io: client_tcp_stream, .. } = socks5_init_framed.into_parts();
-        debug!("Client tcp connection [{src_address}] success to do sock5 handshake begin to relay, tcp loop key: [{tcp_loop_key}].");
+        debug!("Client tcp connection [{src_address}] success to do sock5 handshake begin to relay.");
         Ok(ClientTransportDataRelayInfo::Tcp(ClientTransportTcpDataRelay {
+            tunnel_id,
             client_tcp_stream,
             src_address,
             dst_address,

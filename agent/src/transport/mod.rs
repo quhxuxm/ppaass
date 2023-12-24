@@ -5,7 +5,6 @@ mod socks;
 use std::{
     pin::Pin,
     task::{Context, Poll},
-    time::Duration,
 };
 
 use self::dispatcher::ClientTransportHandshakeInfo;
@@ -23,11 +22,13 @@ use futures::{
     stream::{SplitSink, SplitStream},
     Sink, SinkExt, Stream,
 };
+use log::{debug, error};
 
 use pin_project::pin_project;
+use ppaass_common::tcp::ProxyTcpPayload;
 use ppaass_common::{
-    generate_uuid, proxy::PpaassProxyConnection, tcp::AgentTcpData, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassNetAddress,
-    PpaassProxyMessage,
+    proxy::PpaassProxyConnection, random_32_bytes, PpaassMessageGenerator, PpaassMessagePayloadEncryptionSelector, PpaassProxyMessage,
+    PpaassProxyMessagePayload, PpaassUnifiedAddress,
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite},
@@ -41,7 +42,7 @@ struct ClientConnectionWrite<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
-    src_address: PpaassNetAddress,
+    src_address: PpaassUnifiedAddress,
 
     #[pin]
     client_bytes_framed_write: SplitSink<Framed<T, BytesCodec>, BytesMut>,
@@ -51,7 +52,7 @@ impl<T> ClientConnectionWrite<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
-    fn new(src_address: PpaassNetAddress, client_bytes_framed_write: SplitSink<Framed<T, BytesCodec>, BytesMut>) -> Self {
+    fn new(src_address: PpaassUnifiedAddress, client_bytes_framed_write: SplitSink<Framed<T, BytesCodec>, BytesMut>) -> Self {
         Self {
             src_address,
             client_bytes_framed_write,
@@ -91,7 +92,7 @@ struct ClientConnectionRead<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
-    src_address: PpaassNetAddress,
+    src_address: PpaassUnifiedAddress,
     #[pin]
     client_bytes_framed_read: SplitStream<Framed<T, BytesCodec>>,
 }
@@ -100,7 +101,7 @@ impl<T> ClientConnectionRead<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
 {
-    fn new(src_address: PpaassNetAddress, client_bytes_framed_read: SplitStream<Framed<T, BytesCodec>>) -> Self {
+    fn new(src_address: PpaassUnifiedAddress, client_bytes_framed_read: SplitStream<Framed<T, BytesCodec>>) -> Self {
         Self {
             src_address,
             client_bytes_framed_read,
@@ -127,10 +128,11 @@ pub(crate) enum ClientTransportDataRelayInfo {
 
 #[non_exhaustive]
 pub(crate) struct ClientTransportTcpDataRelay {
+    tunnel_id: String,
     client_tcp_stream: TcpStream,
-    src_address: PpaassNetAddress,
-    dst_address: PpaassNetAddress,
-    proxy_connection: PpaassProxyConnection<'static, TcpStream, AgentServerRsaCryptoFetcher, String>,
+    src_address: PpaassUnifiedAddress,
+    dst_address: PpaassUnifiedAddress,
+    proxy_connection: PpaassProxyConnection<AgentServerRsaCryptoFetcher>,
     init_data: Option<Bytes>,
 }
 
@@ -138,7 +140,7 @@ pub(crate) struct ClientTransportTcpDataRelay {
 pub(crate) struct ClientTransportUdpDataRelay {
     client_tcp_stream: TcpStream,
     agent_udp_bind_socket: UdpSocket,
-    client_udp_restrict_address: PpaassNetAddress,
+    client_udp_restrict_address: PpaassUnifiedAddress,
 }
 
 #[async_trait]
@@ -155,11 +157,10 @@ pub(crate) trait ClientTransportRelay {
     }
 
     async fn tcp_relay(&self, tcp_relay_info: ClientTransportTcpDataRelay) -> Result<(), AgentError> {
-        let user_token = AGENT_CONFIG
-            .get_user_token()
-            .ok_or(AgentError::Configuration("User token not configured.".to_string()))?;
-        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(Bytes::from(generate_uuid().into_bytes())));
+        let user_token = AGENT_CONFIG.get_user_token();
+        let payload_encryption = AgentServerPayloadEncryptionTypeSelector::select(user_token, Some(random_32_bytes()));
         let ClientTransportTcpDataRelay {
+            tunnel_id,
             client_tcp_stream,
             src_address,
             dst_address,
@@ -167,8 +168,7 @@ pub(crate) trait ClientTransportRelay {
             init_data,
         } = tcp_relay_info;
 
-        let proxy_relay_timeout = AGENT_CONFIG.get_proxy_relay_timeout();
-        let client_relay_timeout = AGENT_CONFIG.get_client_relay_timeout();
+        debug!("Agent going to relay tcp data from destination: {dst_address}");
         let client_io_framed = Framed::with_capacity(client_tcp_stream, BytesCodec::new(), AGENT_CONFIG.get_client_receive_buffer_size());
         let (client_io_write, client_io_read) = client_io_framed.split::<BytesMut>();
         let (mut client_io_write, client_io_read) = (
@@ -176,43 +176,57 @@ pub(crate) trait ClientTransportRelay {
             ClientConnectionRead::new(src_address.clone(), client_io_read),
         );
         if let Some(init_data) = init_data {
-            let agent_message = PpaassMessageGenerator::generate_agent_tcp_data_message(
-                user_token,
-                payload_encryption.clone(),
-                src_address.clone(),
-                dst_address.clone(),
-                init_data,
-            )?;
+            let agent_message = PpaassMessageGenerator::generate_agent_tcp_data_message(user_token.to_string(), payload_encryption.clone(), init_data)?;
             proxy_connection.send(agent_message).await?;
         }
 
         let (mut proxy_connection_write, proxy_connection_read) = proxy_connection.split();
 
-        let (_, _) = tokio::join!(
-            // Forward client data to proxy
-            TokioStreamExt::map_while(client_io_read.timeout(Duration::from_secs(client_relay_timeout)), |client_message| {
-                let client_message = client_message.ok()?;
-                let client_message = client_message.ok()?;
-                let tcp_data = PpaassMessageGenerator::generate_agent_tcp_data_message(
-                    user_token,
-                    payload_encryption.clone(),
-                    src_address.clone(),
-                    dst_address.clone(),
-                    client_message.freeze(),
-                )
-                .ok()?;
-                Some(Ok(tcp_data))
-            })
-            .forward(&mut proxy_connection_write),
-            // Forward proxy data to client
-            TokioStreamExt::map_while(proxy_connection_read.timeout(Duration::from_secs(proxy_relay_timeout)), |proxy_message| {
+        {
+            let tunnel_id = tunnel_id.clone();
+            let dst_address = dst_address.clone();
+            tokio::spawn(async move {
+                // Forward client data to proxy
+                if let Err(e) = TokioStreamExt::map_while(client_io_read, |client_message| {
+                    let client_message = client_message.ok()?;
+                    let tcp_data =
+                        PpaassMessageGenerator::generate_agent_tcp_data_message(user_token.to_string(), payload_encryption.clone(), client_message.freeze())
+                            .ok()?;
+                    Some(Ok(tcp_data))
+                })
+                .forward(&mut proxy_connection_write)
+                .await
+                {
+                    error!("Tunnel {tunnel_id} error happen when relay tcp data from client to proxy for destination [{dst_address}], error: {e:?}");
+                }
+                if let Err(e) = proxy_connection_write.close().await {
+                    error!("Tunnel {tunnel_id} fail to close proxy connection beccause of error: {e:?}");
+                };
+            });
+        }
+
+        tokio::spawn(async move {
+            if let Err(e) = TokioStreamExt::map_while(proxy_connection_read, |proxy_message| {
                 let proxy_message = proxy_message.ok()?;
-                let PpaassProxyMessage { payload, .. } = proxy_message.ok()?;
-                let AgentTcpData { data, .. } = payload.data.try_into().ok()?;
-                Some(Ok(BytesMut::from_iter(data)))
+                let PpaassProxyMessage {
+                    payload: PpaassProxyMessagePayload::Tcp(ProxyTcpPayload::Data { content }),
+                    ..
+                } = proxy_message
+                else {
+                    error!("Fail to parse proxy message payload because of not a tcp data");
+                    return None;
+                };
+                Some(Ok(BytesMut::from_iter(content)))
             })
             .forward(&mut client_io_write)
-        );
+            .await
+            {
+                error!("Tunnel {tunnel_id} error happen when relay tcp data from proxy to client for destination [{dst_address}], error: {e:?}",);
+            }
+            if let Err(e) = client_io_write.close().await {
+                error!("Tunnel {tunnel_id} fail to close client connection beccause of error: {e:?}");
+            };
+        });
 
         Ok(())
     }
